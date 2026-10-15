@@ -1,0 +1,49 @@
+# Dependencies & Build Artefacts
+node_modules/
+dist/
+dist-ssr/
+*.local
+target/
+*.class
+
+# Logs & Temp files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+scratch/
+.system_generated/
+
+# Environment & Secrets (NEVER commit real credentials)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+
+# IDE & OS Files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+
+# Test & Coverage Outputs
+coverage/
+.nyc_output/
+*.dump
+*.dumpstream
+
+# Miscellaneous
+.agents/
+.gemini/

@@ -1,0 +1,174 @@
+@import "tailwindcss";
+
+:root {
+  --argus-navy: #0e3d6b;
+  --argus-blue: #19589d;
+  --argus-light-blue: #e8f1fa;
+  --argus-border: #b8cce4;
+  --argus-header-bg: #dbe7f5;
+  --argus-row-alt: #f4f8fc;
+  --argus-text: #1a2530;
+  --argus-text-muted: #536473;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--argus-text);
+  background-color: #f0f4f8;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* Argus classic enterprise table and form utilities */
+.argus-panel {
+  background: #ffffff;
+  border: 1px solid var(--argus-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.argus-header-bar {
+  background: linear-gradient(180deg, #1b538e 0%, #0e3d6b 100%);
+  color: #ffffff;
+  border-bottom: 2px solid #082949;
+}
+
+.argus-sub-header {
+  background: linear-gradient(180deg, #eff5fc 0%, #d8e6f5 100%);
+  border-bottom: 1px solid var(--argus-border);
+  color: #0e3d6b;
+}
+
+.argus-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.argus-table th {
+  background: linear-gradient(180deg, #f0f5fa 0%, #dbe7f5 100%);
+  border: 1px solid #b8cce4;
+  color: #0e3d6b;
+  font-weight: 600;
+  text-align: left;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.argus-table td {
+  border: 1px solid #dbe7f5;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.argus-table tr:nth-child(even) td {
+  background-color: #f7fafd;
+}
+
+.argus-table tr:hover td {
+  background-color: #eaf2fb;
+}
+
+/* Argus Toolbar Button */
+.argus-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+  background: linear-gradient(180deg, #ffffff 0%, #e8eef6 100%);
+  border: 1px solid #9bb5d6;
+  border-radius: 2px;
+  color: #0e3d6b;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+
+.argus-toolbar-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f0f6ff 0%, #d8e5f5 100%);
+  border-color: #5583b8;
+  color: #092c4e;
+}
+
+.argus-toolbar-btn:active:not(:disabled) {
+  background: #d0e0f2;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.argus-toolbar-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(40%);
+}
+
+/* Argus Section Header */
+.argus-section-header {
+  background: linear-gradient(180deg, #e4edf8 0%, #d0e1f3 100%);
+  border-bottom: 1px solid #b8cce4;
+  color: #0e3d6b;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Argus Tab Button */
+.argus-tab {
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+  transition: all 0.12s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.argus-tab.active {
+  background: #ffffff;
+  color: #0e3d6b;
+  border-top: 2px solid #19589d;
+  border-left: 1px solid #b8cce4;
+  border-right: 1px solid #b8cce4;
+  border-bottom: 1px solid #ffffff;
+  margin-bottom: -1px;
+}
+
+.argus-tab.inactive {
+  background: transparent;
+  color: #3b5a7a;
+  border: 1px solid transparent;
+}
+
+.argus-tab.inactive:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: #0e3d6b;
+}
+
