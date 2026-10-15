@@ -105,7 +105,7 @@ The repository includes `.github/workflows/ci.yml`.
 
 ### Workflow Structure:
 1. **Frontend CI:**
-   - Installs Node 20 dependencies (`npm ci`).
+   - Installs Node 24 dependencies (`npm ci`).
    - Runs Vitest unit tests (`npm test -- --run`).
    - Builds production bundle (`npm run build`).
 2. **Backend CI:**
