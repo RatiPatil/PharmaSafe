@@ -2,7 +2,7 @@
 
 ## Overview
 
-In enterprise pharmacovigilance systems (ICH E2B(R3) and 21 CFR Part 11 compliance standards), automatic account lockout protects against brute-force and credential-stuffing attacks by locking accounts after three consecutive failed authentication attempts.
+In enterprise pharmacovigilance systems (aligned with ICH E2B(R3) and 21 CFR Part 11 security architecture), automatic account lockout protects against brute-force and credential-stuffing attacks by locking accounts after three consecutive failed authentication attempts.
 
 ---
 
@@ -33,7 +33,7 @@ In enterprise pharmacovigilance systems (ICH E2B(R3) and 21 CFR Part 11 complian
 
 ## Production Restoration Checklist
 
-Before deploying PharmaSafe to production or staging environments requiring strict ICH / FDA compliance:
+Before deploying PharmaSafe to environments requiring formal regulatory controls:
 
 1. **Re-enable Account Lockout Flag in `AuthenticationService.java`**:
    Change:

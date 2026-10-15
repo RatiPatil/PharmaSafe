@@ -288,7 +288,7 @@ Test suites executed:
 - `HealthControllerTest` (2 tests) & `PharmaSafeApplicationTests` (1 test): Context readiness.
 - `TemporaryAccountLockoutDisabledTest` (1 test): Lockout configuration verification.
 
-### Frontend Tests (15 tests, 100% pass)
+### Frontend Tests (18 tests, 100% pass)
 ```powershell
 cd D:\PharmaSafeFresh\frontend
 npm test -- --run
@@ -296,6 +296,7 @@ npm test -- --run
 Test suites executed:
 - `App.test.tsx` (7 tests): Authentication views, error states, session restoration.
 - `Stage3Dashboard.test.tsx` (8 tests): Dashboard layout, Quick Launch toolbar, search query execution, Cases Assigned table, row selection, Case Entry form modal.
+- `api.test.ts` (3 tests): Centralized API path normalization and in-memory CSRF caching.
 
 ### Production Build
 ```powershell
@@ -312,4 +313,23 @@ npm run build
 - [x] **Stage 3: Dashboard & Quick Launch Worklist** (COMPLETED)
 - [x] **Stage 4: Case Intake, Duplicate Screening & Initial Entry** (COMPLETED)
 - [ ] **Stage 5: Complete Case Form & Regulatory Reporting**
+
+---
+
+## 12. Cloud Deployment Preparation (Render & Supabase)
+
+PharmaSafe is fully configured for zero-cost cloud deployment:
+
+- **Hosting Platform:** Render (Free Tier)
+  - `pharmasafe-backend`: Web Service (Spring Boot 3.3.4, Java 17, Port 8080)
+  - `pharmasafe-frontend`: Static Site (React 19, Vite SPA, client-side routing)
+  - Declarative Blueprint: [`render.yaml`](render.yaml)
+- **Database:** Supabase Free PostgreSQL (Version 15+)
+  - Connected via IPv4 Supabase Connection Pooler (`aws-0-<region>.pooler.supabase.com:5432`) in Session Mode
+  - Schema managed by Flyway migrations (`V1`, `V2`, `V3`)
+- **CI/CD Pipeline:** GitHub Actions (`.github/workflows/ci.yml`)
+  - Automated testing and packaging on all pushes and pull requests
+  - Automatic deployment disabled until manual authorization via `workflow_dispatch`
+- **Documentation:** See [Cloud Deployment Guide](docs/cloud-deployment-guide.md) for full setup instructions, environment variables, and rollback procedures.
+
 

@@ -4,7 +4,7 @@
 **Database Engine:** PostgreSQL 18.4  
 **Target Database:** `pharmasafe_db`  
 **Migration Tool:** Flyway  
-**Compliance Standard:** ICH E2B(R3), 21 CFR Part 11, GAMP 5
+**Regulatory Standards Alignment:** ICH E2B(R3), 21 CFR Part 11 Architecture, GAMP 5 (Educational Implementation)
 
 ---
 
@@ -113,7 +113,7 @@ erDiagram
 ### Module 1: Core Safety Cases & Concurrency
 
 #### 1. `cases` (Stage 4)
-The primary safety case record in compliance with ICH E2B(R3) guidelines.
+The primary safety case record aligned with ICH E2B(R3) guidelines.
 - `id` (BIGSERIAL, PK)
 - `case_number` (VARCHAR(64), NOT NULL, UNIQUE, e.g. `US-2026-0001`): Unique case tracking identifier.
 - `country_code` (VARCHAR(3), NOT NULL): ISO 3166-1 alpha-3 (e.g., `USA`, `GBR`, `JPN`).
@@ -460,7 +460,7 @@ Migration file: `V3__case_management.sql`
 
 ---
 
-## 5. Security, Auditability & Compliance Requirements
+## 5. Security, Auditability & Regulatory Alignment
 
 1. **21 CFR Part 11 Audit Trail**:
    - Updates to any column in `cases`, `case_patients`, `case_products`, and `case_events` must automatically generate a record in `case_history`.

@@ -1,0 +1,127 @@
+name: PharmaSafe CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      trigger_deploy:
+        description: 'Explicitly approve and trigger Render deployment (yes/no)'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+          - 'no'
+          - 'yes'
+
+jobs:
+  # ==========================================
+  # Frontend Quality Gate
+  # ==========================================
+  frontend-ci:
+    name: Frontend Verification & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Run Frontend Tests (Vitest)
+        run: npm test -- --run
+
+      - name: Build Production Frontend
+        run: npm run build
+
+      - name: Archive Frontend Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  # ==========================================
+  # Backend Quality Gate
+  # ==========================================
+  backend-ci:
+    name: Backend Test & Packaging
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Execute Backend Tests
+        run: mvn -B clean test
+
+      - name: Package Executable JAR
+        run: mvn -B package -DskipTests
+
+      - name: Archive Backend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/target/pharmasafe-backend-0.0.1-SNAPSHOT.jar
+          retention-days: 7
+
+  # ==========================================
+  # Deployment Approval Gate
+  # ==========================================
+  deploy-gate:
+    name: Deployment Gate (Manual Approval Required)
+    needs: [frontend-ci, backend-ci]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Deployment Authorization
+        run: |
+          echo "=========================================================="
+          echo "PharmaSafe Deployment Quality Gate"
+          echo "Frontend & Backend automated verification PASSED."
+          echo "=========================================================="
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.trigger_deploy }}" = "yes" ]; then
+            echo "Deployment explicitly authorized by ${{ github.actor }}."
+            echo "Ready for Render deploy hook execution."
+          else
+            echo "AUTOMATIC DEPLOYMENT IS DISABLED."
+            echo "To deploy to Render:"
+            echo "  1. Run this workflow manually via 'workflow_dispatch' with trigger_deploy=yes, OR"
+            echo "  2. Trigger manual deploy in Render Dashboard after approving changes."
+          fi
+
+      - name: Trigger Render Backend Deployment
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.trigger_deploy == 'yes' && env.RENDER_BACKEND_DEPLOY_HOOK != '' }}
+        env:
+          RENDER_BACKEND_DEPLOY_HOOK: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
+        run: |
+          echo "Triggering Render backend deploy hook..."
+          curl -s -X POST "$RENDER_BACKEND_DEPLOY_HOOK"
+
+      - name: Trigger Render Frontend Deployment
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.trigger_deploy == 'yes' && env.RENDER_FRONTEND_DEPLOY_HOOK != '' }}
+        env:
+          RENDER_FRONTEND_DEPLOY_HOOK: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}
+        run: |
+          echo "Triggering Render frontend deploy hook..."
+          curl -s -X POST "$RENDER_FRONTEND_DEPLOY_HOOK"

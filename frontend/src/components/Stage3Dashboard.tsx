@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import { QuickLaunchToolbar } from './QuickLaunchToolbar';
 import { CaseEntryForm } from './CaseEntryForm';
 import type { AuditLogItem } from '../types/auth';
@@ -78,7 +79,7 @@ export const Stage3Dashboard: React.FC = () => {
     setLoadingAssignedCases(true);
     setAssignedCasesError(null);
     try {
-      const res = await fetch('/api/cases/assigned', {
+      const res = await fetch(getApiUrl('/api/cases/assigned'), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -87,7 +88,7 @@ export const Stage3Dashboard: React.FC = () => {
         setAssignedCases(data);
       } else {
         // Fallback to all cases query
-        const allRes = await fetch('/api/cases', {
+        const allRes = await fetch(getApiUrl('/api/cases'), {
           credentials: 'include',
           headers: { Accept: 'application/json' }
         });
@@ -108,7 +109,7 @@ export const Stage3Dashboard: React.FC = () => {
   // Open existing case by ID
   const handleOpenCase = async (caseId: number) => {
     try {
-      const res = await fetch(`/api/cases/${caseId}`, {
+      const res = await fetch(getApiUrl(`/api/cases/${caseId}`), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -128,7 +129,7 @@ export const Stage3Dashboard: React.FC = () => {
   // Open existing case directly by case number
   const handleOpenCaseByNumber = async (num: string): Promise<boolean> => {
     try {
-      const res = await fetch(`/api/cases/by-number/${encodeURIComponent(num.trim())}`, {
+      const res = await fetch(getApiUrl(`/api/cases/by-number/${encodeURIComponent(num.trim())}`), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -176,7 +177,7 @@ export const Stage3Dashboard: React.FC = () => {
     setLoadingAudit(true);
     setAuditError(null);
     try {
-      const res = await fetch('/api/admin/audit-logs', {
+      const res = await fetch(getApiUrl('/api/admin/audit-logs'), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -196,7 +197,7 @@ export const Stage3Dashboard: React.FC = () => {
   // Fetch real database health from /api/health
   const fetchDbHealth = async () => {
     try {
-      const res = await fetch('/api/health', {
+      const res = await fetch(getApiUrl('/api/health'), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -215,7 +216,7 @@ export const Stage3Dashboard: React.FC = () => {
   const fetchAdminStatus = async () => {
     if (!user || user.role !== 'ROLE_ADMIN') return;
     try {
-      const res = await fetch('/api/admin/status', {
+      const res = await fetch(getApiUrl('/api/admin/status'), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -258,7 +259,7 @@ export const Stage3Dashboard: React.FC = () => {
       }
 
       // 2. Query search endpoint
-      const res = await fetch(`/api/cases?search=${encodeURIComponent(query)}`, {
+      const res = await fetch(getApiUrl(`/api/cases?search=${encodeURIComponent(query)}`), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
@@ -539,11 +540,11 @@ export const Stage3Dashboard: React.FC = () => {
             </div>
             <div className="flex items-center space-x-1.5 text-slate-700">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-              <span>ICH E2B(R3) Compliant</span>
+              <span>ICH E2B(R3) Aligned (Educational)</span>
             </div>
             <div className="flex items-center space-x-1.5 text-slate-700">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-              <span>21 CFR Part 11 Audit Trail</span>
+              <span>21 CFR Part 11 Architecture</span>
             </div>
           </div>
         </aside>
@@ -1298,7 +1299,7 @@ export const Stage3Dashboard: React.FC = () => {
           <span>&bull;</span>
           <span>Inspired by Oracle Argus Safety 7.0.3</span>
           <span>&bull;</span>
-          <span className="font-mono text-slate-500">ICH E2B(R3) &bull; 21 CFR Part 11 Compliant</span>
+          <span className="font-mono text-slate-500">ICH E2B(R3) &bull; 21 CFR Part 11 Architecture (Educational)</span>
         </div>
         <div className="font-mono text-slate-500 text-[10px] flex items-center space-x-3">
           <span>

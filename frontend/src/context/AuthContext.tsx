@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { User, AuthResponse } from '../types/auth';
 
+import { getApiUrl, getCsrfToken, refreshCsrfToken, setCsrfToken } from '../config/api';
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -14,10 +16,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Retained for backward compatibility with existing imports
 export function getXsrfToken(): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(/(?:^|; )\s*XSRF-TOKEN=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  return getCsrfToken();
 }
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -29,10 +30,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        // Fetch CSRF token first
-        fetch('/api/auth/csrf', { credentials: 'include' }).catch(() => {});
+        // Fetch and register CSRF token in memory
+        await refreshCsrfToken().catch(() => {});
 
-        const res = await fetch('/api/auth/me', {
+        const res = await fetch(getApiUrl('/api/auth/me'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           credentials: 'include'
@@ -59,7 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
 
     try {
-      const xsrf = getXsrfToken();
+      const xsrf = getCsrfToken();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
@@ -68,7 +69,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers['X-XSRF-TOKEN'] = xsrf;
       }
 
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers,
         body: JSON.stringify({ username, password }),
@@ -80,6 +81,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (res.ok && data.success && data.user) {
         setUser(data.user);
         setError(null);
+        // Refresh CSRF token for the authenticated session
+        refreshCsrfToken().catch(() => {});
         return true;
       } else {
         setError(data.message || 'Authentication failed. Please check your credentials.');
@@ -96,7 +99,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      const xsrf = getXsrfToken();
+      const xsrf = getCsrfToken();
       const headers: Record<string, string> = {
         'Accept': 'application/json'
       };
@@ -104,7 +107,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers['X-XSRF-TOKEN'] = xsrf;
       }
 
-      await fetch('/api/auth/logout', {
+      await fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
         headers,
         credentials: 'include'
@@ -114,6 +117,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setUser(null);
       setError(null);
+      setCsrfToken(null);
       setIsLoading(false);
     }
   };

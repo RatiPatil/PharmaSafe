@@ -289,6 +289,7 @@ describe('PharmaSafe Stage 4 Enterprise Dashboard & Case Management', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Print Case' })).toBeInTheDocument();
+      expect(screen.getByText('PS-2026-USA-01001')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Print Case' }));
@@ -305,6 +306,7 @@ describe('PharmaSafe Stage 4 Enterprise Dashboard & Case Management', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('quick-launch-new-case')).toBeInTheDocument();
+      expect(screen.getByText('PS-2026-USA-01001')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId('quick-launch-new-case'));

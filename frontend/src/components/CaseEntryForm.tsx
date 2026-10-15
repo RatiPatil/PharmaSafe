@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { SafetyCaseDetails, CaseFormInput } from '../types/case';
 import { getXsrfToken, useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 import {
   Save,
   FileCheck,
@@ -18,6 +19,8 @@ import {
   Stethoscope,
   Info
 } from 'lucide-react';
+
+const getTodayDateString = (): string => new Date().toISOString().split('T')[0];
 
 interface CaseEntryFormProps {
   initialCase?: SafetyCaseDetails | null;
@@ -38,7 +41,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
     'general' | 'patient' | 'reporters' | 'products' | 'events' | 'history' | 'assessments' | 'narrative' | 'attachments'
   >('general');
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = useMemo(() => getTodayDateString(), []);
 
   // Form State
   const [formData, setFormData] = useState<CaseFormInput>({
@@ -173,13 +176,6 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
       });
     }
   }, [initialCase]);
-
-  // Handle external save trigger from Quick Launch toolbar
-  useEffect(() => {
-    if (saveTrigger && saveTrigger > 0 && !isSubmitting) {
-      handleSave(false);
-    }
-  }, [saveTrigger]);
 
   // Recalculate seriousness flag dynamically
   const isCaseSerious = formData.events.some(
@@ -390,7 +386,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
         workflowState: isDraftMode ? 'Draft' : (formData.workflowState === 'Draft' ? 'Data Entry' : formData.workflowState)
       };
 
-      const url = initialCase ? `/api/cases/${initialCase.id}` : '/api/cases';
+      const url = getApiUrl(initialCase ? `/api/cases/${initialCase.id}` : '/api/cases');
       const method = initialCase ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
@@ -417,6 +413,13 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
       setIsSubmitting(false);
     }
   };
+
+  // Handle external save trigger from Quick Launch toolbar
+  useEffect(() => {
+    if (saveTrigger && saveTrigger > 0 && !isSubmitting) {
+      handleSave(false);
+    }
+  }, [saveTrigger, isSubmitting]);
 
   return (
     <div className="bg-white rounded border border-[#B8CCE4] shadow-sm overflow-hidden flex flex-col w-full max-w-full">
