@@ -28,14 +28,23 @@ public final class DotenvLoader {
     }
 
     /**
-     * Finds and parses the .env file if present.
+     * Finds and parses the default .env file if present.
      *
      * @return Map of properties loaded from .env
      */
     public static Map<String, Object> load() {
+        return load(findEnvFile());
+    }
+
+    /**
+     * Parses the specified .env file if present.
+     *
+     * @param envPath Path to the .env file
+     * @return Map of properties loaded from the file, or empty map if null
+     */
+    public static Map<String, Object> load(Path envPath) {
         Map<String, Object> properties = new LinkedHashMap<>();
 
-        Path envPath = findEnvFile();
         if (envPath == null) {
             log.debug("No .env file found in default locations. Proceeding with system environment.");
             return properties;
@@ -79,12 +88,15 @@ public final class DotenvLoader {
     }
 
     /**
-     * Searches standard locations for .env file.
+     * Searches standard locations for .env file starting from the current working directory.
      *
      * @return Path to .env if found and readable, otherwise null
      */
     public static Path findEnvFile() {
-        String customPath = System.getenv("ENV_FILE");
+        String customPath = System.getProperty("ENV_FILE");
+        if (customPath == null || customPath.isBlank()) {
+            customPath = System.getenv("ENV_FILE");
+        }
         if (customPath != null && !customPath.isBlank()) {
             Path p = Paths.get(customPath);
             if (Files.isRegularFile(p)) {
@@ -104,6 +116,36 @@ public final class DotenvLoader {
             try {
                 if (Files.isRegularFile(candidate) && Files.isReadable(candidate)) {
                     return candidate;
+                }
+            } catch (Exception ignored) {
+                // Skip unreadable paths
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Searches standard locations for .env file starting from a given base directory.
+     *
+     * @param baseDir Base directory to search from
+     * @return Path to .env if found and readable, otherwise null
+     */
+    public static Path findEnvFile(Path baseDir) {
+        if (baseDir == null) {
+            return findEnvFile();
+        }
+
+        List<Path> candidates = Arrays.asList(
+                baseDir.resolve(".env"),
+                baseDir.resolve("..").resolve(".env")
+        );
+
+        for (Path candidate : candidates) {
+            try {
+                Path normalized = candidate.normalize();
+                if (Files.isRegularFile(normalized) && Files.isReadable(normalized)) {
+                    return normalized;
                 }
             } catch (Exception ignored) {
                 // Skip unreadable paths

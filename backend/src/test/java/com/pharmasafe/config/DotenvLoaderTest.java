@@ -15,11 +15,48 @@ import static org.junit.jupiter.api.Assertions.*;
 class DotenvLoaderTest {
 
     @Test
-    @DisplayName("DotenvLoader finds root .env file")
-    void testFindEnvFile() {
-        Path envPath = DotenvLoader.findEnvFile();
-        assertNotNull(envPath, ".env file should be located in workspace or parent directory");
-        assertTrue(Files.exists(envPath), "Located .env path must exist");
+    @DisplayName("DotenvLoader finds root .env file in base directory or parent directory")
+    void testFindEnvFileInHierarchy(@TempDir Path tempDir) throws IOException {
+        Path mockEnv = tempDir.resolve(".env");
+        Files.writeString(mockEnv, "SERVER_PORT=8080\n");
+
+        Path subDir = tempDir.resolve("backend");
+        Files.createDirectories(subDir);
+
+        // Discovery from sub-directory traversing up to parent .env
+        Path discoveredFromSub = DotenvLoader.findEnvFile(subDir);
+        assertNotNull(discoveredFromSub, ".env file should be located in parent directory of subDir");
+        assertTrue(Files.exists(discoveredFromSub), "Discovered path must exist");
+        assertEquals(mockEnv.toAbsolutePath().normalize(), discoveredFromSub.toAbsolutePath().normalize());
+
+        // Discovery directly in the base directory
+        Path discoveredFromRoot = DotenvLoader.findEnvFile(tempDir);
+        assertNotNull(discoveredFromRoot, ".env file should be located directly in tempDir");
+        assertEquals(mockEnv.toAbsolutePath().normalize(), discoveredFromRoot.toAbsolutePath().normalize());
+    }
+
+    @Test
+    @DisplayName("DotenvLoader returns null when no .env exists")
+    void testFindEnvFileReturnsNullWhenMissing(@TempDir Path tempDir) {
+        Path emptySubDir = tempDir.resolve("empty-project");
+        Path discovered = DotenvLoader.findEnvFile(emptySubDir);
+        assertNull(discovered, "Should return null when no .env exists in target directory hierarchy");
+    }
+
+    @Test
+    @DisplayName("DotenvLoader finds custom path specified via system property")
+    void testFindEnvFileCustomPath(@TempDir Path tempDir) throws IOException {
+        Path customEnv = tempDir.resolve("custom.env");
+        Files.writeString(customEnv, "SERVER_PORT=9090\n");
+
+        System.setProperty("ENV_FILE", customEnv.toAbsolutePath().toString());
+        try {
+            Path found = DotenvLoader.findEnvFile();
+            assertNotNull(found);
+            assertEquals(customEnv.toAbsolutePath().normalize(), found.toAbsolutePath().normalize());
+        } finally {
+            System.clearProperty("ENV_FILE");
+        }
     }
 
     @Test
@@ -39,14 +76,14 @@ class DotenvLoaderTest {
         );
         Files.write(mockEnv, lines);
 
-        String prevEnvFile = System.getenv("ENV_FILE");
-        try {
-            System.setProperty("ENV_FILE", mockEnv.toString());
-            // Test parsing directly
-            List<String> readLines = Files.readAllLines(mockEnv);
-            assertTrue(readLines.size() >= 7);
-        } finally {
-            System.clearProperty("ENV_FILE");
-        }
+        Map<String, Object> props = DotenvLoader.load(mockEnv);
+        assertNotNull(props);
+        assertEquals("8080", props.get("SERVER_PORT"));
+        assertEquals("localhost", props.get("DB_HOST"));
+        assertEquals("pharmasafe_db", props.get("DB_NAME"));
+        assertEquals("TestPassword123!", props.get("DB_PASSWORD"));
+        assertEquals("jdbc:postgresql://localhost:5432/pharmasafe_db?sslmode=disable", props.get("DB_URL"));
+        assertFalse(props.containsKey("INVALID_LINE_NO_EQUALS"));
+        assertFalse(props.containsKey(""));
     }
 }
