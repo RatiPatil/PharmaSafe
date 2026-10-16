@@ -119,6 +119,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
             .map(String::trim)
+            .map(origin -> origin.replaceAll("/+$", ""))
             .filter(origin -> !origin.isEmpty())
             .toList();
         configuration.setAllowedOrigins(origins);

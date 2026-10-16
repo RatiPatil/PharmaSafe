@@ -47,6 +47,12 @@ services:
         value: "true"
       - key: JAVA_OPTS
         value: "-Xms256m -Xmx384m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
+      - key: INIT_ADMIN_USERNAME
+        sync: false
+        # Initial administrator username (e.g. sysadmin)
+      - key: INIT_ADMIN_PASSWORD
+        sync: false
+        # Initial administrator secure password (min 8 chars)
 
   # =========================================================================
   # 2. Frontend Static Site (React 19, TypeScript, Vite)
@@ -57,7 +63,7 @@ services:
     plan: free
     region: oregon
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     autoDeploy: false
     routes:
