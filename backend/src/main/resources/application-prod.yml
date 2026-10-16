@@ -1,6 +1,7 @@
 # PharmaSafe Production Profile
 # Active when SPRING_PROFILES_ACTIVE=prod
 server:
+  forward-headers-strategy: framework
   servlet:
     session:
       cookie:

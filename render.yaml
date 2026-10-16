@@ -4,16 +4,15 @@
 
 services:
   # =========================================================================
-  # 1. Backend Web Service (Spring Boot 3.3.4, Java 17)
+  # 1. Backend Web Service (Spring Boot 3.3.4, Java 17, Docker)
   # =========================================================================
   - type: web
     name: pharmasafe-backend
-    env: java
+    env: docker
     plan: free
     region: oregon
     rootDir: backend
-    buildCommand: mvn clean package -DskipTests
-    startCommand: java -jar target/pharmasafe-backend-0.0.1-SNAPSHOT.jar
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     autoDeploy: false
     envVars:
@@ -47,7 +46,7 @@ services:
       - key: FLYWAY_ENABLED
         value: "true"
       - key: JAVA_OPTS
-        value: "-Xms256m -Xmx384m"
+        value: "-Xms256m -Xmx384m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
 
   # =========================================================================
   # 2. Frontend Static Site (React 19, TypeScript, Vite)

@@ -1,0 +1,23 @@
+# Ignore build artifacts
+target/
+*.class
+
+# Ignore environment files and secrets
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+
+# Ignore logs
+*.log
+
+# Ignore IDE and OS metadata
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Ignore local run scripts
+run-backend.ps1
