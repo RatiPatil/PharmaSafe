@@ -75,6 +75,57 @@ describe('PharmaSafe Stage 4 Enterprise Dashboard & Case Management', () => {
     }
   ];
 
+  const mockDashboardSummary = {
+    totalCases: 12,
+    assignedCases: 4,
+    awaitingReviewCases: 6,
+    userAwaitingReviewCases: 2,
+    seriousCases: 8,
+    expeditedCases: 3,
+    overdueActionItems: null,
+    actionItemsStatus: 'UNCONFIGURED',
+    actionItemsNote: 'Action item tables are not configured in the current PostgreSQL schema (Planned for Stage 5)'
+  };
+
+  const mockRecentActivity = [
+    {
+      id: 1,
+      eventType: 'CASE_CREATED',
+      username: 'admin',
+      status: 'SUCCESS',
+      details: 'Created case PS-2026-USA-01001',
+      createdAt: '2026-10-15T12:30:00Z'
+    },
+    {
+      id: 2,
+      eventType: 'CASE_UPDATED',
+      username: 'admin',
+      status: 'SUCCESS',
+      details: 'Updated workflow state to Quality Review',
+      createdAt: '2026-10-15T13:00:00Z'
+    }
+  ];
+
+  const mockWorklistData = {
+    content: mockAssignedCases,
+    pageable: {
+      pageNumber: 0,
+      pageSize: 10,
+      sort: { empty: false, sorted: true, unsorted: false },
+      offset: 0,
+      paged: true,
+      unpaged: false
+    },
+    totalElements: 1,
+    totalPages: 1,
+    last: true,
+    first: true,
+    size: 10,
+    number: 0,
+    numberOfElements: 1,
+    empty: false
+  };
+
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -94,6 +145,15 @@ describe('PharmaSafe Stage 4 Enterprise Dashboard & Case Management', () => {
       }
       if (url.includes('/api/auth/csrf')) {
         return Promise.resolve({ ok: true, json: async () => ({ token: 'mock-csrf' }) });
+      }
+      if (url.includes('/api/dashboard/summary')) {
+        return Promise.resolve({ ok: true, json: async () => mockDashboardSummary });
+      }
+      if (url.includes('/api/dashboard/activity')) {
+        return Promise.resolve({ ok: true, json: async () => mockRecentActivity });
+      }
+      if (url.includes('/api/dashboard/worklist')) {
+        return Promise.resolve({ ok: true, json: async () => mockWorklistData });
       }
       if (url.includes('/api/cases/assigned')) {
         return Promise.resolve({ ok: true, json: async () => mockAssignedCases });
@@ -247,7 +307,7 @@ describe('PharmaSafe Stage 4 Enterprise Dashboard & Case Management', () => {
     await waitFor(() => {
       expect(screen.getByText(/AUTHENTICATION AUDIT TRAIL • LIVE POSTGRESQL/i)).toBeInTheDocument();
       expect(screen.getByText('LOGIN_SUCCESS')).toBeInTheDocument();
-      expect(screen.getByText('CASE_CREATED')).toBeInTheDocument();
+      expect(screen.getAllByText('CASE_CREATED')[0]).toBeInTheDocument();
     });
 
     // Verify verified database status info is displayed
@@ -315,6 +375,111 @@ describe('PharmaSafe Stage 4 Enterprise Dashboard & Case Management', () => {
       expect(screen.getByText(/Initial Case Entry \(Argus Safety Format\)/i)).toBeInTheDocument();
       expect(screen.getByText('1. General Info')).toBeInTheDocument();
       expect(screen.getAllByRole('button', { name: /Save Case/i })[0]).toBeInTheDocument();
+    });
+  });
+
+  it('renders Stage 3 KPI summary cards with PostgreSQL counts and UNCONFIGURED action items status', async () => {
+    render(
+      <AuthProvider>
+        <Stage3Dashboard />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      // 1. Total Safety Cases
+      expect(screen.getByText('Total Safety Cases')).toBeInTheDocument();
+      expect(screen.getByText('12')).toBeInTheDocument();
+
+      // 2. Cases Assigned to Me
+      expect(screen.getByText('Cases Assigned to Me')).toBeInTheDocument();
+      expect(screen.getAllByText('4')[0]).toBeInTheDocument();
+
+      // 3. Cases Awaiting Review
+      expect(screen.getByText('Cases Awaiting Review')).toBeInTheDocument();
+      expect(screen.getByText('6')).toBeInTheDocument();
+      expect(screen.getByText(/Assigned to you:/i)).toBeInTheDocument();
+      expect(screen.getAllByText('2')[0]).toBeInTheDocument();
+
+      // 4. Overdue Action Items - Must NOT imply count is 0
+      expect(screen.getByText('Overdue Action Items')).toBeInTheDocument();
+      expect(screen.getByText('Not Configured')).toBeInTheDocument();
+      expect(screen.getByText('Planned (Stage 5)')).toBeInTheDocument();
+      expect(screen.getByText('UNCONFIGURED')).toBeInTheDocument();
+    });
+  });
+
+  it('renders Recent Case Activity feed with sanitized event details', async () => {
+    render(
+      <AuthProvider>
+        <Stage3Dashboard />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Recent Case Activity/i)).toBeInTheDocument();
+      expect(screen.getByText('Created case PS-2026-USA-01001')).toBeInTheDocument();
+      expect(screen.getByText('Updated workflow state to Quality Review')).toBeInTheDocument();
+    });
+  });
+
+  it('renders paginated Worklist view with filtering and sorting controls', async () => {
+    render(
+      <AuthProvider>
+        <Stage3Dashboard />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Worklist' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Worklist' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Worklist \/ User Case Queue/i)).toBeInTheDocument();
+      expect(screen.getByText('Primary Product')).toBeInTheDocument();
+      expect(screen.getByText('Primary Event')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/Search by case number or narrative.../i)).toBeInTheDocument();
+      expect(screen.getByText('My Cases Only')).toBeInTheDocument();
+      expect(screen.getByText('All Cases')).toBeInTheDocument();
+    });
+  });
+
+  it('handles error state gracefully when dashboard summary API fails', async () => {
+    const errorMockFetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/auth/me')) {
+        return Promise.resolve({ ok: true, json: async () => mockAdminUser });
+      }
+      if (url.includes('/api/health')) {
+        return Promise.resolve({ ok: true, json: async () => mockDbHealth });
+      }
+      if (url.includes('/api/auth/csrf')) {
+        return Promise.resolve({ ok: true, json: async () => ({ token: 'mock-csrf' }) });
+      }
+      if (url.includes('/api/dashboard/summary')) {
+        return Promise.resolve({ ok: false, status: 500 });
+      }
+      if (url.includes('/api/dashboard/activity')) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (url.includes('/api/dashboard/worklist')) {
+        return Promise.resolve({ ok: true, json: async () => mockWorklistData });
+      }
+      if (url.includes('/api/cases/assigned')) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({ ok: false, status: 404 });
+    });
+    vi.stubGlobal('fetch', errorMockFetch);
+
+    render(
+      <AuthProvider>
+        <Stage3Dashboard />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load dashboard summary metrics/i)).toBeInTheDocument();
     });
   });
 });

@@ -5,6 +5,7 @@ import { QuickLaunchToolbar } from './QuickLaunchToolbar';
 import { CaseEntryForm } from './CaseEntryForm';
 import type { AuditLogItem } from '../types/auth';
 import type { SafetyCaseSummary, SafetyCaseDetails } from '../types/case';
+import type { DashboardSummary, RecentActivity, PaginatedResponse } from '../types/dashboard';
 import {
   ShieldCheck,
   LogOut,
@@ -24,7 +25,11 @@ import {
   SlidersHorizontal,
   Lock,
   Plus,
-  Info
+  Info,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  ArrowUpDown
 } from 'lucide-react';
 
 interface DatabaseHealthDetails {
@@ -62,6 +67,28 @@ export const Stage3Dashboard: React.FC = () => {
   const [loadingAssignedCases, setLoadingAssignedCases] = useState(false);
   const [assignedCasesError, setAssignedCasesError] = useState<string | null>(null);
 
+  // Dashboard KPI Summary Data
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
+  // Recent Case Activity Feed
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+
+  // Paginated Worklist State
+  const [worklistData, setWorklistData] = useState<PaginatedResponse<SafetyCaseSummary> | null>(null);
+  const [worklistPage, setWorklistPage] = useState(0);
+  const [worklistSize, setWorklistSize] = useState(10);
+  const [worklistSortBy, setWorklistSortBy] = useState('createdAt');
+  const [worklistDirection, setWorklistDirection] = useState<'asc' | 'desc'>('desc');
+  const [worklistWorkflowFilter, setWorklistWorkflowFilter] = useState('');
+  const [worklistPriorityFilter, setWorklistPriorityFilter] = useState('');
+  const [worklistAssignedOnly, setWorklistAssignedOnly] = useState(false);
+  const [worklistSearch, setWorklistSearch] = useState('');
+  const [loadingWorklist, setLoadingWorklist] = useState(false);
+  const [worklistError, setWorklistError] = useState<string | null>(null);
+
   // Current Active Case for Editing / Viewing
   const [currentEditingCase, setCurrentEditingCase] = useState<SafetyCaseDetails | null>(null);
   const [quickLaunchSaveTrigger, setQuickLaunchSaveTrigger] = useState(0);
@@ -74,7 +101,81 @@ export const Stage3Dashboard: React.FC = () => {
   const [dbHealth, setDbHealth] = useState<DatabaseHealthDetails | null>(null);
   const [adminStatus, setAdminStatus] = useState<AdminStatusDetails | null>(null);
 
-  // Fetch real PostgreSQL cases assigned to current user
+  // Fetch real PostgreSQL dashboard summary counts
+  const fetchDashboardSummary = async () => {
+    setLoadingSummary(true);
+    setSummaryError(null);
+    try {
+      const res = await fetch(getApiUrl('/api/dashboard/summary'), {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data: DashboardSummary = await res.json();
+        setDashboardSummary(data);
+      } else {
+        setSummaryError('Failed to load dashboard summary metrics.');
+      }
+    } catch {
+      setSummaryError('Network error connecting to summary service.');
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
+  // Fetch real PostgreSQL recent case activity
+  const fetchRecentActivity = async () => {
+    setLoadingActivity(true);
+    try {
+      const res = await fetch(getApiUrl('/api/dashboard/activity'), {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data: RecentActivity[] = await res.json();
+        setRecentActivity(data);
+      }
+    } catch {
+      // Non-blocking
+    } finally {
+      setLoadingActivity(false);
+    }
+  };
+
+  // Fetch paginated, filtered, and sorted worklist cases
+  const fetchPaginatedWorklist = async (page = worklistPage) => {
+    setLoadingWorklist(true);
+    setWorklistError(null);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        size: worklistSize.toString(),
+        sortBy: worklistSortBy,
+        direction: worklistDirection,
+        assignedOnly: worklistAssignedOnly ? 'true' : 'false'
+      });
+      if (worklistWorkflowFilter) params.append('workflowState', worklistWorkflowFilter);
+      if (worklistPriorityFilter) params.append('priority', worklistPriorityFilter);
+      if (worklistSearch.trim()) params.append('search', worklistSearch.trim());
+
+      const res = await fetch(getApiUrl(`/api/dashboard/worklist?${params.toString()}`), {
+        credentials: 'include',
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const data: PaginatedResponse<SafetyCaseSummary> = await res.json();
+        setWorklistData(data);
+      } else {
+        setWorklistError('Failed to load paginated cases from database.');
+      }
+    } catch {
+      setWorklistError('Network error loading worklist.');
+    } finally {
+      setLoadingWorklist(false);
+    }
+  };
+
+  // Fetch real PostgreSQL cases assigned to current user (for backwards compatibility & Section B)
   const fetchAssignedCases = async () => {
     setLoadingAssignedCases(true);
     setAssignedCasesError(null);
@@ -156,7 +257,10 @@ export const Stage3Dashboard: React.FC = () => {
   // Successful save / update callback from CaseEntryForm
   const handleSaveSuccess = (savedCase: SafetyCaseDetails) => {
     setCurrentEditingCase(savedCase);
+    fetchDashboardSummary();
+    fetchRecentActivity();
     fetchAssignedCases();
+    fetchPaginatedWorklist(0);
     if (user?.role === 'ROLE_ADMIN') {
       fetchAuditLogs();
       fetchAdminStatus();
@@ -231,7 +335,10 @@ export const Stage3Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDbHealth();
+    fetchDashboardSummary();
+    fetchRecentActivity();
     fetchAssignedCases();
+    fetchPaginatedWorklist(0);
     if (user?.role === 'ROLE_ADMIN') {
       fetchAuditLogs();
       fetchAdminStatus();
@@ -282,11 +389,11 @@ export const Stage3Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-full min-h-screen bg-[#F0F4F8] flex flex-col font-sans text-slate-800 overflow-x-hidden">
-      {/* 1. Deep Blue Enterprise Header Bar */}
-      <header className="argus-header-bar w-full px-4 py-2 flex items-center justify-between shadow-md shrink-0">
+    <div className="min-h-screen bg-[#E9EEF4] flex flex-col font-sans text-slate-800 antialiased overflow-x-hidden">
+      {/* 1. Argus-Style Primary Enterprise Top Header Bar */}
+      <header className="argus-header-bar px-4 py-2 flex flex-wrap items-center justify-between gap-3 shadow-sm select-none shrink-0 border-b border-[#0A2D50]">
         <div className="flex items-center space-x-3 min-w-0">
-          <div className="bg-white/10 p-1.5 rounded border border-white/20 flex items-center justify-center shrink-0">
+          <div className="bg-white/10 p-1.5 rounded border border-white/20 shrink-0">
             <ShieldCheck className="w-5 h-5 text-sky-300" />
           </div>
           <div className="min-w-0">
@@ -426,13 +533,17 @@ export const Stage3Dashboard: React.FC = () => {
                   }`}
                 >
                   <FolderPlus className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="flex-1">Case Entry (Stage 4)</span>
+                  <span className="flex-1">Case Entry</span>
                 </button>
 
                 <button
+                  data-testid="sidebar-worklist-tab"
                   role="tab"
                   aria-selected={activeTab === 'worklist'}
-                  onClick={() => setActiveTab('worklist')}
+                  onClick={() => {
+                    setActiveTab('worklist');
+                    fetchPaginatedWorklist();
+                  }}
                   className={`w-full flex items-center space-x-2 px-2.5 py-1.5 rounded text-xs text-left transition font-medium border cursor-pointer ${
                     activeTab === 'worklist'
                       ? 'bg-[#19589D] text-white border-[#0E3D6B] shadow-xs font-semibold'
@@ -440,7 +551,7 @@ export const Stage3Dashboard: React.FC = () => {
                   }`}
                 >
                   <ListOrdered className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="flex-1">Worklist</span>
+                  <span className="flex-1">Worklist / Queue</span>
                 </button>
 
                 <button
@@ -455,6 +566,7 @@ export const Stage3Dashboard: React.FC = () => {
                 >
                   <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="flex-1">Contact Log</span>
+                  <span className="text-[9px] text-slate-400 font-mono">Stage 5</span>
                 </button>
 
                 <button
@@ -469,6 +581,7 @@ export const Stage3Dashboard: React.FC = () => {
                 >
                   <CheckSquare2 className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="flex-1">Action Items</span>
+                  <span className="text-[9px] text-slate-400 font-mono">Stage 5</span>
                 </button>
 
                 <button
@@ -482,7 +595,8 @@ export const Stage3Dashboard: React.FC = () => {
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span className="flex-1">Reports (Stage 5)</span>
+                  <span className="flex-1">Reports</span>
+                  <span className="text-[9px] text-slate-400 font-mono">Stage 6</span>
                 </button>
 
                 {user?.role === 'ROLE_ADMIN' && (
@@ -511,19 +625,19 @@ export const Stage3Dashboard: React.FC = () => {
               <div className="flex items-center justify-between text-slate-600">
                 <span>Assigned Cases Queue</span>
                 <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">
-                  {assignedCases.length}
+                  {dashboardSummary ? dashboardSummary.assignedCases : assignedCases.length}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Awaiting Review</span>
+                <span className="font-mono font-bold text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded text-[10px]">
+                  {dashboardSummary ? dashboardSummary.userAwaitingReviewCases : 0}
                 </span>
               </div>
               <div className="flex items-center justify-between text-slate-600">
                 <span>Action Items Due</span>
-                <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">
-                  0
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-slate-600">
-                <span>Contact Log Records</span>
-                <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">
-                  0
+                <span className="font-mono text-slate-500 bg-slate-100 px-1 py-0.2 rounded text-[9px]">
+                  Planned
                 </span>
               </div>
             </div>
@@ -551,9 +665,103 @@ export const Stage3Dashboard: React.FC = () => {
 
         {/* Main Workspace Content Area */}
         <main className="flex-1 min-w-0 max-w-full overflow-y-auto overflow-x-hidden p-4 space-y-4">
-        {/* VIEW 1: HOME PAGE / DASHBOARD (Sections A, B, C, D, E) */}
+        {/* VIEW 1: HOME PAGE / DASHBOARD (Summary Cards, Sections A, B, C, D, E) */}
         {activeTab === 'dashboard' && (
           <div className="space-y-4">
+            {/* Error Banner if Dashboard Summary API fails */}
+            {summaryError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{summaryError}</span>
+              </div>
+            )}
+
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Card 1: Total Cases */}
+              <div className="bg-white rounded border border-[#B8CCE4] p-3.5 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[#0E3D6B]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Total Safety Cases</span>
+                  <FileText className="w-4 h-4 text-blue-700" />
+                </div>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-2xl font-bold font-mono text-[#0E3D6B]">
+                    {loadingSummary ? '...' : (dashboardSummary ? dashboardSummary.totalCases : assignedCases.length)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-mono">System-wide</span>
+                </div>
+                <div className="mt-1 text-[10px] text-slate-500 border-t border-slate-100 pt-1 flex justify-between">
+                  <span>Serious Cases:</span>
+                  <strong className="text-rose-700 font-mono font-bold">
+                    {dashboardSummary?.seriousCases ?? '-'}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Card 2: Assigned Cases */}
+              <div className="bg-white rounded border border-[#B8CCE4] p-3.5 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[#0E3D6B]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Cases Assigned to Me</span>
+                  <UserIcon className="w-4 h-4 text-blue-700" />
+                </div>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-2xl font-bold font-mono text-emerald-800">
+                    {loadingSummary ? '...' : (dashboardSummary ? dashboardSummary.assignedCases : assignedCases.length)}
+                  </span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-semibold border border-emerald-200">
+                    My Queue
+                  </span>
+                </div>
+                <div className="mt-1 text-[10px] text-slate-500 border-t border-slate-100 pt-1 flex justify-between">
+                  <span>User Account:</span>
+                  <strong className="text-slate-700 font-mono">{user?.username}</strong>
+                </div>
+              </div>
+
+              {/* Card 3: Awaiting Review */}
+              <div className="bg-white rounded border border-[#B8CCE4] p-3.5 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[#0E3D6B]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Cases Awaiting Review</span>
+                  <Activity className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-2xl font-bold font-mono text-amber-800">
+                    {loadingSummary ? '...' : (dashboardSummary ? dashboardSummary.awaitingReviewCases : 0)}
+                  </span>
+                  <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded font-semibold border border-amber-200">
+                    Review State
+                  </span>
+                </div>
+                <div className="mt-1 text-[10px] text-slate-500 border-t border-slate-100 pt-1 truncate" title="Quality Review or Medical Review">
+                  <span>Assigned to you: </span>
+                  <strong className="text-amber-900 font-mono font-bold">
+                    {dashboardSummary?.userAwaitingReviewCases ?? 0}
+                  </strong>
+                  <span className="text-slate-400"> (Quality/Medical)</span>
+                </div>
+              </div>
+
+              {/* Card 4: Overdue Action Items */}
+              <div className="bg-white rounded border border-[#B8CCE4] p-3.5 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between text-[#0E3D6B]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600">Overdue Action Items</span>
+                  <Clock className="w-4 h-4 text-slate-400" />
+                </div>
+                <div className="mt-2 flex items-baseline justify-between">
+                  <span className="text-sm font-semibold text-slate-500 font-mono">
+                    Not Configured
+                  </span>
+                  <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-mono border border-slate-300">
+                    Planned (Stage 5)
+                  </span>
+                </div>
+                <div className="mt-1 text-[10px] text-slate-500 border-t border-slate-100 pt-1 truncate" title={dashboardSummary?.actionItemsNote || 'Action items module not configured in schema (Planned for Stage 5)'}>
+                  <span>Schema Status: </span>
+                  <strong className="text-slate-700 font-mono">UNCONFIGURED</strong>
+                </div>
+              </div>
+            </div>
+
             {/* Section A: Case Quick Launch / Search Case */}
             <div className="argus-panel rounded border border-[#B8CCE4] overflow-hidden">
               <div className="argus-section-header">
@@ -692,7 +900,10 @@ export const Stage3Dashboard: React.FC = () => {
                     <span>New Case</span>
                   </button>
                   <button
-                    onClick={fetchAssignedCases}
+                    onClick={() => {
+                      fetchAssignedCases();
+                      fetchDashboardSummary();
+                    }}
                     disabled={loadingAssignedCases}
                     className="argus-toolbar-btn px-2 py-0.5 text-[11px] font-semibold flex items-center space-x-1 bg-white text-[#0E3D6B]"
                     title="Refresh assigned cases from PostgreSQL"
@@ -751,22 +962,23 @@ export const Stage3Dashboard: React.FC = () => {
                             <span className="ml-1 text-[10px] text-slate-500 font-mono">v{c.versionNumber}</span>
                           </td>
                           <td className="whitespace-nowrap">{c.reportType}</td>
-                          <td className="whitespace-nowrap font-medium text-slate-800">{c.primaryProduct}</td>
-                          <td className="whitespace-nowrap">
+                          <td className="font-medium text-slate-800 truncate max-w-[200px]" title={c.primaryProduct}>
+                            {c.primaryProduct}
+                          </td>
+                          <td>
                             <span
                               className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
                                 c.workflowState === 'Draft'
                                   ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : c.workflowState === 'Quality Review'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                  : c.workflowState === 'Medical Review'
+                                  ? 'bg-purple-100 text-purple-800 border border-purple-300'
                                   : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                               }`}
                             >
                               {c.workflowState}
                             </span>
-                            {c.serious && (
-                              <span className="ml-1 px-1 py-0.2 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                                Serious
-                              </span>
-                            )}
                           </td>
                           <td className="text-slate-700 truncate max-w-[200px]" title={c.primaryEvent}>
                             {c.primaryEvent}
@@ -779,7 +991,54 @@ export const Stage3Dashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Split Grid for Sections C & D: Contact Log & Action Items */}
+            {/* Recent Case Activity Feed */}
+            <div className="argus-panel rounded border border-[#B8CCE4] overflow-hidden bg-white">
+              <div className="argus-section-header flex items-center justify-between">
+                <span className="flex items-center space-x-1.5">
+                  <Activity className="w-3.5 h-3.5 text-blue-700" />
+                  <span>Recent Case Activity &bull; Live Audit Events</span>
+                </span>
+                <span className="text-[10px] font-normal text-slate-500 font-mono lowercase">
+                  [audit_events: CASE_CREATED / CASE_UPDATED]
+                </span>
+              </div>
+              <div className="p-3">
+                {loadingActivity ? (
+                  <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center space-x-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                    <span>Loading recent activity feed...</span>
+                  </div>
+                ) : recentActivity.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded">
+                    No recent case activity recorded in the database yet.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {recentActivity.map((act) => (
+                      <div key={act.id} className="flex items-center justify-between text-xs p-2 bg-slate-50 rounded border border-slate-200 hover:bg-blue-50/40 transition">
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono ${
+                            act.eventType === 'CASE_CREATED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-100 text-blue-800 border border-blue-300'
+                          }`}>
+                            {act.eventType}
+                          </span>
+                          <span className="text-slate-700 font-medium truncate" title={act.details}>
+                            {act.details}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 shrink-0 text-[11px] text-slate-500 font-mono">
+                          <span className="text-slate-700 font-semibold">{act.username}</span>
+                          <span>&bull;</span>
+                          <span>{new Date(act.createdAt).toLocaleTimeString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Sections C & D: Contact Log & Action Items Stubs */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Section C: Contact Log Entries */}
               <div className="argus-panel rounded border border-[#B8CCE4] overflow-hidden">
@@ -911,7 +1170,7 @@ export const Stage3Dashboard: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Lockout Defense:</span>
-                    <span className="font-semibold text-amber-700">Disabled (Dev Override)</span>
+                    <span className="font-semibold text-amber-700">3-Attempt Pessimistic Lock</span>
                   </div>
                 </div>
               </div>
@@ -1038,33 +1297,172 @@ export const Stage3Dashboard: React.FC = () => {
           </div>
         )}
 
-        {/* VIEW 2: WORKLIST VIEW */}
+        {/* VIEW 2: INTERACTIVE PAGINATED WORKLIST / QUEUE VIEW */}
         {activeTab === 'worklist' && (
           <div className="argus-panel rounded border border-[#B8CCE4] p-4 space-y-3 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <span className="text-sm font-bold text-[#0E3D6B] flex items-center space-x-2">
-                <ListOrdered className="w-4 h-4 text-blue-700" />
-                <span>Worklist / User Case Queue</span>
-              </span>
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-2.5 gap-2">
               <div className="flex items-center space-x-2">
-                <span className="text-xs text-slate-500">User: <strong className="text-slate-700">{user?.username}</strong></span>
+                <ListOrdered className="w-4 h-4 text-blue-700" />
+                <span className="text-sm font-bold text-[#0E3D6B]">Worklist / User Case Queue</span>
+                <span className="text-xs bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-mono font-semibold">
+                  {worklistData ? `${worklistData.totalElements} Total Cases` : 'Loading...'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-2">
                 <button
-                  onClick={fetchAssignedCases}
-                  disabled={loadingAssignedCases}
-                  className="argus-toolbar-btn px-2 py-0.5 text-xs font-semibold flex items-center space-x-1 bg-white text-[#0E3D6B]"
+                  onClick={() => fetchPaginatedWorklist(worklistPage)}
+                  disabled={loadingWorklist}
+                  className="argus-toolbar-btn px-2.5 py-1 text-xs font-semibold flex items-center space-x-1 bg-white text-[#0E3D6B]"
                 >
-                  <RefreshCw className={`w-3 h-3 ${loadingAssignedCases ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3 h-3 ${loadingWorklist ? 'animate-spin' : ''}`} />
                   <span>Refresh Queue</span>
+                </button>
+                <button
+                  onClick={handleNewCaseClick}
+                  className="px-2.5 py-1 bg-[#19589D] hover:bg-[#124B8A] text-white rounded font-semibold text-xs flex items-center space-x-1 cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create Case</span>
                 </button>
               </div>
             </div>
 
-            {assignedCases.length === 0 ? (
-              <div className="p-6 text-center text-xs text-slate-600 bg-slate-50 border border-dashed border-slate-300 rounded">
+            {/* Filter and Sorting Controls */}
+            <div className="bg-[#F4F8FC] p-3 rounded border border-[#C8D9ED] space-y-2.5 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {/* Search Bar */}
+                <div className="flex items-center space-x-2 flex-1 min-w-[240px]">
+                  <Search className="w-3.5 h-3.5 text-slate-500" />
+                  <input
+                    type="text"
+                    value={worklistSearch}
+                    onChange={(e) => setWorklistSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { setWorklistPage(0); fetchPaginatedWorklist(0); } }}
+                    placeholder="Search by case number or narrative..."
+                    className="flex-1 px-2.5 py-1 text-xs border border-[#9BB5D6] rounded bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#19589D]"
+                  />
+                  <button
+                    onClick={() => { setWorklistPage(0); fetchPaginatedWorklist(0); }}
+                    className="argus-toolbar-btn px-2.5 py-1 text-xs font-medium bg-white text-[#0E3D6B]"
+                  >
+                    Filter
+                  </button>
+                </div>
+
+                {/* Scope Toggle: Assigned Only vs All Cases */}
+                <div className="flex items-center space-x-1 bg-white p-1 rounded border border-[#B8CCE4]">
+                  <button
+                    onClick={() => { setWorklistAssignedOnly(false); setWorklistPage(0); setTimeout(() => fetchPaginatedWorklist(0), 10); }}
+                    className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                      !worklistAssignedOnly ? 'bg-[#19589D] text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    All Cases
+                  </button>
+                  <button
+                    onClick={() => { setWorklistAssignedOnly(true); setWorklistPage(0); setTimeout(() => fetchPaginatedWorklist(0), 10); }}
+                    className={`px-2.5 py-0.5 rounded text-[11px] font-semibold transition cursor-pointer ${
+                      worklistAssignedOnly ? 'bg-[#19589D] text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    My Cases Only
+                  </button>
+                </div>
+              </div>
+
+              {/* State and Priority Selectors */}
+              <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[#DFEAF5]">
+                <div className="flex items-center space-x-1.5">
+                  <Filter className="w-3 h-3 text-slate-500" />
+                  <span className="text-slate-600 font-medium">State:</span>
+                  <select
+                    value={worklistWorkflowFilter}
+                    onChange={(e) => {
+                      setWorklistWorkflowFilter(e.target.value);
+                      setWorklistPage(0);
+                    }}
+                    className="px-2 py-0.5 rounded border border-[#B8CCE4] bg-white text-xs text-slate-700"
+                  >
+                    <option value="">All States</option>
+                    <option value="Data Entry">Data Entry</option>
+                    <option value="Quality Review">Quality Review</option>
+                    <option value="Medical Review">Medical Review</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-slate-600 font-medium">Priority:</span>
+                  <select
+                    value={worklistPriorityFilter}
+                    onChange={(e) => {
+                      setWorklistPriorityFilter(e.target.value);
+                      setWorklistPage(0);
+                    }}
+                    className="px-2 py-0.5 rounded border border-[#B8CCE4] bg-white text-xs text-slate-700"
+                  >
+                    <option value="">All Priorities</option>
+                    <option value="Routine">Routine</option>
+                    <option value="Priority">Priority</option>
+                    <option value="Expedited">Expedited</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-1.5">
+                  <ArrowUpDown className="w-3 h-3 text-slate-500" />
+                  <span className="text-slate-600 font-medium">Sort:</span>
+                  <select
+                    value={worklistSortBy}
+                    onChange={(e) => {
+                      setWorklistSortBy(e.target.value);
+                    }}
+                    className="px-2 py-0.5 rounded border border-[#B8CCE4] bg-white text-xs text-slate-700"
+                  >
+                    <option value="createdAt">Date Created</option>
+                    <option value="updatedAt">Last Updated</option>
+                    <option value="caseNumber">Case Number</option>
+                    <option value="priority">Priority</option>
+                    <option value="workflowState">Workflow State</option>
+                  </select>
+                  <select
+                    value={worklistDirection}
+                    onChange={(e) => setWorklistDirection(e.target.value as 'asc' | 'desc')}
+                    className="px-2 py-0.5 rounded border border-[#B8CCE4] bg-white text-xs text-slate-700"
+                  >
+                    <option value="desc">Desc</option>
+                    <option value="asc">Asc</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={() => fetchPaginatedWorklist(0)}
+                  className="px-2.5 py-0.5 bg-[#0E3D6B] text-white rounded text-[11px] font-semibold cursor-pointer ml-auto"
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
+
+            {worklistError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-xs text-rose-800 rounded flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{worklistError}</span>
+              </div>
+            )}
+
+            {/* Worklist Case Table */}
+            {loadingWorklist ? (
+              <div className="p-8 text-center text-xs text-slate-500 flex items-center justify-center space-x-2 bg-slate-50 rounded">
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                <span>Querying paginated safety cases from PostgreSQL...</span>
+              </div>
+            ) : (!worklistData || worklistData.content.length === 0) ? (
+              <div className="p-8 text-center text-xs text-slate-600 bg-slate-50 border border-dashed border-slate-300 rounded">
                 <ListOrdered className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="font-semibold text-slate-700">No safety cases currently routed to your worklist.</p>
+                <p className="font-semibold text-slate-700">No safety cases match the selected worklist filters.</p>
                 <p className="text-slate-500 text-[11px] mt-1 max-w-md mx-auto">
-                  New safety cases saved under your account will appear here in the active queue.
+                  Adjust your search keyword or workflow filter above, or create a new safety case.
                 </p>
                 <button
                   onClick={handleNewCaseClick}
@@ -1079,40 +1477,50 @@ export const Stage3Dashboard: React.FC = () => {
                 <table className="argus-table text-xs">
                   <thead>
                     <tr>
-                      <th>Case Number</th>
-                      <th>Country</th>
-                      <th>Report Type</th>
-                      <th>Primary Product</th>
-                      <th>Primary Event</th>
-                      <th>Workflow State</th>
-                      <th>Priority</th>
-                      <th>Action</th>
+                      <th style={{ width: '18%' }}>Country / Case Number</th>
+                      <th style={{ width: '12%' }}>Report Type</th>
+                      <th style={{ width: '18%' }}>Primary Product</th>
+                      <th style={{ width: '18%' }}>Primary Event</th>
+                      <th style={{ width: '12%' }}>Workflow State</th>
+                      <th style={{ width: '10%' }}>Priority</th>
+                      <th style={{ width: '12%' }}>Assigned User</th>
+                      <th style={{ width: '10%' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {assignedCases.map((c) => (
+                    {worklistData.content.map((c) => (
                       <tr key={c.id} className="hover:bg-blue-50/70 cursor-pointer" onClick={() => handleOpenCase(c.id)}>
-                        <td className="font-semibold text-blue-900">
-                          {c.caseNumber} <span className="text-[10px] text-slate-500 font-mono">v{c.versionNumber}</span>
+                        <td className="font-semibold text-blue-900 whitespace-nowrap">
+                          ({c.countryCode}) {c.caseNumber}{' '}
+                          <span className="text-[10px] text-slate-500 font-mono">v{c.versionNumber}</span>
                         </td>
-                        <td>{c.countryCode}</td>
-                        <td>{c.reportType}</td>
-                        <td className="font-medium text-slate-800">{c.primaryProduct}</td>
-                        <td>{c.primaryEvent}</td>
+                        <td className="whitespace-nowrap">{c.reportType}</td>
+                        <td className="font-medium text-slate-800 truncate max-w-[180px]" title={c.primaryProduct}>
+                          {c.primaryProduct}
+                        </td>
+                        <td className="text-slate-700 truncate max-w-[180px]" title={c.primaryEvent}>
+                          {c.primaryEvent}
+                        </td>
                         <td>
                           <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                            c.workflowState === 'Draft' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            c.workflowState === 'Draft' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                            c.workflowState === 'Quality Review' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                            c.workflowState === 'Medical Review' ? 'bg-purple-100 text-purple-800 border border-purple-300' :
+                            'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           }`}>
                             {c.workflowState}
                           </span>
                         </td>
                         <td>
                           <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                            c.priority === 'Expedited' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+                            c.priority === 'Expedited' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                            c.priority === 'Priority' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                            'bg-slate-100 text-slate-700 border border-slate-300'
                           }`}>
                             {c.priority}
                           </span>
                         </td>
+                        <td className="font-mono text-slate-700">{c.assignedToUsername || '-'}</td>
                         <td>
                           <button
                             type="button"
@@ -1126,6 +1534,60 @@ export const Stage3Dashboard: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {worklistData && worklistData.totalPages > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 text-xs text-slate-600">
+                <div className="flex items-center space-x-2">
+                  <span>Showing page <strong>{worklistData.number + 1}</strong> of <strong>{worklistData.totalPages}</strong> ({worklistData.totalElements} cases)</span>
+                  <select
+                    value={worklistSize}
+                    onChange={(e) => {
+                      const newSize = Number(e.target.value);
+                      setWorklistSize(newSize);
+                      setWorklistPage(0);
+                    }}
+                    className="px-2 py-0.5 rounded border border-[#B8CCE4] bg-white text-xs"
+                  >
+                    <option value="5">5 per page</option>
+                    <option value="10">10 per page</option>
+                    <option value="20">20 per page</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => {
+                      const prevPage = Math.max(0, worklistPage - 1);
+                      setWorklistPage(prevPage);
+                      fetchPaginatedWorklist(prevPage);
+                    }}
+                    disabled={worklistData.first}
+                    className="argus-toolbar-btn px-2.5 py-1 text-xs font-semibold flex items-center space-x-1 disabled:opacity-40"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Previous</span>
+                  </button>
+
+                  <span className="px-2.5 py-1 font-mono font-bold text-[#0E3D6B] bg-[#E8F1FA] rounded border border-[#B8CCE4]">
+                    {worklistData.number + 1}
+                  </span>
+
+                  <button
+                    onClick={() => {
+                      const nextPage = Math.min(worklistData.totalPages - 1, worklistPage + 1);
+                      setWorklistPage(nextPage);
+                      fetchPaginatedWorklist(nextPage);
+                    }}
+                    disabled={worklistData.last}
+                    className="argus-toolbar-btn px-2.5 py-1 text-xs font-semibold flex items-center space-x-1 disabled:opacity-40"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1155,7 +1617,7 @@ export const Stage3Dashboard: React.FC = () => {
               Tracks all outbound communications (telephone, email, queries) with healthcare professionals and consumers regarding adverse event follow-up inquiries.
             </p>
             <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded">
-              No contact log entries recorded in database.
+              Contact log database persistence is scheduled for Stage 5. No contact log entries recorded in database.
             </div>
           </div>
         )}
@@ -1174,7 +1636,7 @@ export const Stage3Dashboard: React.FC = () => {
               Assigns action items, queries, targeted questionnaires, and medical review milestones with due dates.
             </p>
             <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded">
-              No pending action items in database.
+              Action item tracking is not configured in the current schema (Planned for Stage 5). No pending action items in database.
             </div>
           </div>
         )}
@@ -1226,7 +1688,7 @@ export const Stage3Dashboard: React.FC = () => {
                 </div>
                 <div className="p-3 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
                   <span className="text-slate-600">PostgreSQL Schema Migrations:</span>
-                  <span className="font-bold text-emerald-700 font-mono text-sm">V1 &amp; V2 Applied</span>
+                  <span className="font-bold text-emerald-700 font-mono text-sm">V1, V2 &amp; V3 Applied</span>
                 </div>
               </div>
 
