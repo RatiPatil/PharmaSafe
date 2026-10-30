@@ -7,6 +7,19 @@
 // Base API URL from environment variable (empty string for same-origin or local proxy)
 export const API_BASE_URL: string = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
+export const AUTH_REQUEST_TIMEOUT_MS = 30_000;
+
+/** Bound authentication requests so an unavailable backend cannot trap the UI. */
+export async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Returns full URL for an API path.
  * In development / tests without VITE_API_URL, returns the relative path (e.g. "/api/cases").
@@ -46,7 +59,7 @@ export function getCsrfToken(): string | null {
  */
 export async function refreshCsrfToken(): Promise<string | null> {
   try {
-    const response = await fetch(getApiUrl('/api/auth/csrf'), {
+    const response = await fetchWithTimeout(getApiUrl('/api/auth/csrf'), {
       method: 'GET',
       credentials: 'include',
       headers: {

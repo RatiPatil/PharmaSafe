@@ -8,6 +8,16 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
     vi.unstubAllGlobals();
   });
 
+  it('shows a recoverable login screen when session restoration cannot reach the server', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    render(<App />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Log In to PharmaSafe/i })).toBeEnabled();
+      expect(screen.getByRole('alert')).toHaveTextContent('authentication service did not respond');
+    });
+    expect(screen.queryByText('Verifying PharmaSafe Session Security...')).not.toBeInTheDocument();
+  });
+
   it('renders login page with username, password, and required indicators when unauthenticated', async () => {
     // Mock /api/auth/csrf and /api/auth/me as 401 unauthenticated
     const mockFetch = vi.fn().mockImplementation((url: string) => {

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { User, AuthResponse } from '../types/auth';
 
-import { getApiUrl, getCsrfToken, refreshCsrfToken, setCsrfToken } from '../config/api';
+import { getApiUrl, getCsrfToken, refreshCsrfToken, setCsrfToken, fetchWithTimeout } from '../config/api';
 
 interface AuthContextType {
   user: User | null;
@@ -30,10 +30,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const restoreSession = async () => {
       try {
-        // Fetch and register CSRF token in memory
-        await refreshCsrfToken().catch(() => {});
-
-        const res = await fetch(getApiUrl('/api/auth/me'), {
+        const res = await fetchWithTimeout(getApiUrl('/api/auth/me'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           credentials: 'include'
@@ -42,11 +39,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (res.ok) {
           const userData: User = await res.json();
           setUser(userData);
+          refreshCsrfToken().catch(() => {});
         } else {
           setUser(null);
+          if (res.status !== 401) {
+            setError('Session verification failed. Please try signing in again.');
+          }
         }
       } catch {
         setUser(null);
+        setError('The authentication service did not respond. Please try signing in again; the server may be starting.');
       } finally {
         setIsLoading(false);
       }
@@ -69,7 +71,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers['X-XSRF-TOKEN'] = xsrf;
       }
 
-      const res = await fetch(getApiUrl('/api/auth/login'), {
+      const res = await fetchWithTimeout(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers,
         body: JSON.stringify({ username, password }),
@@ -107,7 +109,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers['X-XSRF-TOKEN'] = xsrf;
       }
 
-      await fetch(getApiUrl('/api/auth/logout'), {
+      await fetchWithTimeout(getApiUrl('/api/auth/logout'), {
         method: 'POST',
         headers,
         credentials: 'include'
