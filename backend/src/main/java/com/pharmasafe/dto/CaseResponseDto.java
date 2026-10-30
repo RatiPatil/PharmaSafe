@@ -26,6 +26,9 @@ public class CaseResponseDto {
     private String createdByUsername;
     private String updatedByUsername;
     private String assignedToUsername;
+    private boolean locked;
+    private String lockedByUsername;
+    private Instant lockedAt;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -68,6 +71,11 @@ public class CaseResponseDto {
         if (c.getAssignedToUser() != null) {
             dto.setAssignedToUsername(c.getAssignedToUser().getUsername());
         }
+        dto.setLocked(c.isLocked());
+        if (c.getLockedByUser() != null) {
+            dto.setLockedByUsername(c.getLockedByUser().getUsername());
+        }
+        dto.setLockedAt(c.getLockedAt());
 
         if (c.getPatient() != null) {
             PatientResponseDto p = new PatientResponseDto();
@@ -517,6 +525,12 @@ public class CaseResponseDto {
     public void setUpdatedByUsername(String updatedByUsername) { this.updatedByUsername = updatedByUsername; }
     public String getAssignedToUsername() { return assignedToUsername; }
     public void setAssignedToUsername(String assignedToUsername) { this.assignedToUsername = assignedToUsername; }
+    public boolean isLocked() { return locked; }
+    public void setLocked(boolean locked) { this.locked = locked; }
+    public String getLockedByUsername() { return lockedByUsername; }
+    public void setLockedByUsername(String lockedByUsername) { this.lockedByUsername = lockedByUsername; }
+    public Instant getLockedAt() { return lockedAt; }
+    public void setLockedAt(Instant lockedAt) { this.lockedAt = lockedAt; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

@@ -54,6 +54,8 @@ public class AdminInitializationService {
 
         String passwordHash = passwordEncoder.encode(rawPassword);
         User adminUser = new User(normalizedUsername, passwordHash, "ROLE_ADMIN");
+        adminUser.setFullName("System Administrator");
+        adminUser.setDepartment("Safety Operations");
         User savedAdmin = userRepository.save(adminUser);
 
         auditService.logEvent("ADMIN_INITIALIZED", normalizedUsername, "127.0.0.1", "CLI/SetupRunner", "SUCCESS",

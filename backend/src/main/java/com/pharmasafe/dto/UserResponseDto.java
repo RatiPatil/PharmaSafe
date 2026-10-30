@@ -7,6 +7,8 @@ public class UserResponseDto {
 
     private Long id;
     private String username;
+    private String fullName;
+    private String department;
     private String role;
     private boolean enabled;
     private boolean locked;
@@ -16,9 +18,11 @@ public class UserResponseDto {
     public UserResponseDto() {
     }
 
-    public UserResponseDto(Long id, String username, String role, boolean enabled, boolean locked, Instant lastSuccessfulLoginAt, Instant createdAt) {
+    public UserResponseDto(Long id, String username, String fullName, String department, String role, boolean enabled, boolean locked, Instant lastSuccessfulLoginAt, Instant createdAt) {
         this.id = id;
         this.username = username;
+        this.fullName = fullName;
+        this.department = department;
         this.role = role;
         this.enabled = enabled;
         this.locked = locked;
@@ -33,6 +37,8 @@ public class UserResponseDto {
         return new UserResponseDto(
                 user.getId(),
                 user.getUsername(),
+                user.getFullName(),
+                user.getDepartment(),
                 user.getRole(),
                 user.isEnabled(),
                 user.isLocked(),
@@ -55,6 +61,22 @@ public class UserResponseDto {
 
     public void setUsername(String username) {
         this.username = username;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
     }
 
     public String getRole() {

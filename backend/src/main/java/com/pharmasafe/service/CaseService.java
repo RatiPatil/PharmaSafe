@@ -5,17 +5,21 @@ import com.pharmasafe.dto.CaseResponseDto;
 import com.pharmasafe.dto.CaseSummaryDto;
 import com.pharmasafe.entity.*;
 import com.pharmasafe.repository.SafetyCaseRepository;
+import com.pharmasafe.repository.CaseReviewEventRepository;
 import com.pharmasafe.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,15 +31,18 @@ public class CaseService {
     private final UserRepository userRepository;
     private final CaseNumberGeneratorService caseNumberGeneratorService;
     private final AuditService auditService;
+    private final CaseReviewEventRepository caseReviewEventRepository;
 
     public CaseService(SafetyCaseRepository safetyCaseRepository,
                        UserRepository userRepository,
                        CaseNumberGeneratorService caseNumberGeneratorService,
-                       AuditService auditService) {
+                       AuditService auditService,
+                       CaseReviewEventRepository caseReviewEventRepository) {
         this.safetyCaseRepository = safetyCaseRepository;
         this.userRepository = userRepository;
         this.caseNumberGeneratorService = caseNumberGeneratorService;
         this.auditService = auditService;
+        this.caseReviewEventRepository = caseReviewEventRepository;
     }
 
     @Transactional
@@ -118,6 +125,13 @@ public class CaseService {
         SafetyCase safetyCase = safetyCaseRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
 
+        if (safetyCase.isLocked()) {
+            throw new IllegalStateException("Cannot update safety case " + safetyCase.getCaseNumber() +
+                    " because it is currently locked by " +
+                    (safetyCase.getLockedByUser() != null ? safetyCase.getLockedByUser().getUsername() : "another user") +
+                    ". Unlock the case first before editing.");
+        }
+
         validateCaseDates(request);
 
         if (!request.isDraft()) {
@@ -195,6 +209,14 @@ public class CaseService {
     }
 
     @Transactional(readOnly = true)
+    public CaseResponseDto getCaseByIdAuthorized(Long id, String username, String role) {
+        SafetyCase safetyCase = safetyCaseRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+        requireReadAccess(safetyCase, username, role);
+        return CaseResponseDto.fromEntity(safetyCase);
+    }
+
+    @Transactional(readOnly = true)
     public CaseResponseDto getCaseByCaseNumber(String caseNumber) {
         if (caseNumber == null || caseNumber.trim().isEmpty()) {
             throw new IllegalArgumentException("Case number cannot be empty");
@@ -202,6 +224,37 @@ public class CaseService {
         SafetyCase safetyCase = safetyCaseRepository.findByCaseNumberIgnoreCase(caseNumber.trim())
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with number: " + caseNumber.trim()));
         return CaseResponseDto.fromEntity(safetyCase);
+    }
+
+    @Transactional(readOnly = true)
+    public CaseResponseDto getCaseByCaseNumberAuthorized(String caseNumber, String username, String role) {
+        if (caseNumber == null || caseNumber.trim().isEmpty()) {
+            throw new IllegalArgumentException("Case number cannot be empty");
+        }
+        SafetyCase safetyCase = safetyCaseRepository.findByCaseNumberIgnoreCase(caseNumber.trim())
+                .orElseThrow(() -> new EntityNotFoundException("Safety case not found with number: " + caseNumber.trim()));
+        requireReadAccess(safetyCase, username, role);
+        return CaseResponseDto.fromEntity(safetyCase);
+    }
+
+    private void requireReadAccess(SafetyCase safetyCase, String username, String role) {
+        if ("ROLE_ADMIN".equals(role) || "ROLE_SAFETY_MANAGER".equals(role)) {
+            return;
+        }
+        String normalized = username == null ? "" : username.trim().toLowerCase();
+        boolean allowed = safetyCase.getAssignedToUser() != null
+                && normalized.equalsIgnoreCase(safetyCase.getAssignedToUser().getUsername());
+        allowed = allowed || (safetyCase.getCreatedByUser() != null
+                && normalized.equalsIgnoreCase(safetyCase.getCreatedByUser().getUsername()));
+        if ("ROLE_MEDICAL_REVIEWER".equals(role)) {
+            allowed = allowed || Set.of("Medical Review", "Quality Review").contains(safetyCase.getWorkflowState());
+        }
+        if ("ROLE_QUALITY_REVIEWER".equals(role)) {
+            allowed = allowed || Set.of("Quality Review", "Approved", "Locked", "Closed").contains(safetyCase.getWorkflowState());
+        }
+        if (!allowed) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to access this case");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -213,6 +266,25 @@ public class CaseService {
                 (reportType != null && !reportType.trim().isEmpty()) ? reportType.trim() : null
         );
         return cases.stream().map(CaseSummaryDto::fromEntity).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<CaseSummaryDto> searchCasesAuthorized(String search, String country, String workflowState,
+                                                       String reportType, String username, String role) {
+        List<CaseSummaryDto> results = searchCases(search, country, workflowState, reportType);
+        if ("ROLE_ADMIN".equals(role) || "ROLE_SAFETY_MANAGER".equals(role)) {
+            return results;
+        }
+        String normalized = username == null ? "" : username.trim().toLowerCase();
+        return results.stream().filter(summary -> {
+            SafetyCase safetyCase = safetyCaseRepository.findById(summary.getId()).orElse(null);
+            if (safetyCase == null) return false;
+            boolean assigned = safetyCase.getAssignedToUser() != null
+                    && normalized.equalsIgnoreCase(safetyCase.getAssignedToUser().getUsername());
+            boolean created = safetyCase.getCreatedByUser() != null
+                    && normalized.equalsIgnoreCase(safetyCase.getCreatedByUser().getUsername());
+            return assigned || created;
+        }).toList();
     }
 
     @Transactional(readOnly = true)
@@ -229,11 +301,202 @@ public class CaseService {
     }
 
     @Transactional(readOnly = true)
+    public User findUser(String username) {
+        return userRepository.findByUsername(username.trim().toLowerCase())
+                .orElseThrow(() -> new EntityNotFoundException("Authenticated user not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CaseSummaryDto> getAssignedCasesPage(User user, Pageable pageable) {
+        return safetyCaseRepository.findByAssignedToUser(user, pageable).map(CaseSummaryDto::fromEntity);
+    }
+
+    @Transactional(readOnly = true)
     public List<CaseSummaryDto> getAllCases() {
         return safetyCaseRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
                 .map(CaseSummaryDto::fromEntity)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public CaseResponseDto lockCase(Long id, String username) {
+        SafetyCase safetyCase = safetyCaseRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+
+        if (safetyCase.isLocked()) {
+            throw new IllegalStateException("Case " + safetyCase.getCaseNumber() + " is already locked by " +
+                    (safetyCase.getLockedByUser() != null ? safetyCase.getLockedByUser().getUsername() : "another user"));
+        }
+
+        User user = null;
+        if (username != null) {
+            user = userRepository.findByUsername(username.trim().toLowerCase()).orElse(null);
+        }
+
+        safetyCase.setLocked(true);
+        safetyCase.setLockedByUser(user);
+        safetyCase.setLockedAt(Instant.now());
+        SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
+
+        auditService.logEvent("CASE_LOCKED", username, null, null, "SUCCESS",
+                "Case " + safetyCase.getCaseNumber() + " was locked by " + username);
+
+        CaseResponseDto response = CaseResponseDto.fromEntity(saved);
+        if (response.isLocked() && response.getLockedByUsername() == null) {
+            response.setLockedByUsername(username);
+        }
+        return response;
+    }
+
+    @Transactional
+    public CaseResponseDto unlockCase(Long id, String username) {
+        SafetyCase safetyCase = safetyCaseRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+
+        if (!safetyCase.isLocked()) {
+            throw new IllegalStateException("Case " + safetyCase.getCaseNumber() + " is not currently locked");
+        }
+
+        safetyCase.setLocked(false);
+        safetyCase.setLockedByUser(null);
+        safetyCase.setLockedAt(null);
+        SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
+
+        auditService.logEvent("CASE_UNLOCKED", username, null, null, "SUCCESS",
+                "Case " + safetyCase.getCaseNumber() + " was unlocked by " + username);
+
+        CaseResponseDto response = CaseResponseDto.fromEntity(saved);
+        if (response.isLocked() && response.getLockedByUsername() == null) {
+            response.setLockedByUsername(username);
+        }
+        return response;
+    }
+
+    @Transactional
+    public CaseResponseDto assignCase(Long id, Long targetUserId, String username) {
+        SafetyCase safetyCase = safetyCaseRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new EntityNotFoundException("Target user not found with ID: " + targetUserId));
+        if (!targetUser.isEnabled()) {
+            throw new IllegalArgumentException("Only enabled users may receive case assignments");
+        }
+        if (!Set.of("ROLE_CASE_PROCESSOR", "ROLE_USER", "ROLE_MEDICAL_REVIEWER",
+                "ROLE_QUALITY_REVIEWER", "ROLE_SAFETY_MANAGER", "ROLE_ADMIN").contains(targetUser.getRole())) {
+            throw new IllegalArgumentException("Target user role is not eligible for case assignment");
+        }
+
+        String prevAssigned = safetyCase.getAssignedToUser() != null ? safetyCase.getAssignedToUser().getUsername() : "Unassigned";
+        safetyCase.setAssignedToUser(targetUser);
+        SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
+
+        auditService.logEvent("CASE_ASSIGNED", username, null, null, "SUCCESS",
+                "Case " + safetyCase.getCaseNumber() + " assigned from " + prevAssigned + " to " + targetUser.getUsername());
+
+        return CaseResponseDto.fromEntity(saved);
+    }
+
+    @Transactional
+    public CaseResponseDto transitionWorkflow(Long id, String targetState, String comments, String username, String role) {
+        SafetyCase safetyCase = safetyCaseRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+
+        if (targetState == null || targetState.trim().isEmpty()) {
+            throw new IllegalArgumentException("Target workflow state cannot be empty");
+        }
+
+        String prevState = safetyCase.getWorkflowState();
+        String nextState = targetState.trim();
+        validateWorkflowTransition(safetyCase, prevState, nextState, role, username, comments);
+        safetyCase.setWorkflowState(nextState);
+        if (comments != null && !comments.trim().isEmpty()) {
+            String existingComments = safetyCase.getCompanyComments();
+            safetyCase.setCompanyComments((existingComments != null ? existingComments + "\n" : "") +
+                    "[" + nextState + " by " + username + "]: " + comments.trim());
+        }
+        SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
+
+        User reviewer = username == null ? null : userRepository.findByUsername(username.trim().toLowerCase()).orElse(null);
+        CaseReviewEvent review = new CaseReviewEvent();
+        review.setSafetyCase(saved);
+        review.setReviewerUser(reviewer);
+        review.setReviewerUsername(username);
+        review.setFromState(prevState);
+        review.setToState(nextState);
+        review.setOutcome(nextState.equals("Data Entry") ? "RETURNED" : "APPROVED");
+        review.setComments(comments == null || comments.trim().isEmpty() ? "Transition approved" : comments.trim());
+        caseReviewEventRepository.save(review);
+
+        auditService.logCaseEvent(saved.getId(), "WORKFLOW_TRANSITION", username, "SUCCESS",
+                "Case " + safetyCase.getCaseNumber() + " transitioned from '" + prevState + "' to '" + nextState + "'. " +
+                        (comments != null ? "Comments: " + comments : ""));
+
+        return CaseResponseDto.fromEntity(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.pharmasafe.dto.AuditEventResponseDto> getCaseAuditHistory(Long id) {
+        if (!safetyCaseRepository.existsById(id)) {
+            throw new EntityNotFoundException("Safety case not found with ID: " + id);
+        }
+        return auditService.getCaseAuditHistory(id);
+    }
+
+    private void validateWorkflowTransition(SafetyCase safetyCase, String current, String target,
+                                            String role, String username, String comments) {
+        String normalizedRole = role == null ? "" : role;
+        boolean admin = "ROLE_ADMIN".equals(normalizedRole);
+        boolean processor = admin || "ROLE_CASE_PROCESSOR".equals(normalizedRole) || "ROLE_USER".equals(normalizedRole);
+        boolean medical = admin || "ROLE_MEDICAL_REVIEWER".equals(normalizedRole);
+        boolean quality = admin || "ROLE_QUALITY_REVIEWER".equals(normalizedRole);
+        boolean manager = admin || "ROLE_SAFETY_MANAGER".equals(normalizedRole);
+
+        boolean allowed = switch (current) {
+            case "Draft" -> target.equals("Data Entry") && processor;
+            case "Data Entry" -> target.equals("Medical Review") && processor;
+            case "Medical Review" -> (target.equals("Quality Review") && medical) || (target.equals("Data Entry") && medical);
+            case "Quality Review" -> (target.equals("Approved") && quality) || (target.equals("Medical Review") && quality);
+            case "Approved" -> target.equals("Locked") && manager;
+            case "Locked" -> target.equals("Closed") && manager;
+            default -> false;
+        };
+        if (!allowed) {
+            throw new IllegalStateException("Transition from " + current + " to " + target + " is not permitted for role " + normalizedRole);
+        }
+        if ((target.equals("Data Entry") || target.equals("Medical Review")) && (comments == null || comments.trim().isEmpty())) {
+            throw new IllegalArgumentException("A reason is required when returning a case for correction or review");
+        }
+        if (target.equals("Approved") && current.equals("Quality Review")
+                && safetyCase.getCreatedByUser() != null
+                && safetyCase.getCreatedByUser().getUsername().equalsIgnoreCase(username)) {
+            throw new IllegalStateException("The case author cannot be the final quality approver");
+        }
+    }
+
+    @Transactional
+    public CaseResponseDto addAssessment(Long id, CaseRequestDto.AssessmentDto ad, String username) {
+        SafetyCase safetyCase = safetyCaseRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+
+        CaseAssessment a = new CaseAssessment();
+        a.setProductName(ad.getProductName());
+        a.setEventVerbatim(ad.getEventVerbatim());
+        a.setCausalityReporter(ad.getCausalityReporter() != null ? ad.getCausalityReporter() : "Unassessable");
+        a.setCausalityCompany(ad.getCausalityCompany() != null ? ad.getCausalityCompany() : "Reasonable Possibility");
+        a.setExpectedness(ad.getExpectedness() != null ? ad.getExpectedness() : "Unexpected");
+        a.setAssessmentComment(ad.getAssessmentComment());
+        a.setAssessedBy(username != null ? username : ad.getAssessedBy());
+        safetyCase.addAssessment(a);
+
+        SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
+
+        auditService.logEvent("ASSESSMENT_ADDED", username, null, null, "SUCCESS",
+                "Assessment added for case " + safetyCase.getCaseNumber() + ": " +
+                        ad.getProductName() + " / " + ad.getEventVerbatim() + " -> " + a.getCausalityCompany() + " (" + a.getExpectedness() + ")");
+
+        return CaseResponseDto.fromEntity(saved);
     }
 
     // Validation Helpers

@@ -4,6 +4,7 @@ import com.pharmasafe.entity.SafetyCase;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Comparator;
 
 public class CaseSummaryDto {
 
@@ -21,6 +22,8 @@ public class CaseSummaryDto {
     private LocalDate latestReceivedDate;
     private int versionNumber;
     private String assignedToUsername;
+    private boolean locked;
+    private String lockedByUsername;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -40,6 +43,10 @@ public class CaseSummaryDto {
         dto.setInitialReceiptDate(c.getInitialReceiptDate());
         dto.setLatestReceivedDate(c.getLatestReceivedDate());
         dto.setVersionNumber(c.getVersionNumber());
+        dto.setLocked(c.isLocked());
+        if (c.getLockedByUser() != null) {
+            dto.setLockedByUsername(c.getLockedByUser().getUsername());
+        }
         dto.setCreatedAt(c.getCreatedAt());
         dto.setUpdatedAt(c.getUpdatedAt());
 
@@ -48,13 +55,20 @@ public class CaseSummaryDto {
         }
 
         if (c.getProducts() != null && !c.getProducts().isEmpty()) {
-            dto.setPrimaryProduct(c.getProducts().get(0).getProductName());
+            dto.setPrimaryProduct(c.getProducts().stream()
+                    .filter(p -> "Suspect".equalsIgnoreCase(p.getProductType()))
+                    .min(Comparator.comparing(p -> p.getId() == null ? Long.MAX_VALUE : p.getId()))
+                    .orElse(c.getProducts().stream().min(Comparator.comparing(p -> p.getId() == null ? Long.MAX_VALUE : p.getId())).orElse(null))
+                    .getProductName());
         } else {
             dto.setPrimaryProduct("-");
         }
 
         if (c.getEvents() != null && !c.getEvents().isEmpty()) {
-            dto.setPrimaryEvent(c.getEvents().get(0).getEventVerbatim());
+            dto.setPrimaryEvent(c.getEvents().stream()
+                    .min(Comparator.comparing(e -> e.getId() == null ? Long.MAX_VALUE : e.getId()))
+                    .orElseThrow()
+                    .getEventVerbatim());
         } else {
             dto.setPrimaryEvent("-");
         }
@@ -91,6 +105,10 @@ public class CaseSummaryDto {
     public void setVersionNumber(int versionNumber) { this.versionNumber = versionNumber; }
     public String getAssignedToUsername() { return assignedToUsername; }
     public void setAssignedToUsername(String assignedToUsername) { this.assignedToUsername = assignedToUsername; }
+    public boolean isLocked() { return locked; }
+    public void setLocked(boolean locked) { this.locked = locked; }
+    public String getLockedByUsername() { return lockedByUsername; }
+    public void setLockedByUsername(String lockedByUsername) { this.lockedByUsername = lockedByUsername; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

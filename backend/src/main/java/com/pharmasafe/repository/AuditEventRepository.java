@@ -16,4 +16,6 @@ public interface AuditEventRepository extends JpaRepository<AuditEvent, Long> {
     List<AuditEvent> findTop15ByEventTypeInOrderByCreatedAtDesc(List<String> eventTypes);
 
     List<AuditEvent> findTop15ByUsernameAndEventTypeInOrderByCreatedAtDesc(String username, List<String> eventTypes);
+
+    List<AuditEvent> findBySafetyCaseIdOrderByCreatedAtDesc(Long caseId);
 }

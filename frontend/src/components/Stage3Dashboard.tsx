@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { getXsrfToken, useAuth } from '../context/AuthContext';
 import { getApiUrl } from '../config/api';
 import { QuickLaunchToolbar } from './QuickLaunchToolbar';
 import { CaseEntryForm } from './CaseEntryForm';
@@ -48,6 +48,27 @@ interface AdminStatusDetails {
   systemStatus?: string;
 }
 
+interface ContactLog {
+  id: number;
+  caseId: number;
+  caseNumber: string;
+  contactAt: string;
+  contactType: string;
+  description: string;
+  responsibleUsername?: string;
+}
+
+interface ActionItem {
+  id: number;
+  caseId: number;
+  caseNumber: string;
+  description: string;
+  assignedUsername: string;
+  status: string;
+  dueAt: string;
+  overdue: boolean;
+}
+
 export const Stage3Dashboard: React.FC = () => {
   const { user, logout, isLoading } = useAuth();
 
@@ -66,6 +87,16 @@ export const Stage3Dashboard: React.FC = () => {
   const [assignedCases, setAssignedCases] = useState<SafetyCaseSummary[]>([]);
   const [loadingAssignedCases, setLoadingAssignedCases] = useState(false);
   const [assignedCasesError, setAssignedCasesError] = useState<string | null>(null);
+  const [contactLogs, setContactLogs] = useState<ContactLog[]>([]);
+  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [interactionLoading, setInteractionLoading] = useState(false);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
+  const [interactionCaseId, setInteractionCaseId] = useState('');
+  const [contactType, setContactType] = useState('Email');
+  const [contactDescription, setContactDescription] = useState('');
+  const [actionDescription, setActionDescription] = useState('');
+  const [actionDueAt, setActionDueAt] = useState('');
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
 
   // Dashboard KPI Summary Data
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
@@ -180,31 +211,81 @@ export const Stage3Dashboard: React.FC = () => {
     setLoadingAssignedCases(true);
     setAssignedCasesError(null);
     try {
-      const res = await fetch(getApiUrl('/api/cases/assigned'), {
+      const res = await fetch(getApiUrl('/api/cases/assigned/paged?page=0&size=20'), {
         credentials: 'include',
         headers: { Accept: 'application/json' }
       });
       if (res.ok) {
-        const data: SafetyCaseSummary[] = await res.json();
-        setAssignedCases(data);
+        const data: PaginatedResponse<SafetyCaseSummary> | SafetyCaseSummary[] = await res.json();
+        setAssignedCases(Array.isArray(data) ? data : (data.content || []));
       } else {
-        // Fallback to all cases query
-        const allRes = await fetch(getApiUrl('/api/cases'), {
-          credentials: 'include',
-          headers: { Accept: 'application/json' }
-        });
-        if (allRes.ok) {
-          const allData: SafetyCaseSummary[] = await allRes.json();
-          setAssignedCases(allData);
-        } else {
-          setAssignedCasesError('Unable to load cases from database.');
-        }
+        setAssignedCasesError('Unable to load assigned cases from database.');
       }
     } catch {
       setAssignedCasesError('Network error loading assigned cases.');
     } finally {
       setLoadingAssignedCases(false);
     }
+  };
+
+  const fetchInteractions = async () => {
+    setInteractionLoading(true);
+    setInteractionError(null);
+    try {
+      const [contactsResponse, actionsResponse] = await Promise.all([
+        fetch(getApiUrl('/api/contact-logs?page=0&size=20'), { credentials: 'include', headers: { Accept: 'application/json' } }),
+        fetch(getApiUrl(`/api/action-items?page=0&size=20&overdue=${showOverdueOnly}`), { credentials: 'include', headers: { Accept: 'application/json' } })
+      ]);
+      if (!contactsResponse.ok || !actionsResponse.ok) throw new Error('Unable to load personal interaction data.');
+      const contacts = await contactsResponse.json();
+      const actions = await actionsResponse.json();
+      setContactLogs(contacts.content || []);
+      setActionItems(actions.content || []);
+    } catch (error) {
+      setInteractionError(error instanceof Error ? error.message : 'Unable to load interaction data.');
+    } finally {
+      setInteractionLoading(false);
+    }
+  };
+
+  const createInteraction = async (kind: 'contact' | 'action') => {
+    if (!interactionCaseId.trim()) {
+      setInteractionError('Enter a case ID before creating a case-linked record.');
+      return;
+    }
+    const xsrf = getXsrfToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
+    const url = kind === 'contact'
+      ? getApiUrl(`/api/cases/${interactionCaseId}/contact-logs`)
+      : getApiUrl(`/api/cases/${interactionCaseId}/action-items`);
+    const body = kind === 'contact'
+      ? { contactAt: new Date().toISOString(), contactType, description: contactDescription }
+      : { description: actionDescription, assignedUserId: user?.id, dueAt: new Date(actionDueAt).toISOString() };
+    try {
+      const response = await fetch(url, { method: 'POST', headers, credentials: 'include', body: JSON.stringify(body) });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.message || `Unable to save ${kind} entry.`);
+      }
+      setContactDescription('');
+      setActionDescription('');
+      setActionDueAt('');
+      await fetchInteractions();
+    } catch (error) {
+      setInteractionError(error instanceof Error ? error.message : `Unable to save ${kind} entry.`);
+    }
+  };
+
+  const completeActionItem = async (id: number) => {
+    const xsrf = getXsrfToken();
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
+    const response = await fetch(getApiUrl(`/api/action-items/${id}/complete`), {
+      method: 'POST', credentials: 'include', headers
+    });
+    if (response.ok) await fetchInteractions();
+    else setInteractionError('Unable to complete this action item.');
   };
 
   // Open existing case by ID
@@ -344,6 +425,12 @@ export const Stage3Dashboard: React.FC = () => {
       fetchAdminStatus();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (activeTab === 'dashboard' || activeTab === 'contact-log' || activeTab === 'action-items') {
+      fetchInteractions();
+    }
+  }, [activeTab, showOverdueOnly]);
 
   const handleCaseSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1038,7 +1125,7 @@ export const Stage3Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Sections C & D: Contact Log & Action Items Stubs */}
+            {/* Sections C & D: database-backed personal interactions */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Section C: Contact Log Entries */}
               <div className="argus-panel rounded border border-[#B8CCE4] overflow-hidden">
@@ -1061,16 +1148,11 @@ export const Stage3Dashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td colSpan={3} className="text-center py-5 text-slate-500 bg-slate-50">
-                          <div className="flex flex-col items-center justify-center space-y-1">
-                            <span className="font-medium text-xs">No contact log entries recorded yet.</span>
-                            <span className="text-[11px] text-slate-400">
-                              Persistent contact communications will be tracked in Stage 5.
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
+                      {contactLogs.length === 0 ? (
+                        <tr><td colSpan={3} className="text-center py-5 text-slate-500 bg-slate-50">No contact log entries recorded yet.</td></tr>
+                      ) : contactLogs.map(log => (
+                        <tr key={log.id}><td>{log.caseNumber}</td><td>{new Date(log.contactAt).toLocaleString()}</td><td>{log.description}</td></tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1097,16 +1179,11 @@ export const Stage3Dashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td colSpan={3} className="text-center py-5 text-slate-500 bg-slate-50">
-                          <div className="flex flex-col items-center justify-center space-y-1">
-                            <span className="font-medium text-xs">No pending action items.</span>
-                            <span className="text-[11px] text-slate-400">
-                              Action item tasks and due dates will be tracked in Stage 5.
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
+                      {actionItems.length === 0 ? (
+                        <tr><td colSpan={3} className="text-center py-5 text-slate-500 bg-slate-50">No pending action items.</td></tr>
+                      ) : actionItems.map(item => (
+                        <tr key={item.id}><td>{item.caseNumber}</td><td className={item.overdue ? 'text-rose-700 font-bold' : ''}>{new Date(item.dueAt).toLocaleString()}</td><td>{item.description}</td></tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1616,9 +1693,16 @@ export const Stage3Dashboard: React.FC = () => {
             <p className="text-xs text-slate-600">
               Tracks all outbound communications (telephone, email, queries) with healthcare professionals and consumers regarding adverse event follow-up inquiries.
             </p>
-            <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded">
-              Contact log database persistence is scheduled for Stage 5. No contact log entries recorded in database.
+            <p className="text-xs text-slate-600">Personal records are shown when you created them or are responsible for them.</p>
+            {interactionError && <p className="text-xs text-rose-700">{interactionError}</p>}
+            <div className="grid gap-2 md:grid-cols-4 text-xs">
+              <input value={interactionCaseId} onChange={e => setInteractionCaseId(e.target.value)} placeholder="Case ID" className="border p-1 rounded" />
+              <select value={contactType} onChange={e => setContactType(e.target.value)} className="border p-1 rounded"><option>Email</option><option>Telephone</option><option>Portal</option><option>Letter</option><option>Other</option></select>
+              <input value={contactDescription} onChange={e => setContactDescription(e.target.value)} placeholder="Description" className="border p-1 rounded md:col-span-2" />
+              <button type="button" onClick={() => createInteraction('contact')} className="argus-toolbar-btn px-2 py-1 text-xs">Save contact log</button>
             </div>
+            <div className="flex gap-2"><button type="button" onClick={fetchInteractions} className="argus-toolbar-btn px-2 py-1 text-xs">Refresh</button>{interactionLoading && <span className="text-xs">Loading...</span>}</div>
+            {contactLogs.length === 0 ? <div className="p-4 text-center text-xs text-slate-500 bg-slate-50">No personal contact logs.</div> : <div className="space-y-1">{contactLogs.map(log => <div key={log.id} className="border p-2 text-xs"><b>{log.caseNumber}</b> · {log.contactType} · {new Date(log.contactAt).toLocaleString()}<div>{log.description}</div></div>)}</div>}
           </div>
         )}
 
@@ -1635,9 +1719,16 @@ export const Stage3Dashboard: React.FC = () => {
             <p className="text-xs text-slate-600">
               Assigns action items, queries, targeted questionnaires, and medical review milestones with due dates.
             </p>
-            <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded">
-              Action item tracking is not configured in the current schema (Planned for Stage 5). No pending action items in database.
+            <p className="text-xs text-slate-600">Overdue is derived from due date and non-completed/non-cancelled status; it is not stored as a stale flag.</p>
+            {interactionError && <p className="text-xs text-rose-700">{interactionError}</p>}
+            <div className="grid gap-2 md:grid-cols-4 text-xs">
+              <input value={interactionCaseId} onChange={e => setInteractionCaseId(e.target.value)} placeholder="Case ID" className="border p-1 rounded" />
+              <input value={actionDescription} onChange={e => setActionDescription(e.target.value)} placeholder="Description" className="border p-1 rounded" />
+              <input type="datetime-local" value={actionDueAt} onChange={e => setActionDueAt(e.target.value)} className="border p-1 rounded" />
+              <button type="button" onClick={() => createInteraction('action')} className="argus-toolbar-btn px-2 py-1 text-xs">Save action item</button>
             </div>
+            <div className="flex gap-2"><button type="button" onClick={fetchInteractions} className="argus-toolbar-btn px-2 py-1 text-xs">Refresh</button><button type="button" onClick={() => { setShowOverdueOnly(true); }} className="argus-toolbar-btn px-2 py-1 text-xs">Overdue only</button></div>
+            {actionItems.length === 0 ? <div className="p-4 text-center text-xs text-slate-500 bg-slate-50">No matching action items.</div> : <div className="space-y-1">{actionItems.map(item => <div key={item.id} className={`border p-2 text-xs ${item.overdue ? 'border-rose-300 bg-rose-50' : ''}`}><b>{item.caseNumber}</b> · due {new Date(item.dueAt).toLocaleString()}<div>{item.description} ({item.status}) <button type="button" onClick={() => completeActionItem(item.id)} className="underline">Complete</button></div></div>)}</div>}
           </div>
         )}
 

@@ -2,6 +2,10 @@ package com.pharmasafe.service;
 
 import com.pharmasafe.entity.AuditEvent;
 import com.pharmasafe.repository.AuditEventRepository;
+import com.pharmasafe.entity.SafetyCase;
+import com.pharmasafe.repository.SafetyCaseRepository;
+import com.pharmasafe.dto.AuditEventResponseDto;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,9 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuditService {
 
     private final AuditEventRepository auditEventRepository;
+    private final SafetyCaseRepository safetyCaseRepository;
 
-    public AuditService(AuditEventRepository auditEventRepository) {
+    public AuditService(AuditEventRepository auditEventRepository, SafetyCaseRepository safetyCaseRepository) {
         this.auditEventRepository = auditEventRepository;
+        this.safetyCaseRepository = safetyCaseRepository;
     }
 
     /**
@@ -30,5 +36,21 @@ public class AuditService {
                 details
         );
         auditEventRepository.save(event);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void logCaseEvent(Long caseId, String eventType, String username, String status, String details) {
+        AuditEvent event = new AuditEvent(eventType,
+                username != null ? username.trim().toLowerCase() : null,
+                null, null, status, details);
+        SafetyCase safetyCase = safetyCaseRepository.findById(caseId).orElse(null);
+        event.setSafetyCase(safetyCase);
+        auditEventRepository.save(event);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AuditEventResponseDto> getCaseAuditHistory(Long caseId) {
+        return auditEventRepository.findBySafetyCaseIdOrderByCreatedAtDesc(caseId)
+                .stream().map(AuditEventResponseDto::fromEntity).toList();
     }
 }

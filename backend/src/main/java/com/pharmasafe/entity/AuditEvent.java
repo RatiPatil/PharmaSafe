@@ -18,6 +18,10 @@ public class AuditEvent {
     @Column(name = "event_type", nullable = false, length = 64)
     private String eventType;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "case_id")
+    private SafetyCase safetyCase;
+
     @Column(length = 64)
     private String username;
 
@@ -65,6 +69,14 @@ public class AuditEvent {
 
     public String getEventType() {
         return eventType;
+    }
+
+    public SafetyCase getSafetyCase() {
+        return safetyCase;
+    }
+
+    public void setSafetyCase(SafetyCase safetyCase) {
+        this.safetyCase = safetyCase;
     }
 
     public void setEventType(String eventType) {

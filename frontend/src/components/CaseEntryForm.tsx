@@ -29,6 +29,13 @@ interface CaseEntryFormProps {
   saveTrigger?: number; // External save signal from QuickLaunch toolbar
 }
 
+interface MeddraTerm {
+  code: string;
+  term: string;
+  soc: string;
+  level: string;
+}
+
 export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   initialCase,
   onSaveSuccess,
@@ -125,6 +132,8 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [meddraSuggestions, setMeddraSuggestions] = useState<Record<number, MeddraTerm[]>>({});
+  const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -316,6 +325,55 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   };
 
   // Form Submission
+  const transitionCase = async (targetState: string, reason: string) => {
+    if (!initialCase) return;
+    setWorkflowMessage(null);
+    try {
+      const xsrf = getXsrfToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
+      if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
+      const response = await fetch(getApiUrl(`/api/cases/${initialCase.id}/workflow-transition`), {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ targetState, comments: reason })
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || `Workflow transition failed (HTTP ${response.status})`);
+      setWorkflowMessage(`Case moved to ${targetState}.`);
+      onSaveSuccess(data);
+    } catch (err) {
+      setWorkflowMessage(err instanceof Error ? err.message : 'Workflow transition failed.');
+    }
+  };
+
+  const requestTransition = (targetState: string) => {
+    const reason = window.prompt(`Enter a reason for moving this case to ${targetState}:`);
+    if (reason && reason.trim()) transitionCase(targetState, reason.trim());
+  };
+
+  const downloadCaseSummary = () => {
+    const report = [
+      'PharmaSafe Training Demonstration - Case Summary',
+      `Case number: ${initialCase?.caseNumber || 'Unsaved draft'}`,
+      `Workflow state: ${formData.workflowState}`,
+      `Country: ${formData.countryCode}`,
+      `Report type: ${formData.reportType}`,
+      `Priority: ${formData.priority}`,
+      '',
+      `Narrative: ${formData.narrative || 'Not provided'}`,
+      `Patient identifier: ${formData.patient?.patientIdentifier || 'Not provided'}`,
+      `Products: ${formData.products.map(p => p.productName).filter(Boolean).join(', ') || 'None'}`,
+      `Events: ${formData.events.map(e => e.meddraPt || e.eventVerbatim).filter(Boolean).join('; ') || 'None'}`
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob([report], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${initialCase?.caseNumber || 'pharmasafe-case-summary'}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSave = async (isDraftMode: boolean) => {
     setErrorMessage(null);
     setFieldErrors({});
@@ -376,6 +434,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       };
+
       if (xsrf) {
         headers['X-XSRF-TOKEN'] = xsrf;
       }
@@ -1196,15 +1255,41 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     <label className="font-semibold text-slate-700 block mb-1">MedDRA Preferred Term (PT)</label>
                     <input
                       type="text"
-                      placeholder="e.g. Angioedema"
+                      list={`meddra-terms-${idx}`}
+                      placeholder="Search sample MedDRA PT"
                       value={ev.meddraPt || ''}
-                      onChange={(e) => {
+                      onChange={async (e) => {
+                        const value = e.target.value;
                         const updated = [...formData.events];
-                        updated[idx].meddraPt = e.target.value;
+                        updated[idx].meddraPt = value;
+                        const selected = (meddraSuggestions[idx] || []).find(term => term.term === value);
+                        if (selected) {
+                          updated[idx].meddraSoc = selected.soc;
+                          updated[idx].meddraLlt = selected.term;
+                        }
                         setFormData({ ...formData, events: updated });
+                        if (value.trim().length >= 2) {
+                          try {
+                            const response = await fetch(getApiUrl(`/api/meddra/search?query=${encodeURIComponent(value.trim())}&size=10`), {
+                              credentials: 'include',
+                              headers: { Accept: 'application/json' }
+                            });
+                            if (response.ok) {
+                              const data = await response.json();
+                              setMeddraSuggestions(prev => ({ ...prev, [idx]: data.content || [] }));
+                            }
+                          } catch {
+                            setMeddraSuggestions(prev => ({ ...prev, [idx]: [] }));
+                          }
+                        }
                       }}
                       className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
                     />
+                    <datalist id={`meddra-terms-${idx}`}>
+                      {(meddraSuggestions[idx] || []).map(term => (
+                        <option key={term.code} value={term.term}>{term.code} - {term.soc}</option>
+                      ))}
+                    </datalist>
                   </div>
 
                   <div>
@@ -1673,6 +1758,29 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
           >
             {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <span>{initialCase ? 'Update Case' : 'Save Case'}</span>
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          {workflowMessage && <span className="text-[11px] text-slate-700">{workflowMessage}</span>}
+          {initialCase && formData.workflowState === 'Data Entry' && (
+            <button type="button" onClick={() => requestTransition('Medical Review')} className="argus-toolbar-btn px-2 py-1 text-[10px]">
+              Submit for Medical Review
+            </button>
+          )}
+          {initialCase && formData.workflowState === 'Medical Review' && user?.role === 'ROLE_MEDICAL_REVIEWER' && (
+            <>
+              <button type="button" onClick={() => requestTransition('Data Entry')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Return for Correction</button>
+              <button type="button" onClick={() => requestTransition('Quality Review')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Pass Medical Review</button>
+            </>
+          )}
+          {initialCase && formData.workflowState === 'Quality Review' && user?.role === 'ROLE_QUALITY_REVIEWER' && (
+            <>
+              <button type="button" onClick={() => requestTransition('Medical Review')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Return to Medical Review</button>
+              <button type="button" onClick={() => requestTransition('Approved')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Approve Case</button>
+            </>
+          )}
+          <button type="button" onClick={downloadCaseSummary} className="argus-toolbar-btn px-2 py-1 text-[10px]">
+            Download Case Summary
           </button>
         </div>
       </div>

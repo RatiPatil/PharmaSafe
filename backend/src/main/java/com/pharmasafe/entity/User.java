@@ -23,6 +23,12 @@ public class User {
     @Column(nullable = false, length = 32)
     private String role;
 
+    @Column(name = "full_name", length = 128)
+    private String fullName;
+
+    @Column(length = 64)
+    private String department = "Safety";
+
     @Column(nullable = false)
     private boolean enabled = true;
 
@@ -108,6 +114,22 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
     }
 
     public boolean isEnabled() {

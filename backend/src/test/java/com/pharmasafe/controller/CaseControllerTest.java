@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -344,5 +345,76 @@ public class CaseControllerTest {
         mockMvc.perform(get("/api/cases/assigned"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)));
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"ADMIN"})
+    public void testLockAndUnlockCase() throws Exception {
+        CaseRequestDto req = buildValidCaseRequest();
+        mockMvc.perform(post("/api/cases").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+
+        SafetyCase safetyCase = safetyCaseRepository.findAll().get(0);
+
+        // Lock case as admin
+        mockMvc.perform(post("/api/cases/" + safetyCase.getId() + "/lock").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locked", is(true)))
+                .andExpect(jsonPath("$.lockedByUsername", is("admin")));
+
+        // Attempting to update locked case fails
+        mockMvc.perform(put("/api/cases/" + safetyCase.getId())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", containsString("currently locked")));
+
+        // Unlock case
+        mockMvc.perform(post("/api/cases/" + safetyCase.getId() + "/unlock").with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locked", is(false)));
+    }
+
+    @Test
+    @WithMockUser(username = "processor", roles = {"CASE_PROCESSOR"})
+    public void testWorkflowTransition() throws Exception {
+        CaseRequestDto req = buildValidCaseRequest();
+        mockMvc.perform(post("/api/cases").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+
+        SafetyCase safetyCase = safetyCaseRepository.findAll().get(0);
+
+        Map<String, String> body = Map.of(
+                "targetState", "Medical Review",
+                "comments", "Ready for medical reviewer assessment"
+        );
+
+        mockMvc.perform(post("/api/cases/" + safetyCase.getId() + "/workflow-transition")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.workflowState", is("Medical Review")));
+    }
+
+    @Test
+    @WithMockUser(username = "processor", roles = {"CASE_PROCESSOR"})
+    public void testCalculateCausalityAlgorithm() throws Exception {
+        Map<String, Object> params = Map.of(
+                "temporalSequence", true,
+                "dechallenge", "Positive",
+                "rechallenge", "Positive",
+                "alternativeExplanation", false,
+                "pharmacologicallyPlausible", true
+        );
+
+        mockMvc.perform(post("/api/cases/assessments/calculate-causality")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(params)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestedCausality", is("Certain")))
+                .andExpect(jsonPath("$.disclaimer", containsString("WHO-UMC")));
     }
 }

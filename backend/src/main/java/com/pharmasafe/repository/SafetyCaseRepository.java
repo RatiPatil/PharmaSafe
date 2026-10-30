@@ -21,6 +21,8 @@ public interface SafetyCaseRepository extends JpaRepository<SafetyCase, Long> {
 
     List<SafetyCase> findByAssignedToUserOrderByCreatedAtDesc(User user);
 
+    Page<SafetyCase> findByAssignedToUser(User user, Pageable pageable);
+
     List<SafetyCase> findAllByOrderByCreatedAtDesc();
 
     long countByAssignedToUser(User user);

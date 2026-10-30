@@ -67,6 +67,16 @@ public class SafetyCase {
     @JoinColumn(name = "assigned_to_user_id")
     private User assignedToUser;
 
+    @Column(nullable = false)
+    private boolean locked = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "locked_by_user_id")
+    private User lockedByUser;
+
+    @Column(name = "locked_at")
+    private Instant lockedAt;
+
     @OneToOne(mappedBy = "safetyCase", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private CasePatient patient;
 
@@ -362,6 +372,30 @@ public class SafetyCase {
 
     public void setAttachments(List<CaseAttachment> attachments) {
         this.attachments = attachments;
+    }
+
+    public boolean isLocked() {
+        return locked;
+    }
+
+    public void setLocked(boolean locked) {
+        this.locked = locked;
+    }
+
+    public User getLockedByUser() {
+        return lockedByUser;
+    }
+
+    public void setLockedByUser(User lockedByUser) {
+        this.lockedByUser = lockedByUser;
+    }
+
+    public Instant getLockedAt() {
+        return lockedAt;
+    }
+
+    public void setLockedAt(Instant lockedAt) {
+        this.lockedAt = lockedAt;
     }
 
     public Instant getCreatedAt() {
