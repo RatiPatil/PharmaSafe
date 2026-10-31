@@ -14,7 +14,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/reports")
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'REPORTING_SPECIALIST', 'AUDITOR')")
 public class SafetyReportController {
 
     private final SafetyReportService safetyReportService;
@@ -42,6 +42,7 @@ public class SafetyReportController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'REPORTING_SPECIALIST')")
     public ResponseEntity<SafetyReportDto> createReport(
             @RequestBody SafetyReportDto requestDto,
             Authentication authentication
@@ -52,6 +53,7 @@ public class SafetyReportController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'REPORTING_SPECIALIST')")
     public ResponseEntity<SafetyReportDto> updateReport(
             @PathVariable Long id,
             @RequestBody SafetyReportDto requestDto,
@@ -63,7 +65,7 @@ public class SafetyReportController {
     }
 
     @PostMapping("/{id}/submit")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'REPORTING_SPECIALIST')")
     public ResponseEntity<SafetyReportDto> submitReport(
             @PathVariable Long id,
             Authentication authentication
@@ -80,6 +82,7 @@ public class SafetyReportController {
     }
 
     @PostMapping("/auto-classify")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> autoClassify(
             @RequestBody Map<String, Object> params
     ) {

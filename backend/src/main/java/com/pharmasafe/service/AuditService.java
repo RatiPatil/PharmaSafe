@@ -38,11 +38,17 @@ public class AuditService {
         auditEventRepository.save(event);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void logCaseEvent(Long caseId, String eventType, String username, String status, String details) {
+        logCaseEvent(caseId, eventType, username, status, details, null, null);
+    }
+
+    @Transactional
+    public void logCaseEvent(Long caseId, String eventType, String username, String status, String details,
+                             String ipAddress, String userAgent) {
         AuditEvent event = new AuditEvent(eventType,
                 username != null ? username.trim().toLowerCase() : null,
-                null, null, status, details);
+                ipAddress, userAgent, status, details);
         SafetyCase safetyCase = safetyCaseRepository.findById(caseId).orElse(null);
         event.setSafetyCase(safetyCase);
         auditEventRepository.save(event);

@@ -23,6 +23,7 @@ public class CaseInteractionController {
         return service.listContacts(auth.getName(), role(auth), caseId, pageable(page, size));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'CASE_PROCESSOR', 'USER', 'MEDICAL_REVIEWER', 'QUALITY_REVIEWER')")
     @PostMapping("/cases/{caseId}/contact-logs")
     public ResponseEntity<ContactLogResponse> createContact(@PathVariable Long caseId,
                                                              @Valid @RequestBody ContactLogRequest request,
@@ -30,6 +31,7 @@ public class CaseInteractionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createContact(caseId, request, auth.getName(), role(auth)));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'CASE_PROCESSOR', 'USER', 'MEDICAL_REVIEWER', 'QUALITY_REVIEWER')")
     @PutMapping("/contact-logs/{id}")
     public ContactLogResponse updateContact(@PathVariable Long id, @Valid @RequestBody ContactLogRequest request,
                                             Authentication auth) {
@@ -45,6 +47,7 @@ public class CaseInteractionController {
         return service.listActions(auth.getName(), role(auth), caseId, overdue, pageable(page, size));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'CASE_PROCESSOR', 'USER', 'MEDICAL_REVIEWER', 'QUALITY_REVIEWER')")
     @PostMapping("/cases/{caseId}/action-items")
     public ResponseEntity<ActionItemResponse> createAction(@PathVariable Long caseId,
                                                             @Valid @RequestBody ActionItemRequest request,
@@ -52,11 +55,13 @@ public class CaseInteractionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.createAction(caseId, request, auth.getName(), role(auth)));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER')")
     @PatchMapping("/action-items/{id}/assignment")
     public ActionItemResponse reassignAction(@PathVariable Long id, @RequestParam Long assignedUserId, Authentication auth) {
         return service.reassignAction(id, assignedUserId, auth.getName(), role(auth));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'CASE_PROCESSOR', 'USER', 'MEDICAL_REVIEWER', 'QUALITY_REVIEWER')")
     @PostMapping("/action-items/{id}/complete")
     public ActionItemResponse completeAction(@PathVariable Long id, Authentication auth) {
         return service.completeAction(id, auth.getName(), role(auth));

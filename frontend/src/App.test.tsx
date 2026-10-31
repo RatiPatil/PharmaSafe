@@ -259,7 +259,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
 
     // Verify navigation to dashboard
     await waitFor(() => {
-      expect(screen.getByText('STAGE 2 AUTHENTICATED')).toBeInTheDocument();
+      expect(screen.getByRole('navigation', { name: /navigation$/ })).toBeInTheDocument();
       expect(screen.getAllByText('ROLE_ADMIN')[0]).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Log Out/i })).toBeInTheDocument();
     });
@@ -298,7 +298,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText('STAGE 2 AUTHENTICATED')).toBeInTheDocument();
+      expect(screen.getByRole('navigation', { name: /navigation$/ })).toBeInTheDocument();
       expect(screen.getAllByText('caseanalyst')[0]).toBeInTheDocument();
       expect(screen.getAllByText('ROLE_USER')[0]).toBeInTheDocument();
     });

@@ -77,6 +77,11 @@ public class GlobalExceptionHandler {
                 .body(AuthResponseDto.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<AuthResponseDto> handleConcurrentUpdate(org.springframework.orm.ObjectOptimisticLockingFailureException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(AuthResponseDto.error("This record changed during your action. Refresh and try again."));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthResponseDto> handleGenericException(Exception ex) {
         log.error("Unhandled internal server error: ", ex);

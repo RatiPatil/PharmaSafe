@@ -731,7 +731,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 <label className="font-semibold text-[#172B4D] block mb-1.5">Workflow State</label>
                 <select
                   value={formData.workflowState}
-                  onChange={(e) => setFormData({ ...formData, workflowState: e.target.value })}
+                  disabled
                   className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
                   <option value="Data Entry">Data Entry</option>

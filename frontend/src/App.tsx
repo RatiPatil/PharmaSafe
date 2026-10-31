@@ -1,7 +1,7 @@
 import React from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './components/LoginPage';
-import { Stage3Dashboard } from './components/Stage3Dashboard';
+import { RoleWorkspace } from './components/RoleWorkspace';
 import { Loader2 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -18,7 +18,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  return isAuthenticated ? <Stage3Dashboard /> : <LoginPage />;
+  return isAuthenticated ? <RoleWorkspace /> : <LoginPage />;
 };
 
 export const App: React.FC = () => {

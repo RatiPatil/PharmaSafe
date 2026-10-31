@@ -3,8 +3,6 @@ package com.pharmasafe.controller;
 import com.pharmasafe.dto.CaseSummaryDto;
 import com.pharmasafe.dto.DashboardSummaryDto;
 import com.pharmasafe.dto.RecentActivityDto;
-import com.pharmasafe.entity.SafetyCase;
-import com.pharmasafe.repository.SafetyCaseRepository;
 import com.pharmasafe.service.DashboardService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,15 +25,16 @@ public class DashboardController {
             "createdAt", "updatedAt", "caseNumber", "initialReceiptDate", "latestReceivedDate", "priority", "workflowState"
     );
 
+    private final com.pharmasafe.service.WorkspaceQueueService queue;
     private final DashboardService dashboardService;
-    private final SafetyCaseRepository safetyCaseRepository;
 
-    public DashboardController(DashboardService dashboardService, SafetyCaseRepository safetyCaseRepository) {
+    public DashboardController(DashboardService dashboardService, com.pharmasafe.service.WorkspaceQueueService queue) {
+        this.queue = queue;
         this.dashboardService = dashboardService;
-        this.safetyCaseRepository = safetyCaseRepository;
     }
 
     @GetMapping("/summary")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER', 'AUDITOR')")
     public ResponseEntity<DashboardSummaryDto> getSummary(Authentication authentication) {
         String username = authentication != null ? authentication.getName() : null;
         DashboardSummaryDto summary = dashboardService.getSummary(username);
@@ -65,18 +64,13 @@ public class DashboardController {
             @RequestParam(defaultValue = "desc") String direction,
             Authentication authentication
     ) {
-        String username = authentication != null ? authentication.getName() : null;
-        String filterUser = assignedOnly ? username : null;
-
         int boundedSize = Math.max(1, Math.min(size, 50));
         String cleanSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "createdAt";
         Sort sort = "asc".equalsIgnoreCase(direction) ? Sort.by(cleanSortBy).ascending() : Sort.by(cleanSortBy).descending();
         Pageable pageable = PageRequest.of(Math.max(0, page), boundedSize, sort);
 
-        Page<SafetyCase> casePage = safetyCaseRepository.findPaginatedCases(
-                filterUser, search, country, workflowState, priority, reportType, pageable);
-
-        Page<CaseSummaryDto> dtoPage = casePage.map(CaseSummaryDto::fromEntity);
+        Page<CaseSummaryDto> dtoPage = queue.queue(authentication, search, workflowState, priority,
+                country, reportType, assignedOnly, pageable);
         return ResponseEntity.ok(dtoPage);
     }
 }

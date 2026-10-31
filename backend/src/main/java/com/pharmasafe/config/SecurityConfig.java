@@ -107,8 +107,12 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/csrf"
                 ).permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/cases").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/cases/*").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
+                .requestMatchers("/api/auth/**").authenticated()
+                .anyRequest().hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER", "MEDICAL_REVIEWER",
+                        "QUALITY_REVIEWER", "SAFETY_MANAGER", "REPORTING_SPECIALIST", "AUDITOR")
             );
 
         return http.build();

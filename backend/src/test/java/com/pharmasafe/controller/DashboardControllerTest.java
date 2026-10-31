@@ -74,7 +74,7 @@ public class DashboardControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "officer1", roles = {"USER"})
+    @WithMockUser(username = "officer1", roles = {"ADMIN"})
     @DisplayName("GET /api/dashboard/summary with empty database returns zero counts and UNCONFIGURED action items")
     public void testSummaryEmptyDatabase() throws Exception {
         mockMvc.perform(get("/api/dashboard/summary").accept(MediaType.APPLICATION_JSON))
@@ -91,7 +91,7 @@ public class DashboardControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "officer1", roles = {"USER"})
+    @WithMockUser(username = "officer1", roles = {"ADMIN"})
     @DisplayName("GET /api/dashboard/summary computes precise scoped counts correctly")
     public void testSummaryWithCases() throws Exception {
         // Case 1: Assigned to officer1, Data Entry, Routine

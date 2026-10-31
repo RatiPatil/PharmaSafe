@@ -23,12 +23,15 @@ import java.util.List;
 public class CaseController {
 
     private final CaseService caseService;
+    private final com.pharmasafe.service.WorkspaceQueueService queue;
 
-    public CaseController(CaseService caseService) {
+    public CaseController(CaseService caseService, com.pharmasafe.service.WorkspaceQueueService queue) {
+        this.queue = queue;
         this.caseService = caseService;
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'CASE_PROCESSOR', 'USER')")
     public ResponseEntity<CaseResponseDto> createCase(
             @Valid @RequestBody CaseRequestDto requestDto,
             Authentication authentication,
@@ -38,11 +41,15 @@ public class CaseController {
         String clientIp = extractClientIp(request);
         String userAgent = request.getHeader("User-Agent");
 
+        if (!authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            requestDto.setAssignedToUsername(username);
+        }
         CaseResponseDto response = caseService.createCase(requestDto, username, clientIp, userAgent);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CASE_PROCESSOR', 'USER')")
     public ResponseEntity<CaseResponseDto> updateCase(
             @PathVariable Long id,
             @Valid @RequestBody CaseRequestDto requestDto,
@@ -53,6 +60,11 @@ public class CaseController {
         String clientIp = extractClientIp(request);
         String userAgent = request.getHeader("User-Agent");
 
+        CaseResponseDto existing = caseService.getCaseByIdAuthorized(id, username,
+                authentication.getAuthorities().iterator().next().getAuthority());
+        if (!java.util.Set.of("Draft", "Data Entry").contains(existing.getWorkflowState())) {
+            throw new org.springframework.security.access.AccessDeniedException("Case data entry is closed in this workflow state");
+        }
         CaseResponseDto response = caseService.updateCase(id, requestDto, username, clientIp, userAgent);
         return ResponseEntity.ok(response);
     }
@@ -87,8 +99,7 @@ public class CaseController {
 
     @GetMapping("/assigned")
     public ResponseEntity<List<CaseSummaryDto>> getAssignedCases(Authentication authentication) {
-        String username = authentication != null ? authentication.getName() : null;
-        List<CaseSummaryDto> assignedCases = caseService.getAssignedCases(username);
+        List<CaseSummaryDto> assignedCases = queue.queue(authentication, null, null, null, null, null, true, org.springframework.data.domain.Pageable.unpaged()).getContent();
         return ResponseEntity.ok(assignedCases);
     }
 
@@ -97,10 +108,8 @@ public class CaseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication authentication) {
-        String username = authentication.getName();
-        com.pharmasafe.entity.User user = caseService.findUser(username);
-        Page<CaseSummaryDto> assigned = caseService.getAssignedCasesPage(
-                user, PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 50)),
+        Page<CaseSummaryDto> assigned = queue.queue(authentication, null, null, null, null, null, true,
+                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(size, 50)),
                         Sort.by(Sort.Direction.DESC, "updatedAt").and(Sort.by(Sort.Direction.ASC, "id"))));
         return ResponseEntity.ok(assigned);
     }
@@ -125,6 +134,13 @@ public class CaseController {
         String username = authentication != null ? authentication.getName() : "anonymous";
         CaseResponseDto response = caseService.unlockCase(id, username);
         return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/priority")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SAFETY_MANAGER')")
+    public ResponseEntity<CaseResponseDto> priority(@PathVariable Long id,
+            @RequestBody java.util.Map<String, String> body, Authentication auth) {
+        return ResponseEntity.ok(caseService.changePriority(id, body.get("priority"), auth.getName()));
     }
 
     @PostMapping("/{id}/assign")
@@ -156,22 +172,26 @@ public class CaseController {
         String role = authentication != null
                 ? authentication.getAuthorities().stream().findFirst().map(a -> a.getAuthority()).orElse("")
                 : "";
+        caseService.getCaseByIdAuthorized(id, username, role);
         CaseResponseDto response = caseService.transitionWorkflow(id, targetState, comments, username, role);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}/audit-history")
-    public ResponseEntity<List<com.pharmasafe.dto.AuditEventResponseDto>> getAuditHistory(@PathVariable Long id) {
+    public ResponseEntity<List<com.pharmasafe.dto.AuditEventResponseDto>> getAuditHistory(@PathVariable Long id, Authentication authentication) {
+        caseService.getCaseByIdAuthorized(id, authentication.getName(), authentication.getAuthorities().iterator().next().getAuthority());
         return ResponseEntity.ok(caseService.getCaseAuditHistory(id));
     }
 
     @PostMapping("/{id}/assessments")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MEDICAL_REVIEWER')")
     public ResponseEntity<CaseResponseDto> addAssessment(
             @PathVariable Long id,
             @RequestBody CaseRequestDto.AssessmentDto assessmentDto,
             Authentication authentication
     ) {
         String username = authentication != null ? authentication.getName() : "anonymous";
+        caseService.getCaseByIdAuthorized(id, username, authentication.getAuthorities().iterator().next().getAuthority());
         CaseResponseDto response = caseService.addAssessment(id, assessmentDto, username);
         return ResponseEntity.ok(response);
     }

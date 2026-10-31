@@ -83,7 +83,7 @@ public class CaseServiceTest {
         assertNotNull(response);
         assertEquals("PS-2026-USA-01001", response.getCaseNumber());
         assertEquals("USA", response.getCountryCode());
-        verify(auditService, times(1)).logEvent(eq("CASE_CREATED"), eq("testuser"), any(), any(), eq("SUCCESS"), any());
+        verify(auditService, times(1)).logCaseEvent(eq(100L), eq("CASE_CREATED"), eq("testuser"), eq("SUCCESS"), any(), eq("127.0.0.1"), eq("TestAgent"));
     }
 
     @Test

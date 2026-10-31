@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface SafetyCaseRepository extends JpaRepository<SafetyCase, Long> {
+public interface SafetyCaseRepository extends JpaRepository<SafetyCase, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<SafetyCase> {
 
     Optional<SafetyCase> findByCaseNumber(String caseNumber);
 
