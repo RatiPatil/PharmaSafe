@@ -334,7 +334,7 @@ public class CaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].countryCode", is("DEU")))
-                .andExpect(jsonPath("$[0].workflowState", is("Medical Review")));
+                .andExpect(jsonPath("$[0].workflowState", is("Data Entry")));
 
         // Search all
         mockMvc.perform(get("/api/cases"))
@@ -379,6 +379,7 @@ public class CaseControllerTest {
     @Test
     @WithMockUser(username = "processor", roles = {"CASE_PROCESSOR"})
     public void testWorkflowTransition() throws Exception {
+        userRepository.save(new User("processor", passwordEncoder.encode("Password123!"), "ROLE_CASE_PROCESSOR"));
         CaseRequestDto req = buildValidCaseRequest();
         mockMvc.perform(post("/api/cases").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());

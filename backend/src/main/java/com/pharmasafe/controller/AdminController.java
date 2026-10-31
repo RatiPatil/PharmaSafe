@@ -85,10 +85,8 @@ public class AdminController {
             throw new IllegalArgumentException("Username already exists: " + username);
         }
 
-        String assignedRole = (role != null && !role.trim().isEmpty()) ? role.trim().toUpperCase() : "ROLE_CASE_PROCESSOR";
-        if (!assignedRole.startsWith("ROLE_")) {
-            assignedRole = "ROLE_" + assignedRole;
-        }
+        String assignedRole = com.pharmasafe.security.WorkspaceAccess.normalizeRole(
+                role == null ? "ROLE_CASE_PROCESSOR" : role);
 
         User newUser = new User(username.trim().toLowerCase(), passwordEncoder.encode(password), assignedRole);
         newUser.setFullName(fullName != null ? fullName.trim() : username.trim());
@@ -120,10 +118,10 @@ public class AdminController {
             user.setDepartment(request.get("department"));
         }
         if (request.containsKey("role")) {
-            String newRole = request.get("role").trim().toUpperCase();
-            if (!newRole.startsWith("ROLE_")) {
-                newRole = "ROLE_" + newRole;
+            if (user.getUsername().equalsIgnoreCase(adminUsername)) {
+                throw new IllegalArgumentException("Ask another administrator to change your role");
             }
+            String newRole = com.pharmasafe.security.WorkspaceAccess.normalizeRole(request.get("role"));
             user.setRole(newRole);
         }
 
@@ -144,7 +142,7 @@ public class AdminController {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + id));
 
-        if ("admin".equalsIgnoreCase(user.getUsername())) {
+        if ("admin".equalsIgnoreCase(user.getUsername()) || user.getUsername().equalsIgnoreCase(adminUsername)) {
             throw new IllegalArgumentException("Cannot deactivate primary system administrator account");
         }
 
@@ -193,7 +191,8 @@ public class AdminController {
                 Map.of("role", "ROLE_MEDICAL_REVIEWER", "name", "Medical Reviewer", "description", "Medical review, WHO-UMC causality assessment, listedness evaluation, and clinical approvals"),
                 Map.of("role", "ROLE_QUALITY_REVIEWER", "name", "Quality Reviewer", "description", "Quality review, completeness verification, and approval or return for correction"),
                 Map.of("role", "ROLE_SAFETY_MANAGER", "name", "Safety Manager", "description", "Workflow oversight, case locking/unlocking, expedited clock monitoring, and regulatory reporting"),
-                Map.of("role", "ROLE_USER", "name", "Standard User", "description", "Standard pharmacovigilance operations and case entry")
+                Map.of("role", "ROLE_REPORTING_SPECIALIST", "name", "Reporting Specialist", "description", "Prepare and track safety reports"),
+                Map.of("role", "ROLE_AUDITOR", "name", "Auditor / Viewer", "description", "Read-only case and audit access")
         );
         return ResponseEntity.ok(roles);
     }

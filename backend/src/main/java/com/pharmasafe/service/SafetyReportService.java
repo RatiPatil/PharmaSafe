@@ -64,7 +64,7 @@ public class SafetyReportService {
         String reportId = request.getReportId();
         if (reportId == null || reportId.trim().isEmpty()) {
             String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            reportId = "RPT-" + datePart + "-" + String.format("%03d", (int)(Math.random() * 900) + 100);
+            reportId = "RPT-" + datePart + "-" + UUID.randomUUID();
         }
         report.setReportId(reportId);
         report.setReportType(request.getReportType() != null ? request.getReportType() : "15-day");
@@ -93,10 +93,17 @@ public class SafetyReportService {
             int total = 0;
             int serious = 0;
             int fatal = 0;
+            Set<Long> linkedIds = new HashSet<>();
             for (String caseNum : request.getRelatedCaseNumbers()) {
+                if (caseNum == null || caseNum.isBlank()) throw new IllegalArgumentException("Case number is required");
                 Optional<SafetyCase> cOpt = safetyCaseRepository.findByCaseNumberIgnoreCase(caseNum.trim());
+                if (cOpt.isEmpty()) throw new IllegalArgumentException("Related case not found: " + caseNum);
                 if (cOpt.isPresent()) {
                     SafetyCase c = cOpt.get();
+                    if (!Set.of("Approved", "Locked", "Closed").contains(c.getWorkflowState())) {
+                        throw new IllegalArgumentException("Related case must be approved before report preparation");
+                    }
+                    if (!linkedIds.add(c.getId())) continue;
                     linkedCases.add(c);
                     total++;
                     if (c.isSerious()) serious++;

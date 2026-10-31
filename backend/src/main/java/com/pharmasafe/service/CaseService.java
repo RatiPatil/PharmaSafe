@@ -67,7 +67,7 @@ public class CaseService {
         safetyCase.setReportType(request.getReportType());
         safetyCase.setInitialReceiptDate(request.getInitialReceiptDate());
         safetyCase.setLatestReceivedDate(request.getLatestReceivedDate());
-        safetyCase.setWorkflowState(request.isDraft() ? "Draft" : (request.getWorkflowState() != null ? request.getWorkflowState() : "Data Entry"));
+        safetyCase.setWorkflowState(request.isDraft() ? "Draft" : "Data Entry");
         safetyCase.setPriority(request.getPriority() != null ? request.getPriority() : "Routine");
         safetyCase.setNarrative(request.getNarrative());
         safetyCase.setCompanyComments(request.getCompanyComments());
@@ -114,7 +114,7 @@ public class CaseService {
         String auditDetails = String.format("Created safety case %s (Country: %s, Type: %s, State: %s, Serious: %s)",
                 savedCase.getCaseNumber(), savedCase.getCountryCode(), savedCase.getReportType(),
                 savedCase.getWorkflowState(), savedCase.isSerious());
-        auditService.logEvent("CASE_CREATED", username, clientIp, userAgent, "SUCCESS", auditDetails);
+        auditService.logCaseEvent(savedCase.getId(), "CASE_CREATED", username, "SUCCESS", auditDetails, clientIp, userAgent);
         log.info("Safety case {} created successfully by user '{}'", savedCase.getCaseNumber(), username);
 
         return CaseResponseDto.fromEntity(savedCase);
@@ -148,26 +148,24 @@ public class CaseService {
         safetyCase.setInitialReceiptDate(request.getInitialReceiptDate());
         safetyCase.setLatestReceivedDate(request.getLatestReceivedDate());
 
-        // Update workflow state if progressing from draft
-        if ("Draft".equalsIgnoreCase(safetyCase.getWorkflowState()) && !request.isDraft()) {
+        if ("Draft".equals(safetyCase.getWorkflowState()) && !request.isDraft()
+                && "Data Entry".equals(request.getWorkflowState())) {
             safetyCase.setWorkflowState("Data Entry");
-        } else if (request.getWorkflowState() != null) {
-            safetyCase.setWorkflowState(request.getWorkflowState());
         }
-
+        if (request.getWorkflowState() != null && !request.getWorkflowState().equals(safetyCase.getWorkflowState())) {
+            throw new IllegalArgumentException("Use the workflow transition action to change state");
+        }
         safetyCase.setPriority(request.getPriority() != null ? request.getPriority() : safetyCase.getPriority());
         safetyCase.setNarrative(request.getNarrative());
         safetyCase.setCompanyComments(request.getCompanyComments());
         safetyCase.setVersionNumber(safetyCase.getVersionNumber() + 1);
         safetyCase.setUpdatedByUser(user);
 
-        if (request.getAssignedToUsername() != null && !request.getAssignedToUsername().trim().isEmpty()) {
-            User assignedUser = userRepository.findByUsername(request.getAssignedToUsername().trim().toLowerCase()).orElse(null);
-            if (assignedUser != null) {
-                safetyCase.setAssignedToUser(assignedUser);
-            }
+        if (request.getAssignedToUsername() != null && !request.getAssignedToUsername().isBlank()
+                && (safetyCase.getAssignedToUser() == null || !request.getAssignedToUsername()
+                    .equalsIgnoreCase(safetyCase.getAssignedToUser().getUsername()))) {
+            throw new IllegalArgumentException("Use the assignment action to change case ownership");
         }
-
         // Clear existing children and re-populate
         mapPatient(request, safetyCase);
 
@@ -195,7 +193,7 @@ public class CaseService {
         // Audit Logging
         String auditDetails = String.format("Updated safety case %s to version %d (State: %s, Serious: %s)",
                 updatedCase.getCaseNumber(), updatedCase.getVersionNumber(), updatedCase.getWorkflowState(), updatedCase.isSerious());
-        auditService.logEvent("CASE_UPDATED", username, clientIp, userAgent, "SUCCESS", auditDetails);
+        auditService.logCaseEvent(updatedCase.getId(), "CASE_UPDATED", username, "SUCCESS", auditDetails, clientIp, userAgent);
         log.info("Safety case {} updated to version {} by user '{}'", updatedCase.getCaseNumber(), updatedCase.getVersionNumber(), username);
 
         return CaseResponseDto.fromEntity(updatedCase);
@@ -238,21 +236,7 @@ public class CaseService {
     }
 
     private void requireReadAccess(SafetyCase safetyCase, String username, String role) {
-        if ("ROLE_ADMIN".equals(role) || "ROLE_SAFETY_MANAGER".equals(role)) {
-            return;
-        }
-        String normalized = username == null ? "" : username.trim().toLowerCase();
-        boolean allowed = safetyCase.getAssignedToUser() != null
-                && normalized.equalsIgnoreCase(safetyCase.getAssignedToUser().getUsername());
-        allowed = allowed || (safetyCase.getCreatedByUser() != null
-                && normalized.equalsIgnoreCase(safetyCase.getCreatedByUser().getUsername()));
-        if ("ROLE_MEDICAL_REVIEWER".equals(role)) {
-            allowed = allowed || Set.of("Medical Review", "Quality Review").contains(safetyCase.getWorkflowState());
-        }
-        if ("ROLE_QUALITY_REVIEWER".equals(role)) {
-            allowed = allowed || Set.of("Quality Review", "Approved", "Locked", "Closed").contains(safetyCase.getWorkflowState());
-        }
-        if (!allowed) {
+        if (!new com.pharmasafe.security.WorkspaceAccess().canRead(safetyCase, username, role)) {
             throw new org.springframework.security.access.AccessDeniedException("You are not authorized to access this case");
         }
     }
@@ -272,19 +256,9 @@ public class CaseService {
     public List<CaseSummaryDto> searchCasesAuthorized(String search, String country, String workflowState,
                                                        String reportType, String username, String role) {
         List<CaseSummaryDto> results = searchCases(search, country, workflowState, reportType);
-        if ("ROLE_ADMIN".equals(role) || "ROLE_SAFETY_MANAGER".equals(role)) {
-            return results;
-        }
-        String normalized = username == null ? "" : username.trim().toLowerCase();
-        return results.stream().filter(summary -> {
-            SafetyCase safetyCase = safetyCaseRepository.findById(summary.getId()).orElse(null);
-            if (safetyCase == null) return false;
-            boolean assigned = safetyCase.getAssignedToUser() != null
-                    && normalized.equalsIgnoreCase(safetyCase.getAssignedToUser().getUsername());
-            boolean created = safetyCase.getCreatedByUser() != null
-                    && normalized.equalsIgnoreCase(safetyCase.getCreatedByUser().getUsername());
-            return assigned || created;
-        }).toList();
+        return results.stream().filter(summary -> safetyCaseRepository.findById(summary.getId())
+                .map(c -> new com.pharmasafe.security.WorkspaceAccess().canRead(c, username, role))
+                .orElse(false)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -339,7 +313,7 @@ public class CaseService {
         safetyCase.setLockedAt(Instant.now());
         SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
 
-        auditService.logEvent("CASE_LOCKED", username, null, null, "SUCCESS",
+        auditService.logCaseEvent(id, "CASE_LOCKED", username, "SUCCESS",
                 "Case " + safetyCase.getCaseNumber() + " was locked by " + username);
 
         CaseResponseDto response = CaseResponseDto.fromEntity(saved);
@@ -363,7 +337,7 @@ public class CaseService {
         safetyCase.setLockedAt(null);
         SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
 
-        auditService.logEvent("CASE_UNLOCKED", username, null, null, "SUCCESS",
+        auditService.logCaseEvent(id, "CASE_UNLOCKED", username, "SUCCESS",
                 "Case " + safetyCase.getCaseNumber() + " was unlocked by " + username);
 
         CaseResponseDto response = CaseResponseDto.fromEntity(saved);
@@ -371,6 +345,21 @@ public class CaseService {
             response.setLockedByUsername(username);
         }
         return response;
+    }
+
+    @Transactional
+    public CaseResponseDto changePriority(Long id, String priority, String username) {
+        if (priority == null || !Set.of("Routine", "Priority", "Expedited").contains(priority)) {
+            throw new IllegalArgumentException("Invalid priority");
+        }
+        SafetyCase c = safetyCaseRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Case not found"));
+        if (c.isLocked()) throw new IllegalStateException("Unlock the case before changing its priority");
+        c.setPriority(priority);
+        c.setUpdatedByUser(findUser(username));
+        safetyCaseRepository.saveAndFlush(c);
+        auditService.logCaseEvent(id, "CASE_PRIORITY_CHANGED", username, "SUCCESS", "Priority changed to " + priority);
+        return CaseResponseDto.fromEntity(c);
     }
 
     @Transactional
@@ -392,7 +381,7 @@ public class CaseService {
         safetyCase.setAssignedToUser(targetUser);
         SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
 
-        auditService.logEvent("CASE_ASSIGNED", username, null, null, "SUCCESS",
+        auditService.logCaseEvent(id, "CASE_ASSIGNED", username, "SUCCESS",
                 "Case " + safetyCase.getCaseNumber() + " assigned from " + prevAssigned + " to " + targetUser.getUsername());
 
         return CaseResponseDto.fromEntity(saved);
@@ -411,6 +400,11 @@ public class CaseService {
         String nextState = targetState.trim();
         validateWorkflowTransition(safetyCase, prevState, nextState, role, username, comments);
         safetyCase.setWorkflowState(nextState);
+        if ("Locked".equals(nextState)) {
+            safetyCase.setLocked(true);
+            safetyCase.setLockedAt(Instant.now());
+            safetyCase.setLockedByUser(findUser(username));
+        }
         if (comments != null && !comments.trim().isEmpty()) {
             String existingComments = safetyCase.getCompanyComments();
             safetyCase.setCompanyComments((existingComments != null ? existingComments + "\n" : "") +
@@ -492,7 +486,7 @@ public class CaseService {
 
         SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
 
-        auditService.logEvent("ASSESSMENT_ADDED", username, null, null, "SUCCESS",
+        auditService.logCaseEvent(id, "ASSESSMENT_ADDED", username, "SUCCESS",
                 "Assessment added for case " + safetyCase.getCaseNumber() + ": " +
                         ad.getProductName() + " / " + ad.getEventVerbatim() + " -> " + a.getCausalityCompany() + " (" + a.getExpectedness() + ")");
 

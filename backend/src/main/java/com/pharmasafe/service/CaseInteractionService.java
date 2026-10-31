@@ -37,10 +37,11 @@ public class CaseInteractionService {
             return contactRepository.findBySafetyCaseIdOrderByContactAtDesc(caseId, pageable).map(ContactLogResponse::fromEntity);
         }
         if ("ROLE_ADMIN".equals(role) || "ROLE_SAFETY_MANAGER".equals(role)) {
-            return contactRepository.findByResponsibleUserOrCreatedByUserOrderByContactAtDesc(actor, actor, pageable)
+            return contactRepository.findAll(PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                    Sort.by(Sort.Order.desc("contactAt"), Sort.Order.asc("id"))))
                     .map(ContactLogResponse::fromEntity);
         }
-        return contactRepository.findPersonalLogs(actor, pageable)
+        return contactRepository.findPersonalLogs(actor, role, pageable)
                 .map(ContactLogResponse::fromEntity);
     }
 
@@ -89,7 +90,11 @@ public class CaseInteractionService {
             return actionRepository.findBySafetyCaseIdOrderByDueAtAscIdAsc(caseId, pageable)
                     .map(item -> ActionItemResponse.fromEntity(item, Instant.now()));
         }
-        return actionRepository.findPersonalItems(actor, overdue, pageable)
+        if ("ROLE_ADMIN".equals(role) || "ROLE_SAFETY_MANAGER".equals(role)) {
+            return actionRepository.findTeamItems(overdue, Instant.now(), pageable)
+                    .map(item -> ActionItemResponse.fromEntity(item, Instant.now()));
+        }
+        return actionRepository.findPersonalItems(actor, role, overdue, pageable)
                 .map(item -> ActionItemResponse.fromEntity(item, Instant.now()));
     }
 
@@ -101,7 +106,13 @@ public class CaseInteractionService {
         CaseActionItem item = new CaseActionItem();
         item.setSafetyCase(safetyCase);
         item.setDescription(request.description().trim());
-        item.setAssignedUser(user(request.assignedUserId()));
+        if (!java.util.Set.of("ROLE_ADMIN", "ROLE_SAFETY_MANAGER").contains(role)
+                && !actor.getId().equals(request.assignedUserId())) {
+            throw new org.springframework.security.access.AccessDeniedException("Only managers can assign tasks to another user");
+        }
+        User target = user(request.assignedUserId());
+        requireCaseAccess(safetyCase, target, target.getRole());
+        item.setAssignedUser(target);
         item.setDueAt(request.dueAt());
         item.setCreatedByUser(actor);
         CaseActionItem saved = actionRepository.save(item);
@@ -115,7 +126,9 @@ public class CaseInteractionService {
         User actor = actor(username);
         CaseActionItem item = actionRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Action item not found"));
         requireCaseAccess(item.getSafetyCase(), actor, role);
-        item.setAssignedUser(user(assignedUserId));
+        User target = user(assignedUserId);
+        requireCaseAccess(item.getSafetyCase(), target, target.getRole());
+        item.setAssignedUser(target);
         CaseActionItem saved = actionRepository.save(item);
         auditService.logCaseEvent(item.getSafetyCase().getId(), "ACTION_ITEM_REASSIGNED", actor.getUsername(), "SUCCESS",
                 "Action item " + id + " reassigned to " + saved.getAssignedUser().getUsername());
@@ -149,7 +162,12 @@ public class CaseInteractionService {
     }
 
     private User user(Long id) {
-        return userRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + id));
+        User target = userRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + id));
+        if (!target.isEnabled() || target.isLocked() || !java.util.Set.of("ROLE_ADMIN", "ROLE_SAFETY_MANAGER",
+                "ROLE_CASE_PROCESSOR", "ROLE_USER", "ROLE_MEDICAL_REVIEWER", "ROLE_QUALITY_REVIEWER").contains(target.getRole())) {
+            throw new IllegalArgumentException("Select an active operational user");
+        }
+        return target;
     }
 
     private SafetyCase caseById(Long id) {
@@ -157,18 +175,9 @@ public class CaseInteractionService {
     }
 
     private void requireCaseAccess(SafetyCase safetyCase, User actor, String role) {
-        boolean elevated = "ROLE_ADMIN".equals(role) || "ROLE_SAFETY_MANAGER".equals(role);
-        boolean related = safetyCase.getAssignedToUser() == actor
-                || safetyCase.getCreatedByUser() == actor
-                || (safetyCase.getAssignedToUser() != null && safetyCase.getAssignedToUser().getId().equals(actor.getId()))
-                || (safetyCase.getCreatedByUser() != null && safetyCase.getCreatedByUser().getId().equals(actor.getId()));
-        if ("ROLE_MEDICAL_REVIEWER".equals(role)) {
-            related = related || java.util.Set.of("Medical Review", "Quality Review").contains(safetyCase.getWorkflowState());
+        if (!new com.pharmasafe.security.WorkspaceAccess().canRead(safetyCase, actor.getUsername(), role)) {
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to access this case");
         }
-        if ("ROLE_QUALITY_REVIEWER".equals(role)) {
-            related = related || java.util.Set.of("Quality Review", "Approved", "Locked", "Closed").contains(safetyCase.getWorkflowState());
-        }
-        if (!elevated && !related) throw new org.springframework.security.access.AccessDeniedException("You are not authorized to access this case");
     }
 
     private void validateContactType(String type) {
