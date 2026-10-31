@@ -11,6 +11,10 @@ describe('API Configuration & URL Normalization', () => {
     vi.unstubAllGlobals();
   });
 
+  it('has a 75-second timeout window to accommodate Render free-tier cold starts', () => {
+    expect(AUTH_REQUEST_TIMEOUT_MS).toBe(75_000);
+  });
+
   it('aborts a stalled authentication request instead of waiting indefinitely', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('fetch', vi.fn((_url, options: RequestInit) => new Promise((_resolve, reject) => {

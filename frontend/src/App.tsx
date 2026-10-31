@@ -5,9 +5,9 @@ import { Stage3Dashboard } from './components/Stage3Dashboard';
 import { Loader2 } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isInitialLoading } = useAuth();
 
-  if (isLoading) {
+  if (isInitialLoading) {
     return (
       <div className="min-h-screen bg-[#F4F7FB] flex flex-col items-center justify-center font-sans text-[#172B4D]">
         <div className="bg-white px-6 py-5 rounded-xl border border-[#DCE4EE] shadow-sm flex items-center space-x-3">

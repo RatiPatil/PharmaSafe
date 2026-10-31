@@ -4,10 +4,17 @@
  * as well as local development with Vite dev server proxy.
  */
 
-// Base API URL from environment variable (empty string for same-origin or local proxy)
-export const API_BASE_URL: string = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+// Base API URL from environment variable or production fallback
+const envApiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+export const API_BASE_URL: string = envApiUrl || (
+  typeof window !== 'undefined' && window.location?.hostname?.includes('pharmasafe-frontend.onrender.com')
+    ? 'https://pharmasafe-qjm1.onrender.com'
+    : ''
+);
 
-export const AUTH_REQUEST_TIMEOUT_MS = 30_000;
+// Bounded timeout (75 seconds) designed to safely accommodate Render free-tier cold starts
+// where the Java 17 Spring Boot JVM, Docker container, and Flyway migrations may take 30-50 seconds.
+export const AUTH_REQUEST_TIMEOUT_MS = 75_000;
 
 /** Bound authentication requests so an unavailable backend cannot trap the UI. */
 export async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
@@ -23,7 +30,7 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}): 
 /**
  * Returns full URL for an API path.
  * In development / tests without VITE_API_URL, returns the relative path (e.g. "/api/cases").
- * In production with VITE_API_URL set, returns "https://backend.onrender.com/api/cases".
+ * In production with VITE_API_URL set, returns "https://pharmasafe-qjm1.onrender.com/api/cases".
  */
 export function getApiUrl(path: string): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;

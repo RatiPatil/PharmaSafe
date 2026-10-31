@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { User, AuthResponse } from '../types/auth';
 
@@ -8,10 +8,13 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialLoading: boolean;
   error: string | null;
+  isConnectionError: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
+  retryAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,43 +26,56 @@ export function getXsrfToken(): string | null {
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConnectionError, setIsConnectionError] = useState<boolean>(false);
 
   // Initialize and restore session on page mount
-  useEffect(() => {
-    const restoreSession = async () => {
-      try {
-        const res = await fetchWithTimeout(getApiUrl('/api/auth/me'), {
-          method: 'GET',
-          headers: { 'Accept': 'application/json' },
-          credentials: 'include'
-        });
+  const restoreSession = useCallback(async () => {
+    setIsInitialLoading(true);
+    try {
+      const res = await fetchWithTimeout(getApiUrl('/api/auth/me'), {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        credentials: 'include'
+      });
 
-        if (res.ok) {
-          const userData: User = await res.json();
-          setUser(userData);
-          refreshCsrfToken().catch(() => {});
-        } else {
-          setUser(null);
-          if (res.status !== 401) {
-            setError('Session verification failed. Please try signing in again.');
-          }
-        }
-      } catch {
+      if (res.ok) {
+        const userData: User = await res.json();
+        setUser(userData);
+        setError(null);
+        setIsConnectionError(false);
+        refreshCsrfToken().catch(() => {});
+      } else {
         setUser(null);
-        setError('The authentication service did not respond. Please try signing in again; the server may be starting.');
-      } finally {
-        setIsLoading(false);
+        // A 401 from the session endpoint before login is an expected unauthenticated state;
+        // show the login page normally without displaying an error alert.
+        if (res.status !== 401) {
+          setError('Session verification failed. Please try signing in again.');
+          setIsConnectionError(false);
+        } else {
+          setError(null);
+          setIsConnectionError(false);
+        }
       }
-    };
-
-    restoreSession();
+    } catch {
+      setUser(null);
+      setError('The authentication service did not respond. Please try signing in again; the server may be starting.');
+      setIsConnectionError(true);
+    } finally {
+      setIsInitialLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
+    setIsConnectionError(false);
 
     try {
       const xsrf = getCsrfToken();
@@ -78,19 +94,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         credentials: 'include'
       });
 
+      // Guard against non-JSON responses (e.g. static host fallback returning HTML on mismatched route)
+      const contentType = res.headers && typeof res.headers.get === 'function' ? res.headers.get('content-type') : null;
+      if (contentType && !contentType.includes('application/json')) {
+        setError('Unable to reach authentication server. Please verify backend service.');
+        setIsConnectionError(true);
+        return false;
+      }
+
       const data: AuthResponse = await res.json();
 
       if (res.ok && data.success && data.user) {
         setUser(data.user);
         setError(null);
+        setIsConnectionError(false);
         // Refresh CSRF token for the authenticated session
         refreshCsrfToken().catch(() => {});
         return true;
       } else {
+        setIsConnectionError(false);
         setError(data.message || 'Authentication failed. Please check your credentials.');
         return false;
       }
     } catch {
+      setIsConnectionError(true);
       setError('Unable to reach authentication server. Please verify backend service.');
       return false;
     } finally {
@@ -119,12 +146,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       setUser(null);
       setError(null);
+      setIsConnectionError(false);
       setCsrfToken(null);
       setIsLoading(false);
     }
   };
 
-  const clearError = () => setError(null);
+  const clearError = () => {
+    setError(null);
+    setIsConnectionError(false);
+  };
+
+  const retryAuth = async () => {
+    await restoreSession();
+  };
 
   return (
     <AuthContext.Provider
@@ -132,10 +167,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         user,
         isAuthenticated: !!user,
         isLoading,
+        isInitialLoading,
         error,
+        isConnectionError,
         login,
         logout,
-        clearError
+        clearError,
+        retryAuth
       }}
     >
       {children}

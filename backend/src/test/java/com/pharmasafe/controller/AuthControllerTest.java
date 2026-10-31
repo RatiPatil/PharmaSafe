@@ -300,4 +300,16 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.systemStatus").value("OPERATIONAL"));
     }
+
+    @Test
+    @DisplayName("CORS preflight from production frontend origin is allowed with credentials")
+    void testCorsPreflightProductionFrontend() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options("/api/auth/login")
+                        .header("Origin", "https://pharmasafe-frontend.onrender.com")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "Content-Type,X-XSRF-TOKEN"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "https://pharmasafe-frontend.onrender.com"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+    }
 }

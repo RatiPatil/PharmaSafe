@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { login, error, clearError, isLoading } = useAuth();
+  const { login, error, clearError, isLoading, isConnectionError } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +35,15 @@ export const LoginPage: React.FC = () => {
 
   const isLockedAccount = Boolean(error && error.toLowerCase().includes('lock'));
   const isInactiveAccount = Boolean(error && error.toLowerCase().includes('inactive'));
+  const isConnFailure = Boolean(
+    isConnectionError ||
+    (error && (
+      error.toLowerCase().includes('unable to reach') ||
+      error.toLowerCase().includes('timed out') ||
+      error.toLowerCase().includes('did not respond') ||
+      error.toLowerCase().includes('service did not respond')
+    ))
+  );
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] flex flex-col justify-between font-sans text-[#172B4D]">
@@ -86,15 +95,19 @@ export const LoginPage: React.FC = () => {
                     ? 'bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]'
                     : isInactiveAccount
                     ? 'bg-[#F1F5F9] border-[#CBD5E1] text-[#334155]'
+                    : isConnFailure
+                    ? 'bg-[#EFF6FF] border-[#BFDBFE] text-[#1E40AF]'
                     : 'bg-[#FEF2F2] border-[#FECACA] text-[#991B1B]'
                 }`}
               >
                 {isLockedAccount ? (
                   <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" />
+                ) : isConnFailure ? (
+                  <AlertCircle className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
                 ) : (
                   <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0 mt-0.5" />
                 )}
-                <div className="space-y-0.5">
+                <div className="space-y-1.5 flex-1">
                   <div className="font-semibold">
                     {isLockedAccount
                       ? 'Account Locked'
@@ -103,6 +116,22 @@ export const LoginPage: React.FC = () => {
                       : 'Authentication Failure'}
                   </div>
                   <div className="leading-relaxed">{error}</div>
+                  {isConnFailure && (
+                    <div className="pt-1 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={handleSubmit}
+                        className="inline-flex items-center space-x-1.5 bg-[#102A43] hover:bg-[#1E3A5F] text-white px-2.5 py-1 rounded-md text-xs font-semibold cursor-pointer transition disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                        <span>Retry Authentication</span>
+                      </button>
+                      <span className="text-[11px] text-[#52657A]">
+                        Render free instances take 30-50s to wake from cold sleep.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -192,7 +221,7 @@ export const LoginPage: React.FC = () => {
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Verifying Credentials...</span>
+                    <span>Verifying Credentials (Server warming up)...</span>
                   </>
                 ) : (
                   <>

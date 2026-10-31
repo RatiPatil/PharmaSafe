@@ -112,6 +112,50 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
     });
   });
 
+  it('displays backend connection failure alert with retry button when login times out or fails network', async () => {
+    let attempts = 0;
+    const mockFetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (url.includes('/api/auth/me') || url.includes('/api/auth/csrf')) {
+        return Promise.resolve({ ok: false, status: 401 });
+      }
+      if (url.includes('/api/auth/login') && options?.method === 'POST') {
+        attempts++;
+        if (attempts === 1) {
+          return Promise.reject(new TypeError('Failed to fetch'));
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          json: async () => ({ success: false, message: 'Invalid username or password' })
+        });
+      }
+      return Promise.resolve({ ok: false, status: 404 });
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'testuser' } });
+    fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: 'Pass123!' } });
+    fireEvent.click(screen.getByRole('button', { name: /Log In to PharmaSafe/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Unable to reach authentication server\. Please verify backend service\./i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Retry Authentication/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Retry Authentication/i }));
+
+    await waitFor(() => {
+      expect(attempts).toBe(2);
+      expect(screen.getByText('Invalid username or password')).toBeInTheDocument();
+    });
+  });
+
   it('displays locked account warning when account lockout is returned', async () => {
     const mockFetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.includes('/api/auth/me') || url.includes('/api/auth/csrf')) {
