@@ -10,6 +10,10 @@ import java.util.List;
 
 public class CaseResponseDto {
 
+    private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
     private Long id;
     private String caseNumber;
     private String countryCode;
@@ -47,6 +51,7 @@ public class CaseResponseDto {
     public static CaseResponseDto fromEntity(SafetyCase c) {
         CaseResponseDto dto = new CaseResponseDto();
         dto.setId(c.getId());
+        dto.setRowVersion(c.getRowVersion());
         dto.setCaseNumber(c.getCaseNumber());
         dto.setCountryCode(c.getCountryCode());
         dto.setReportType(c.getReportType());
@@ -217,7 +222,11 @@ public class CaseResponseDto {
 
     // Nested Response DTOs
     public static class PatientResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private String patientIdentifier;
         private BigDecimal ageValue;
         private String ageUnit;
@@ -251,7 +260,11 @@ public class CaseResponseDto {
     }
 
     public static class ReporterResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private boolean primary;
         private String qualification;
         private String title;
@@ -297,7 +310,11 @@ public class CaseResponseDto {
     }
 
     public static class ProductResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private String productType;
         private String productName;
         private String activeSubstance;
@@ -352,7 +369,11 @@ public class CaseResponseDto {
     }
 
     public static class EventResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private String eventVerbatim;
         private String meddraPt;
         private String meddraLlt;
@@ -401,7 +422,11 @@ public class CaseResponseDto {
     }
 
     public static class AssessmentResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private String productName;
         private String eventVerbatim;
         private String causalityReporter;
@@ -432,7 +457,11 @@ public class CaseResponseDto {
     }
 
     public static class MedicalHistoryResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private String conditionName;
         private LocalDate startDate;
         private LocalDate endDate;
@@ -454,7 +483,11 @@ public class CaseResponseDto {
     }
 
     public static class ReferenceResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private String referenceType;
         private String referenceId;
         private String description;
@@ -471,7 +504,11 @@ public class CaseResponseDto {
     }
 
     public static class AttachmentResponseDto {
-        private Long id;
+        private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
+    public void setRowVersion(long version) { this.rowVersion = version; }
+
+    private Long id;
         private String fileName;
         private String fileType;
         private Long fileSizeBytes;

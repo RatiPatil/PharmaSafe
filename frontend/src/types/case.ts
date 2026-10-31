@@ -121,6 +121,7 @@ export interface AttachmentData {
 }
 
 export interface SafetyCaseDetails {
+  rowVersion?: number;
   locked?: boolean;
   lockedByUsername?: string;
   lockedAt?: string;

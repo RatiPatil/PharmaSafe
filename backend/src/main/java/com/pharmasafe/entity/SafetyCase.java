@@ -55,6 +55,7 @@ public class SafetyCase {
     @Version
     @Column(name = "row_version", nullable = false)
     private long rowVersion;
+    public long getRowVersion() { return rowVersion; }
 
     @Column(name = "version_number", nullable = false)
     private int versionNumber = 1;

@@ -8,6 +8,13 @@ import java.time.Instant;
         @Index(name = "idx_case_review_events_case_id", columnList = "case_id")
 })
 public class CaseReviewEvent {
+    @Column(name="patient_reviewed", nullable=false) private boolean patientReviewed;
+    @Column(name="products_events_reviewed", nullable=false) private boolean productsEventsReviewed;
+    @Column(name="medical_reviewed", nullable=false) private boolean medicalReviewed;
+    public void setPatientReviewed(boolean value) { patientReviewed = value; }
+    public void setProductsEventsReviewed(boolean value) { productsEventsReviewed = value; }
+    public void setMedicalReviewed(boolean value) { medicalReviewed = value; }
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

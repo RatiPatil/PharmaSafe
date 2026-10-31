@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import type { ReactNode } from 'react';
 import type { User, AuthResponse } from '../types/auth';
 
-import { getApiUrl, getCsrfToken, refreshCsrfToken, setCsrfToken, fetchWithTimeout } from '../config/api';
+import { getApiUrl, getCsrfToken, refreshCsrfToken, setCsrfToken, fetchWithTimeout, SESSION_EXPIRED_EVENT } from '../config/api';
 
 interface AuthContextType {
   user: User | null;
@@ -72,6 +72,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     restoreSession();
   }, [restoreSession]);
 
+  useEffect(() => {
+    const expire = () => {
+      setUser(null); setCsrfToken(null); setIsLoading(false);
+      setError('Your session expired or your account access changed. Sign in again to continue.');
+      setIsConnectionError(false);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, expire);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expire);
+  }, []);
+
   const login = async (username: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
@@ -105,7 +115,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const data: AuthResponse = await res.json();
 
       if (res.ok && data.success && data.user) {
-        setUser(data.user);
+        const sessionCheck = await fetchWithTimeout(getApiUrl('/api/auth/me'), { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (!sessionCheck.ok) {
+          setUser(null); setCsrfToken(null);
+          setError('Your credentials were accepted, but the browser session could not be established. Check cookie settings or contact your administrator.');
+          return false;
+        }
+        const verifiedUser: User = await sessionCheck.json();
+        if (verifiedUser.id !== data.user.id) {
+          setUser(null); setError('Could not verify the signed-in account. Sign in again.'); return false;
+        }
+        setCsrfToken(null);
+        await refreshCsrfToken();
+        setUser(verifiedUser);
         setError(null);
         setIsConnectionError(false);
         // Refresh CSRF token for the authenticated session

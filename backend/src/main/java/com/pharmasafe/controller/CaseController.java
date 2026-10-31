@@ -60,6 +60,9 @@ public class CaseController {
         String clientIp = extractClientIp(request);
         String userAgent = request.getHeader("User-Agent");
 
+        if (requestDto.getExpectedRowVersion() == null) {
+            throw new IllegalArgumentException("Refresh the case before saving; the case revision is required");
+        }
         CaseResponseDto existing = caseService.getCaseByIdAuthorized(id, username,
                 authentication.getAuthorities().iterator().next().getAuthority());
         if (!java.util.Set.of("Draft", "Data Entry").contains(existing.getWorkflowState())) {
@@ -163,17 +166,17 @@ public class CaseController {
     @PostMapping("/{id}/workflow-transition")
     public ResponseEntity<CaseResponseDto> transitionWorkflow(
             @PathVariable Long id,
-            @RequestBody java.util.Map<String, String> body,
+            @Valid @RequestBody com.pharmasafe.dto.WorkflowTransitionRequest body,
             Authentication authentication
     ) {
         String username = authentication != null ? authentication.getName() : "anonymous";
-        String targetState = body.get("targetState");
-        String comments = body.get("comments");
+        String targetState = body.targetState();
+        String comments = body.comments();
         String role = authentication != null
                 ? authentication.getAuthorities().stream().findFirst().map(a -> a.getAuthority()).orElse("")
                 : "";
         caseService.getCaseByIdAuthorized(id, username, role);
-        CaseResponseDto response = caseService.transitionWorkflow(id, targetState, comments, username, role);
+        CaseResponseDto response = caseService.transitionWorkflow(id, targetState, comments, username, role, body.qcChecklist());
         return ResponseEntity.ok(response);
     }
 

@@ -51,4 +51,21 @@ describe('role workspaces', () => {
    expect(screen.queryByRole('button',{name:'Record submission'})).not.toBeInTheDocument();
  });
 
+ it('preserves an unfinished user form when navigation is cancelled',async()=>{
+  auth.user.role='ROLE_ADMIN';const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+  vi.stubGlobal('fetch',vi.fn(async(url:string)=>({ok:true,status:200,json:async()=>url.includes('/assignees')?[]:url.includes('/overview')?{states:{},totalCases:0}:{content:[],totalElements:0,totalPages:0}})));
+  render(<RoleWorkspace/>);fireEvent.click(screen.getByRole('button',{name:'Users & access',exact:true}));
+  await waitFor(()=>expect(screen.getByLabelText('Username',{exact:true})).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText('Username',{exact:true}),{target:{value:'unfinished-user'}});
+  fireEvent.click(screen.getByRole('button',{name:'Audit history',exact:true}));
+  expect(confirm).toHaveBeenCalledOnce();expect(screen.getByLabelText('Username',{exact:true})).toHaveValue('unfinished-user');
+  expect(window.location.hash).toContain('/users');confirm.mockRestore();
+ });
+ it('restores a case detail deep link without requiring another queue click',async()=>{
+  auth.user.role='ROLE_MEDICAL_REVIEWER';window.location.hash='#/workspace/medical_reviewer/cases/42';
+  vi.stubGlobal('fetch',vi.fn(async(url:string)=>({ok:true,status:200,json:async()=>url.includes('/audit-history')?[]:url.endsWith('/api/cases/42')?{id:42,caseNumber:'CASE-DEEP-LINK',workflowState:'Medical Review',reporters:[],products:[],events:[],assessments:[],medicalHistoryList:[],references:[],attachments:[]}:{content:[],totalElements:0,totalPages:0}})));
+  render(<RoleWorkspace/>);await waitFor(()=>expect(screen.getByRole('heading',{name:'CASE-DEEP-LINK',level:1})).toBeInTheDocument());
+  expect(screen.getByRole('tab',{name:'Events',exact:true})).toHaveAttribute('aria-selected','true');
+ });
+
 });

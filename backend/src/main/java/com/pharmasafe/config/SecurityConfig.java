@@ -72,7 +72,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, com.pharmasafe.repository.UserRepository users) throws Exception {
         CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
         // Set to null to resolve token eagerly on every request
         requestHandler.setCsrfRequestAttributeName(null);
@@ -85,6 +85,8 @@ public class SecurityConfig {
             }
         });
 
+        http.addFilterBefore(new com.pharmasafe.security.CurrentAccountFilter(users),
+                org.springframework.security.web.access.intercept.AuthorizationFilter.class);
         http
             .cors(Customizer.withDefaults())
             .csrf(csrf -> csrf

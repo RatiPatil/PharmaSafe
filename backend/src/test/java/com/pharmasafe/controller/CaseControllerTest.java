@@ -68,6 +68,7 @@ public class CaseControllerTest {
 
     private CaseRequestDto buildValidCaseRequest() {
         CaseRequestDto dto = new CaseRequestDto();
+        dto.setExpectedRowVersion(0L);
         dto.setCountryCode("USA");
         dto.setReportType("Spontaneous");
         dto.setInitialReceiptDate(LocalDate.now().minusDays(2));
@@ -267,6 +268,10 @@ public class CaseControllerTest {
                 .andExpect(jsonPath("$.priority", is("Expedited")))
                 .andExpect(jsonPath("$.fatal", is(true)))
                 .andExpect(jsonPath("$.narrative", containsString("Follow-up received")));
+        mockMvc.perform(put("/api/cases/" + caseId).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))).andExpect(status().isConflict());
+        assertEquals("Updated narrative: Follow-up received from treating physician.", safetyCaseRepository.findById(caseId).orElseThrow().getNarrative());
+
 
         // Verify database reflects version bump & fatal outcome
         SafetyCase updated = safetyCaseRepository.findById(caseId).orElseThrow();

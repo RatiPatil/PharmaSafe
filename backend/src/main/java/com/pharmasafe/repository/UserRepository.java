@@ -22,4 +22,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM User u WHERE u.username = :username")
     Optional<User> findByUsernameForUpdate(@Param("username") String username);
+    long countByEnabledTrue();
+    @org.springframework.data.jpa.repository.Query("SELECT u.username, COUNT(c) FROM SafetyCase c LEFT JOIN c.assignedToUser u WHERE c.workflowState NOT IN ('Closed', 'Submitted') GROUP BY u.username ORDER BY COUNT(c) DESC")
+    java.util.List<Object[]> caseWorkload();
+    org.springframework.data.domain.Page<User> findByUsernameContainingIgnoreCaseOrFullNameContainingIgnoreCase(
+            String username, String fullName, org.springframework.data.domain.Pageable pageable);
 }

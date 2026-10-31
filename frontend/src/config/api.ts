@@ -74,6 +74,10 @@ export async function refreshCsrfToken(): Promise<string | null> {
       }
     });
 
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      return null;
+    }
     if (response.ok) {
       const data = await response.json();
       if (data && data.token) {
@@ -85,4 +89,42 @@ export async function refreshCsrfToken(): Promise<string | null> {
     // Non-blocking in offline or mock environments
   }
   return null;
+}
+
+export const SESSION_EXPIRED_EVENT = 'pharmasafe:session-expired';
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.name = 'ApiError'; this.status = status; }
+}
+/** JSON requests share session expiry handling. Failed writes are never automatically replayed. */
+export async function apiRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  if (method !== 'GET') {
+    const token = await refreshCsrfToken();
+    if (!token) throw new ApiError('Could not verify request security. Refresh and try again.', 403);
+  }
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(abort, AUTH_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(getApiUrl(path), { method, credentials: 'include', signal: controller.signal,
+      headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type':'application/json' }),
+        ...(method === 'GET' ? {} : { 'X-XSRF-TOKEN': getCsrfToken() || '' }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    if (response.status === 401) {
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      throw new ApiError('Your session expired. Sign in again to continue.', 401);
+    }
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new ApiError(data?.message || (response.status === 403 ? 'You do not have permission for this action.' : `Request failed (${response.status}).`), response.status);
+    if (data === null && response.status !== 204) throw new ApiError('The server returned an invalid response. Refresh and try again.', 502);
+    return data as T;
+  } catch (error) {
+    if (error instanceof ApiError || signal?.aborted) throw error;
+    throw new ApiError(controller.signal.aborted ? 'The server did not respond in time. Try again.' : 'Could not reach the server. Check your connection and try again.', 0);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+  }
 }

@@ -63,6 +63,16 @@ public class AdminController {
         return ResponseEntity.ok(users);
     }
 
+    @GetMapping("/users/paged")
+    public org.springframework.data.domain.Page<UserResponseDto> usersPage(
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size,
+            @RequestParam(defaultValue="") String search) {
+        return userRepository.findByUsernameContainingIgnoreCaseOrFullNameContainingIgnoreCase(search.trim(), search.trim(),
+                org.springframework.data.domain.PageRequest.of(Math.max(0,page), Math.min(50,Math.max(1,size)),
+                org.springframework.data.domain.Sort.by("username").and(org.springframework.data.domain.Sort.by("id"))))
+                .map(UserResponseDto::fromEntity);
+    }
+
     @PostMapping("/users")
     public ResponseEntity<UserResponseDto> createUser(
             @RequestBody Map<String, String> request,
@@ -122,6 +132,7 @@ public class AdminController {
                 throw new IllegalArgumentException("Ask another administrator to change your role");
             }
             String newRole = com.pharmasafe.security.WorkspaceAccess.normalizeRole(request.get("role"));
+            if (!newRole.equals(user.getRole())) user.revokeSessions();
             user.setRole(newRole);
         }
 
@@ -147,6 +158,7 @@ public class AdminController {
         }
 
         user.setEnabled(!user.isEnabled());
+        user.revokeSessions();
         User saved = userRepository.save(user);
 
         auditService.logEvent("USER_STATUS_TOGGLED", adminUsername, null, null, "SUCCESS",
@@ -171,6 +183,7 @@ public class AdminController {
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.revokeSessions();
         user.setLocked(false);
         user.setFailedLoginAttempts(0);
         userRepository.save(user);

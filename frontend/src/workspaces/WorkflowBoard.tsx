@@ -1,0 +1,5 @@
+import type { SafetyCaseSummary } from '../types/case';
+const lanes=[{title:'Intake & entry',states:['Draft','Data Entry']},{title:'Medical review',states:['Medical Review']},{title:'Quality review',states:['Quality Review']},{title:'Approved & completed',states:['Approved','Locked','Closed']}];
+export function WorkflowBoard({cases,open}:{cases:SafetyCaseSummary[];open:(id:number)=>void}) {
+ return <><p className="ws-muted">Current page only · {cases.length} cases. Use pagination to see more.</p><div className="ws-board-scroll"><div className="ws-workflow-board">{lanes.map(lane=><section key={lane.title}><div className="ws-section-heading"><h3>{lane.title}</h3><span className="ws-badge">{cases.filter(c=>lane.states.includes(c.workflowState)).length}</span></div>{cases.filter(c=>lane.states.includes(c.workflowState)).map(c=><article key={c.id}><strong>{c.caseNumber}</strong><p>{c.primaryProduct||'Product not entered'}</p><span className="ws-badge">{c.workflowState}</span><p className="ws-muted">{c.assignedToUsername||'Unassigned'} · {c.priority}</p><button onClick={()=>open(c.id)}>Open case</button></article>)}</section>)}</div></div></>;
+}

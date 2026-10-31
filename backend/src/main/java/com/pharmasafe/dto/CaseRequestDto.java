@@ -11,6 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CaseRequestDto {
+    private Long expectedRowVersion;
+    public Long getExpectedRowVersion() { return expectedRowVersion; }
+    public void setExpectedRowVersion(Long version) { this.expectedRowVersion = version; }
+
 
     @NotBlank(message = "Country code is required")
     @Size(min = 2, max = 3, message = "Country code must be 2 or 3 characters (e.g., USA, GBR)")
@@ -234,8 +238,8 @@ public class CaseRequestDto {
         private String productName;
         private String eventVerbatim;
         private String causalityReporter = "Unassessable";
-        private String causalityCompany = "Reasonable Possibility";
-        private String expectedness = "Unexpected";
+        private String causalityCompany;
+        private String expectedness;
         private String assessmentComment;
         private String assessedBy;
 

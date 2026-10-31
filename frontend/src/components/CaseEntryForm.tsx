@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { SafetyCaseDetails, CaseFormInput } from '../types/case';
-import { getXsrfToken, useAuth } from '../context/AuthContext';
-import { getApiUrl } from '../config/api';
+import { useAuth } from '../context/AuthContext';
+import { getApiUrl, apiRequest } from '../config/api';
 import {
   Save,
   FileCheck,
@@ -27,6 +27,7 @@ interface CaseEntryFormProps {
   onSaveSuccess: (savedCase: SafetyCaseDetails) => void;
   onCancel: () => void;
   saveTrigger?: number;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface MeddraTerm {
@@ -40,7 +41,8 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   initialCase,
   onSaveSuccess,
   onCancel,
-  saveTrigger
+  saveTrigger,
+  onDirtyChange
 }) => {
   const { user } = useAuth();
 
@@ -133,12 +135,18 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [meddraSuggestions, setMeddraSuggestions] = useState<Record<number, MeddraTerm[]>>({});
+  const [localDirty, setLocalDirty] = useState(false);
+  const [routingTarget, setRoutingTarget] = useState<string | null>(null);
+  const [routingReason, setRoutingReason] = useState('');
+  const routingPanel = useRef<HTMLElement>(null);
+  useEffect(()=>{if(routingTarget){routingPanel.current?.scrollIntoView?.({block:'start'});routingPanel.current?.querySelector('textarea')?.focus({preventScroll:true});}},[routingTarget]);
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Populate existing case when in edit mode
   useEffect(() => {
+    setLocalDirty(false);
     if (initialCase) {
       setFormData({
         countryCode: initialCase.countryCode || 'USA',
@@ -339,27 +347,19 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
     if (!initialCase) return;
     setWorkflowMessage(null);
     try {
-      const xsrf = getXsrfToken();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' };
-      if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
-      const response = await fetch(getApiUrl(`/api/cases/${initialCase.id}/workflow-transition`), {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ targetState, comments: reason })
-      });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.message || `Workflow transition failed (HTTP ${response.status})`);
+      setIsSubmitting(true);
+      const data = await apiRequest<SafetyCaseDetails>(`/api/cases/${initialCase.id}/workflow-transition`, 'POST', { targetState, comments: reason });
+      setRoutingTarget(null); setRoutingReason(''); setLocalDirty(false);
       setWorkflowMessage(`Case moved to ${targetState}.`);
       onSaveSuccess(data);
     } catch (err) {
       setWorkflowMessage(err instanceof Error ? err.message : 'Workflow transition failed.');
-    }
+    } finally { setIsSubmitting(false); }
   };
 
   const requestTransition = (targetState: string) => {
-    const reason = window.prompt(`Enter a reason for moving this case to ${targetState}:`);
-    if (reason && reason.trim()) transitionCase(targetState, reason.trim());
+    if(localDirty) { setWorkflowMessage('Save your changes before routing this case.'); return; }
+    setRoutingTarget(targetState); setRoutingReason('');
   };
 
   const downloadCaseSummary = () => {
@@ -439,38 +439,16 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
     setIsSubmitting(true);
 
     try {
-      const xsrf = getXsrfToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      };
-
-      if (xsrf) {
-        headers['X-XSRF-TOKEN'] = xsrf;
-      }
-
       const payload = {
         ...formData,
+        assessments: undefined,
+        expectedRowVersion: initialCase?.rowVersion,
         draft: isDraftMode,
         workflowState: isDraftMode ? 'Draft' : (formData.workflowState === 'Draft' ? 'Data Entry' : formData.workflowState)
       };
 
-      const url = getApiUrl(initialCase ? `/api/cases/${initialCase.id}` : '/api/cases');
-      const method = initialCase ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: JSON.stringify(payload),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => null);
-        throw new Error(errData?.message || `Failed to save safety case (HTTP ${response.status})`);
-      }
-
-      const savedCase: SafetyCaseDetails = await response.json();
+      const savedCase = await apiRequest<SafetyCaseDetails>(initialCase ? `/api/cases/${initialCase.id}` : '/api/cases', initialCase ? 'PUT' : 'POST', payload);
+      setLocalDirty(false);
       onSaveSuccess(savedCase);
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -490,7 +468,8 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   }, [saveTrigger, isSubmitting]);
 
   return (
-    <div className="bg-white rounded-xl border border-[#DCE4EE] shadow-xs overflow-hidden flex flex-col w-full max-w-full">
+    <div onChangeCapture={e => { if (!(e.target as HTMLElement).closest('[data-workflow]')) setLocalDirty(true); onDirtyChange?.(true); }} className="bg-white rounded-xl border border-[#DCE4EE] shadow-xs overflow-hidden flex flex-col w-full max-w-full">
+      {routingTarget && <section ref={routingPanel} data-workflow="true" className="p-5 bg-blue-50 border-b border-blue-200"><h3 className="font-semibold mb-3">Route to {routingTarget}</h3><label className="block">Routing reason<textarea aria-label="Routing reason" value={routingReason} onChange={e=>setRoutingReason(e.target.value)} className="block w-full my-3 p-3 border rounded"/></label><div className="flex gap-3"><button type="button" disabled={isSubmitting || !routingReason.trim()} onClick={()=>transitionCase(routingTarget,routingReason.trim())}>Confirm routing</button><button type="button" onClick={()=>setRoutingTarget(null)}>Cancel routing</button></div></section>}
       {/* Top Header Bar */}
       <div className="bg-[#0B1F33] text-white p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 border-b border-[#1A3654]">
         <div className="flex items-center space-x-3.5">
@@ -519,14 +498,14 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               )}
             </div>
             <p className="text-xs text-[#94A3B8] mt-1">
-              ICH E2B(R3) Pharmacovigilance Case &bull; Server-Side Number Generation &bull; PostgreSQL 18.4
+              Safety case information &bull; Clinical data and workflow
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center space-x-2.5">
-          <button
+        <div className="flex flex-wrap items-center gap-2">
+          {(!initialCase || initialCase.workflowState === 'Draft') && <button
             type="button"
             onClick={() => handleSave(true)}
             disabled={isSubmitting}
@@ -535,7 +514,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
           >
             <Bookmark className="w-3.5 h-3.5" />
             <span>Save Draft</span>
-          </button>
+          </button>}
 
           <button
             type="button"
@@ -1066,7 +1045,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
             {formData.products.map((prod, idx) => (
               <div key={idx} className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
                 <div className="flex items-center justify-between border-b border-[#DCE4EE] pb-2.5">
-                  <div className="flex items-center space-x-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-[#102A43] text-xs">Product #{idx + 1}</span>
                     <span className={`px-2.5 py-0.5 rounded text-xs font-semibold ${
                       prod.productType === 'Suspect' ? 'bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]' : 'bg-[#F1F5F9] text-[#334155] border border-[#CBD5E1]'
@@ -1254,7 +1233,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
             {formData.events.map((ev, idx) => (
               <div key={idx} className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
                 <div className="flex items-center justify-between border-b border-[#DCE4EE] pb-2.5">
-                  <div className="flex items-center space-x-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-[#102A43] text-xs">Event #{idx + 1}</span>
                     {ev.serious && (
                       <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]">
@@ -1590,88 +1569,8 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
           </div>
         )}
 
-        {/* TAB 7: ASSESSMENTS & CAUSALITY */}
-        {activeSubTab === 'assessments' && (
-          <div className="space-y-5 text-xs">
-            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-3 text-[#1E40AF] text-xs">
-              <strong>Causality Assessment:</strong> Evaluate the causal relationship between suspect drug(s) and observed adverse event(s). Company causality determination governs regulatory 7-day and 15-day expedited reporting obligations.
-            </div>
-
-            <div className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
-              <span className="font-bold text-[#102A43] text-sm block">Medical Causality Assessment</span>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                <div>
-                  <label className="font-semibold text-[#172B4D] block mb-1.5">Reporter Causality</label>
-                  <select
-                    value={formData.assessments[0]?.causalityReporter || 'Unassessable'}
-                    onChange={(e) => {
-                      const updated = [...formData.assessments];
-                      if (!updated[0]) updated[0] = { causalityReporter: e.target.value };
-                      else updated[0].causalityReporter = e.target.value;
-                      setFormData({ ...formData, assessments: updated });
-                    }}
-                    className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
-                  >
-                    <option value="Related">Related</option>
-                    <option value="Not Related">Not Related</option>
-                    <option value="Unassessable">Unassessable / Missing</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-[#172B4D] block mb-1.5">Company Causality</label>
-                  <select
-                    value={formData.assessments[0]?.causalityCompany || 'Reasonable Possibility'}
-                    onChange={(e) => {
-                      const updated = [...formData.assessments];
-                      if (!updated[0]) updated[0] = { causalityCompany: e.target.value };
-                      else updated[0].causalityCompany = e.target.value;
-                      setFormData({ ...formData, assessments: updated });
-                    }}
-                    className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
-                  >
-                    <option value="Reasonable Possibility">Reasonable Possibility (Related)</option>
-                    <option value="No Reasonable Possibility">No Reasonable Possibility (Unrelated)</option>
-                    <option value="Pending Review">Pending Medical Review</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-[#172B4D] block mb-1.5">Expectedness / Listedness</label>
-                  <select
-                    value={formData.assessments[0]?.expectedness || 'Unexpected'}
-                    onChange={(e) => {
-                      const updated = [...formData.assessments];
-                      if (!updated[0]) updated[0] = { expectedness: e.target.value };
-                      else updated[0].expectedness = e.target.value;
-                      setFormData({ ...formData, assessments: updated });
-                    }}
-                    className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
-                  >
-                    <option value="Unexpected">Unexpected (Unlisted in Core Data Sheet)</option>
-                    <option value="Expected">Expected (Listed in Core Data Sheet)</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className="font-semibold text-[#172B4D] block mb-1.5">Assessment Comment / Medical Evaluation</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Provide medical assessment rationale regarding temporal relationship, dechallenge, and biological plausibility..."
-                    value={formData.assessments[0]?.assessmentComment || ''}
-                    onChange={(e) => {
-                      const updated = [...formData.assessments];
-                      if (!updated[0]) updated[0] = { assessmentComment: e.target.value };
-                      else updated[0].assessmentComment = e.target.value;
-                      setFormData({ ...formData, assessments: updated });
-                    }}
-                    className="w-full px-3.5 py-2.5 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Medical decisions remain read-only during intake corrections. */}
+        {activeSubTab === 'assessments' && <div className="space-y-4"><h3 className="font-semibold">Medical assessments</h3><p className="text-sm text-slate-600">Medical reviewers record assessments in the Medical review workspace. Intake corrections do not overwrite those records.</p>{formData.assessments.map((assessment,i)=><article key={assessment.id||i} className="p-4 border rounded-lg"><h4 className="font-semibold">{assessment.productName} / {assessment.eventVerbatim}</h4><p>Company causality: {assessment.causalityCompany||'Not recorded'}</p><p>Expectedness: {assessment.expectedness||'Not recorded'}</p><p>Assessed by: {assessment.assessedBy||'Not recorded'}</p><p className="whitespace-pre-wrap">{assessment.assessmentComment}</p></article>)}{!formData.assessments.length&&<p>No medical assessment recorded.</p>}</div>}
 
         {/* TAB 8: NARRATIVE & REFERENCES */}
         {activeSubTab === 'narrative' && (
@@ -1757,31 +1656,16 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
           </div>
         )}
 
-        {/* TAB 9: ATTACHMENTS */}
-        {activeSubTab === 'attachments' && (
-          <div className="space-y-5 text-xs">
-            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-3.5 text-[#1E40AF] text-xs">
-              <strong className="block mb-1">Attachment Storage &amp; Access Controls:</strong>
-              Safety attachments (lab reports, discharge summaries, electrocardiograms, and CIOMS forms) are recorded in the <code>case_attachments</code> metadata registry with SHA-256 cryptographic hashes for tamper-evidence. Secure file transfer pipeline is scheduled for Stage 6.
-            </div>
-
-            <div className="p-8 text-center text-[#7A8B9E] bg-[#F8FAFD] border border-dashed border-[#DCE4EE] rounded-xl">
-              <Paperclip className="w-8 h-8 text-[#94A3B8] mx-auto mb-2" />
-              <p className="font-semibold text-[#102A43]">No attachments currently associated with this case.</p>
-              <p className="text-[#52657A] text-xs mt-1">
-                Attachment metadata records will link to secure S3 / local vault storage in Stage 6.
-              </p>
-            </div>
-          </div>
-        )}
+        {/* Attachment metadata reflects the saved records; no unavailable upload action. */}
+        {activeSubTab === 'attachments' && <div className="space-y-4"><h3 className="font-semibold">Attachment records</h3><p className="text-sm text-slate-600">Metadata is shown below. File upload and file retrieval are not available in this version.</p>{formData.attachments.length ? <div className="overflow-x-auto"><table><thead><tr><th>File</th><th>Type</th><th>Size (bytes)</th><th>Classification</th></tr></thead><tbody>{formData.attachments.map((attachment,i)=><tr key={attachment.id||i}><td>{attachment.fileName}</td><td>{attachment.fileType}</td><td>{attachment.fileSizeBytes}</td><td>{attachment.classification||'—'}</td></tr>)}</tbody></table></div> : <p>No attachment records for this case.</p>}</div>}
       </div>
 
       {/* Footer Controls & Workflow Actions */}
       <div className="bg-[#F8FAFD] p-4 border-t border-[#DCE4EE] flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs text-[#52657A] flex items-center space-x-2">
-          <span>Assigned Specialist: <strong className="text-[#102A43]">{user?.username}</strong></span>
+          <span>Assigned Specialist: <strong className="text-[#102A43]">{formData.assignedToUsername || user?.username}</strong></span>
           <span>&bull;</span>
-          <span>Database: <strong className="text-emerald-700">PostgreSQL (Live)</strong></span>
+          <span>Save changes before routing.</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

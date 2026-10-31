@@ -66,8 +66,8 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
         <div className="text-right text-xs text-[#94A3B8] hidden sm:block">
-          <div className="font-medium text-[#E2E8F0]">Oracle Argus Safety 7.0.3 Architecture Baseline</div>
-          <div className="text-[#60A5FA] font-mono text-[11px]">Secure Enterprise Auth</div>
+          <div className="font-medium text-[#E2E8F0]">PharmaSafe Safety Workspace</div>
+          <div className="text-[#60A5FA] font-mono text-[11px]">Role-based access</div>
         </div>
       </header>
 
@@ -235,7 +235,7 @@ export const LoginPage: React.FC = () => {
             {/* Security Notice */}
             <div className="pt-3 border-t border-[#DCE4EE] text-xs text-[#52657A] leading-relaxed">
               <p>
-                <strong className="text-[#102A43]">Security Policy:</strong> Consecutive failed login attempts will trigger automatic account lockout. All actions are logged to the 21 CFR Part 11 audit trail.
+                <strong className="text-[#102A43]">Security Policy:</strong> Sign-in attempts and case changes are recorded. Access is restricted to authorized users.
               </p>
             </div>
           </form>

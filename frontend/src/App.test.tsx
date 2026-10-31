@@ -303,4 +303,13 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
       expect(screen.getAllByText('ROLE_USER')[0]).toBeInTheDocument();
     });
   });
+ it('does not show a workspace when credentials succeed but the session cookie is unavailable',async()=>{
+  vi.stubGlobal('fetch',vi.fn(async(url:string)=>url.includes('/login')?{ok:true,json:async()=>({success:true,user:{id:1,username:'admin',role:'ROLE_ADMIN'}})}:url.includes('/csrf')?{ok:true,json:async()=>({token:'token'})}:{ok:false,status:401}));
+  render(<App/>);await waitFor(()=>expect(screen.getByLabelText(/Username/i)).toBeInTheDocument());
+  fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'admin'}});fireEvent.change(screen.getByLabelText(/^Password/i),{target:{value:'SyntheticPassword123!'}});
+  fireEvent.click(screen.getByRole('button',{name:/Log In to PharmaSafe/i}));
+  await waitFor(()=>expect(screen.getByText(/browser session could not be established/i)).toBeInTheDocument());
+  expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+ });
+
 });

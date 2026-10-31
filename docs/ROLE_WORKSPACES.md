@@ -65,3 +65,52 @@ It executes V1–V7 for fresh and populated databases and verifies seven assigna
 - The QC checklist is recorded in the decision comments/audit trail; this is not a Part 11 electronic signature implementation.
 - Automated DOM tests do not establish visual correctness at all viewport sizes. Browser visual QA remains necessary.
 - Deploy the backend (which runs Flyway V7) before the frontend. Do not manually execute V7 against a live database outside Flyway.
+
+# Stability update: role-specific work and safe handoffs
+
+Each role now has a distinct landing screen, not a renamed copy of the same overview:
+
+| Role | Landing screen | Primary work surface |
+| --- | --- | --- |
+| Administrator | Access & system oversight | User directory, account controls, paginated audit search |
+| PV Analyst | My processing desk | Intake, drafts, processing worklist, follow-up actions |
+| Medical Reviewer | Clinical review desk | Clinical case tabs and case-linked assessment decisions |
+| Quality Reviewer | Quality control desk | QC checklist and explicit approve/return decisions |
+| Safety Manager | Team operations | Workflow distribution, assignment workload, paginated case board |
+| Reporting Specialist | Reporting control desk | Deadline monitor and report register |
+| Auditor | Inspection desk | Read-only case explorer and recorded activity |
+
+Shared case fields and the common visual shell are intentionally reused. Review queues are scoped by workflow stage. Successful reviewer handoffs return to the refreshed queue instead of trying to read a case that has left that role's access scope.
+
+Navigation supports case deep links, browser Back, reload, unsaved-change confirmation, and a keyboard-accessible mobile drawer. The sidebar and top bar remain stable while content scrolls. Tables and the workflow board scroll inside their containers. All nine intake tabs were checked at mobile width.
+
+## Session and write integrity (V8)
+
+- Login verifies `/api/auth/me` before showing an authenticated workspace. A successful credential response with an unusable browser session no longer produces a false signed-in screen.
+- Workspace API 401 responses clear the visible session and return to login. Failed writes are never silently replayed. State-changing requests fetch a fresh CSRF token.
+- `users.auth_version` invalidates application sessions after role, password, or enabled-status changes; account optimistic locking protects concurrent account changes. Legacy sessions require a fresh login after the backend update. This supersedes the earlier note about role changes requiring voluntary logout.
+- Case edits send the last read `rowVersion`. Missing revisions are rejected; stale revisions return 409 instead of overwriting another save.
+- Intake endpoints cannot create or overwrite medical assessments. Existing assessment records survive intake corrections. Medical assessment product/event choices must belong to that case.
+- Non-draft cases cannot bypass minimum-data validation by sending `draft=true` without actually being in Draft state.
+- Three QC acknowledgements are persisted as separate boolean columns on the review event. A PostgreSQL check constraint enforces them for new approvals. `NOT VALID` preserves historical approvals without inventing checklist evidence for those records.
+- Returns from QC to medical review are recorded as `RETURNED`, not `APPROVED`.
+
+V8 is additive; V1–V7 remain unchanged. Existing accounts, cases, patient relationships, and review records are preserved. No live database is contacted by the verification scripts.
+
+## Repeatable browser verification
+
+Prerequisites: Java 17, Maven, Node compatible with the existing frontend, and frontend dependencies installed. Run backend tests first to generate the classpath report:
+
+```sh
+mvn -f backend/pom.xml test
+npm ci --prefix frontend
+npm ci --prefix scripts/qa
+node scripts/qa/node_modules/playwright/cli.js install chromium --only-shell
+node scripts/verify-role-workflow.cjs
+```
+
+The script starts its own Spring Boot process on an ephemeral port using a new in-memory H2 database, generates temporary credentials, and starts Vite with a same-origin proxy. It does not load frontend environment files or accept a production URL. It checks real logins, user creation, the analyst → medical → QC → manager → reporting → auditor workflow, every navigation item, deep-link reload/Back, unfinished forms, account revocation, five viewport widths, and all nine intake tabs on mobile. Logs and screenshots go to a temporary directory printed at completion. It does not establish that production cross-site browser cookie settings are correct.
+
+Validation for this update: 98 backend tests, 44 frontend tests, successful production build, fresh/populated V1–V8 migration checks in PGlite, and the browser workflow above. Lint reports warnings, not errors. The native PostgreSQL/Flyway deployment rehearsal remains a separate release check; H2 and PGlite are not the live Supabase database.
+
+Deploy backend first to apply V8, sign in again, then deploy frontend. Existing regulatory submission-generation and attachment-file storage limitations listed above still apply.

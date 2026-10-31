@@ -47,6 +47,7 @@ public class CaseService {
 
     @Transactional
     public CaseResponseDto createCase(CaseRequestDto request, String username, String clientIp, String userAgent) {
+        rejectIntakeAssessmentWrites(request);
         validateCaseDates(request);
 
         // Conditional validation: For formal submissions (non-drafts), ICH E2B requires minimum criteria
@@ -95,8 +96,7 @@ public class CaseService {
         // Map Events
         mapEvents(request, safetyCase);
 
-        // Map Assessments
-        mapAssessments(request, safetyCase);
+        // Medical assessments are authored separately in the medical review workflow.
 
         // Map Medical History
         mapMedicalHistory(request, safetyCase);
@@ -132,9 +132,13 @@ public class CaseService {
                     ". Unlock the case first before editing.");
         }
 
+        if (request.getExpectedRowVersion() != null && request.getExpectedRowVersion() != safetyCase.getRowVersion()) {
+            throw new org.springframework.orm.ObjectOptimisticLockingFailureException(SafetyCase.class, id);
+        }
+        rejectIntakeAssessmentWrites(request);
         validateCaseDates(request);
 
-        if (!request.isDraft()) {
+        if (!("Draft".equals(safetyCase.getWorkflowState()) && request.isDraft())) {
             validateMinimumCaseCriteria(request);
         }
 
@@ -178,8 +182,7 @@ public class CaseService {
         safetyCase.getEvents().clear();
         mapEvents(request, safetyCase);
 
-        safetyCase.getAssessments().clear();
-        mapAssessments(request, safetyCase);
+        // Preserve medical reviewer records during intake corrections.
 
         safetyCase.getMedicalHistoryList().clear();
         mapMedicalHistory(request, safetyCase);
@@ -389,6 +392,12 @@ public class CaseService {
 
     @Transactional
     public CaseResponseDto transitionWorkflow(Long id, String targetState, String comments, String username, String role) {
+        return transitionWorkflow(id, targetState, comments, username, role, java.util.Set.of());
+    }
+
+    @Transactional
+    public CaseResponseDto transitionWorkflow(Long id, String targetState, String comments, String username, String role,
+                                               java.util.Set<String> qcChecklist) {
         SafetyCase safetyCase = safetyCaseRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
 
@@ -399,6 +408,13 @@ public class CaseService {
         String prevState = safetyCase.getWorkflowState();
         String nextState = targetState.trim();
         validateWorkflowTransition(safetyCase, prevState, nextState, role, username, comments);
+        if (safetyCase.isLocked() && !("Locked".equals(prevState) && "Closed".equals(nextState))) {
+            throw new IllegalStateException("Unlock the case before routing it");
+        }
+        if ("Approved".equals(nextState) && (qcChecklist == null || !qcChecklist.containsAll(
+                java.util.Set.of("patient", "productsEvents", "medical")))) {
+            throw new IllegalArgumentException("Confirm all three quality review checks before approval");
+        }
         safetyCase.setWorkflowState(nextState);
         if ("Locked".equals(nextState)) {
             safetyCase.setLocked(true);
@@ -415,11 +431,17 @@ public class CaseService {
         User reviewer = username == null ? null : userRepository.findByUsername(username.trim().toLowerCase()).orElse(null);
         CaseReviewEvent review = new CaseReviewEvent();
         review.setSafetyCase(saved);
+        if ("Approved".equals(nextState)) {
+            review.setPatientReviewed(true); review.setProductsEventsReviewed(true); review.setMedicalReviewed(true);
+        }
         review.setReviewerUser(reviewer);
         review.setReviewerUsername(username);
         review.setFromState(prevState);
         review.setToState(nextState);
-        review.setOutcome(nextState.equals("Data Entry") ? "RETURNED" : "APPROVED");
+        review.setOutcome((prevState.equals("Medical Review") && nextState.equals("Data Entry"))
+                || (prevState.equals("Quality Review") && nextState.equals("Medical Review")) ? "RETURNED"
+                : nextState.equals("Approved") ? "APPROVED" : nextState.equals("Locked") ? "LOCKED"
+                : nextState.equals("Closed") ? "CLOSED" : "ROUTED");
         review.setComments(comments == null || comments.trim().isEmpty() ? "Transition approved" : comments.trim());
         caseReviewEventRepository.save(review);
 
@@ -474,6 +496,17 @@ public class CaseService {
         SafetyCase safetyCase = safetyCaseRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
 
+        if (!"Medical Review".equals(safetyCase.getWorkflowState()) || safetyCase.isLocked()) {
+            throw new IllegalStateException("Medical assessments can only be added to unlocked cases in Medical Review");
+        }
+        if (ad.getProductName() == null || safetyCase.getProducts().stream().noneMatch(p -> p.getProductName().equals(ad.getProductName()))
+                || ad.getEventVerbatim() == null || safetyCase.getEvents().stream().noneMatch(e -> e.getEventVerbatim().equals(ad.getEventVerbatim()))) {
+            throw new IllegalArgumentException("Select a product and event belonging to this case");
+        }
+        if (ad.getCausalityCompany() == null || ad.getCausalityCompany().isBlank()
+                || ad.getExpectedness() == null || ad.getExpectedness().isBlank()) {
+            throw new IllegalArgumentException("Causality and expectedness must be explicitly recorded");
+        }
         CaseAssessment a = new CaseAssessment();
         a.setProductName(ad.getProductName());
         a.setEventVerbatim(ad.getEventVerbatim());
@@ -491,6 +524,12 @@ public class CaseService {
                         ad.getProductName() + " / " + ad.getEventVerbatim() + " -> " + a.getCausalityCompany() + " (" + a.getExpectedness() + ")");
 
         return CaseResponseDto.fromEntity(saved);
+    }
+
+    private void rejectIntakeAssessmentWrites(CaseRequestDto request) {
+        if (request.getAssessments() != null && !request.getAssessments().isEmpty()) {
+            throw new IllegalArgumentException("Medical assessments must be recorded in the medical review workspace");
+        }
     }
 
     // Validation Helpers
@@ -623,22 +662,6 @@ public class CaseService {
                 e.setOtherMedicallyImportant(ed.isOtherMedicallyImportant());
                 e.syncSeriousness();
                 safetyCase.addEvent(e);
-            }
-        }
-    }
-
-    private void mapAssessments(CaseRequestDto request, SafetyCase safetyCase) {
-        if (request.getAssessments() != null) {
-            for (CaseRequestDto.AssessmentDto ad : request.getAssessments()) {
-                CaseAssessment a = new CaseAssessment();
-                a.setProductName(ad.getProductName());
-                a.setEventVerbatim(ad.getEventVerbatim());
-                a.setCausalityReporter(ad.getCausalityReporter() != null ? ad.getCausalityReporter() : "Unassessable");
-                a.setCausalityCompany(ad.getCausalityCompany() != null ? ad.getCausalityCompany() : "Reasonable Possibility");
-                a.setExpectedness(ad.getExpectedness() != null ? ad.getExpectedness() : "Unexpected");
-                a.setAssessmentComment(ad.getAssessmentComment());
-                a.setAssessedBy(ad.getAssessedBy());
-                safetyCase.addAssessment(a);
             }
         }
     }

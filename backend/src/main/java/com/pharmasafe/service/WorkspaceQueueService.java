@@ -17,6 +17,12 @@ public class WorkspaceQueueService {
     @Transactional(readOnly = true)
     public Page<CaseSummaryDto> queue(Authentication auth, String search, String state, String priority,
             String country, String reportType, boolean assignedOnly, Pageable pageable) {
+        return cases.findAll(scope(auth, search, state, priority, country, reportType, assignedOnly), pageable)
+                .map(CaseSummaryDto::fromEntity);
+    }
+
+    public Specification<SafetyCase> scope(Authentication auth, String search, String state, String priority,
+            String country, String reportType, boolean assignedOnly) {
         Set<String> roles = new HashSet<>();
         auth.getAuthorities().forEach(a -> roles.add(a.getAuthority()));
         Specification<SafetyCase> spec = (root, query, cb) -> {
@@ -39,6 +45,21 @@ public class WorkspaceQueueService {
             if (reportType != null && !reportType.isBlank()) filters.add(cb.equal(root.get("reportType"), reportType));
             return cb.and(filters.toArray(Predicate[]::new));
         };
-        return cases.findAll(spec, pageable).map(CaseSummaryDto::fromEntity);
+        return spec;
     }
+    @Transactional(readOnly = true)
+    public Map<String, Object> overview(Authentication auth) {
+        var scope = scope(auth, null, null, null, null, null, false);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("totalCases", cases.count(scope));
+        result.put("seriousCases", cases.count(scope.and((r,q,c) -> c.isTrue(r.get("serious")))));
+        result.put("expeditedCases", cases.count(scope.and((r,q,c) -> c.equal(r.get("priority"), "Expedited"))));
+        Map<String, Long> states = new LinkedHashMap<>();
+        for (String state : List.of("Draft", "Data Entry", "Medical Review", "Quality Review", "Approved", "Locked", "Closed")) {
+            states.put(state, cases.count(scope.and((r,q,c) -> c.equal(r.get("workflowState"), state))));
+        }
+        result.put("states", states);
+        return result;
+    }
+
 }

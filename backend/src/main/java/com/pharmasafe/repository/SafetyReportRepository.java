@@ -33,4 +33,6 @@ public interface SafetyReportRepository extends JpaRepository<SafetyReport, Long
     );
 
     List<SafetyReport> findTop10ByOrderByDueDateAsc();
+    long countByStatusNotAndDueDateBefore(String status, java.time.LocalDate date);
+    org.springframework.data.domain.Page<SafetyReport> findByStatusNotOrderByDueDateAscIdAsc(String status, org.springframework.data.domain.Pageable page);
 }

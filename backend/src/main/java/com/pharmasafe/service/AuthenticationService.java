@@ -153,6 +153,9 @@ public class AuthenticationService {
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
+        httpRequest.getSession(true);
+        httpRequest.changeSessionId();
+        httpRequest.getSession(true).setAttribute("PHARMASAFE_AUTH_VERSION", user.getAuthVersion());
         securityContextRepository.saveContext(context, httpRequest, httpResponse);
 
         return UserResponseDto.fromEntity(user);

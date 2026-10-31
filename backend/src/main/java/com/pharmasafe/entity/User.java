@@ -14,6 +14,15 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "auth_version", nullable = false)
+    private long authVersion;
+    @Version
+    @Column(name="account_row_version", nullable=false)
+    private long accountRowVersion;
+    public long getAuthVersion() { return authVersion; }
+    public void revokeSessions() { authVersion++; }
+
+
     @Column(nullable = false, unique = true, length = 64)
     private String username;
 
