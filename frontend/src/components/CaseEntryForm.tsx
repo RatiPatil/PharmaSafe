@@ -26,7 +26,7 @@ interface CaseEntryFormProps {
   initialCase?: SafetyCaseDetails | null;
   onSaveSuccess: (savedCase: SafetyCaseDetails) => void;
   onCancel: () => void;
-  saveTrigger?: number; // External save signal from QuickLaunch toolbar
+  saveTrigger?: number;
 }
 
 interface MeddraTerm {
@@ -153,21 +153,33 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
         assignedToUsername: initialCase.assignedToUsername || user?.username || '',
         patient: initialCase.patient || {
           patientIdentifier: '',
-          ageValue: undefined,
-          ageUnit: 'Years',
           gender: 'Unknown',
+          ageUnit: 'Years',
           pregnant: false
         },
         reporters: initialCase.reporters?.length ? initialCase.reporters : [
-          { primary: true, qualification: 'Physician', countryCode: 'USA' }
+          {
+            primary: true,
+            qualification: 'Physician',
+            countryCode: initialCase.countryCode || 'USA',
+            lastName: ''
+          }
         ],
         products: initialCase.products?.length ? initialCase.products : [
-          { productType: 'Suspect', productName: '', formulation: 'Tablet', routeOfAdministration: 'Oral' }
+          {
+            productType: 'Suspect',
+            productName: '',
+            formulation: 'Tablet',
+            routeOfAdministration: 'Oral',
+            ongoing: false,
+            dechallengeResult: 'Not Applicable',
+            rechallengeResult: 'Not Applicable'
+          }
         ],
         events: initialCase.events?.length ? initialCase.events : [
           {
             eventVerbatim: '',
-            onsetDate: todayStr,
+            onsetDate: initialCase.latestReceivedDate || todayStr,
             outcome: 'Unknown',
             serious: false,
             resultsInDeath: false,
@@ -184,7 +196,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
         attachments: initialCase.attachments || []
       });
     }
-  }, [initialCase]);
+  }, [initialCase, todayStr, user?.username]);
 
   // Recalculate seriousness flag dynamically
   const isCaseSerious = formData.events.some(
@@ -231,8 +243,6 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
           productType: 'Concomitant',
           productName: '',
           activeSubstance: '',
-          indication: '',
-          dosageText: '',
           formulation: 'Tablet',
           routeOfAdministration: 'Oral',
           ongoing: false,
@@ -473,7 +483,6 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
     }
   };
 
-  // Handle external save trigger from Quick Launch toolbar
   useEffect(() => {
     if (saveTrigger && saveTrigger > 0 && !isSubmitting) {
       handleSave(false);
@@ -481,45 +490,47 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   }, [saveTrigger, isSubmitting]);
 
   return (
-    <div className="bg-white rounded border border-[#B8CCE4] shadow-sm overflow-hidden flex flex-col w-full max-w-full">
-      {/* Top Enterprise Case Header */}
-      <div className="bg-gradient-to-r from-[#0E3D6B] to-[#19589D] text-white p-3 flex flex-wrap items-center justify-between gap-3 border-b border-[#0A2D50]">
-        <div className="flex items-center space-x-3">
-          <Stethoscope className="w-5 h-5 text-blue-200" />
+    <div className="bg-white rounded-xl border border-[#DCE4EE] shadow-xs overflow-hidden flex flex-col w-full max-w-full">
+      {/* Top Header Bar */}
+      <div className="bg-[#0B1F33] text-white p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 border-b border-[#1A3654]">
+        <div className="flex items-center space-x-3.5">
+          <div className="bg-[#102A43] p-2.5 rounded-lg border border-[#234567]">
+            <Stethoscope className="w-5 h-5 text-[#60A5FA]" />
+          </div>
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-bold tracking-wide">
+            <div className="flex items-center space-x-2.5 flex-wrap">
+              <span className="text-base font-bold tracking-tight text-white">
                 {initialCase ? `Case ${initialCase.caseNumber}` : 'Initial Case Entry (Argus Safety Format)'}
               </span>
-              <span className="font-mono text-[10px] bg-blue-900/60 px-2 py-0.5 rounded border border-blue-400/40 text-blue-100">
+              <span className="font-mono text-xs bg-[#102A43] px-2 py-0.5 rounded border border-[#1E3A5F] text-[#93C5FD]">
                 v{initialCase ? initialCase.versionNumber : '1.0'}
               </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded uppercase tracking-wider ${
                 formData.workflowState === 'Draft'
-                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                  : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                  ? 'bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]'
+                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
               }`}>
                 {formData.workflowState}
               </span>
               {isCaseSerious && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-700 text-white uppercase tracking-wider animate-pulse">
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded bg-[#DC2626] text-white uppercase tracking-wider">
                   SERIOUS{isCaseFatal ? ' (FATAL)' : ''}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-blue-200 mt-0.5">
+            <p className="text-xs text-[#94A3B8] mt-1">
               ICH E2B(R3) Pharmacovigilance Case &bull; Server-Side Number Generation &bull; PostgreSQL 18.4
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2.5">
           <button
             type="button"
             onClick={() => handleSave(true)}
             disabled={isSubmitting}
-            className="px-3 py-1.5 text-xs font-semibold rounded bg-white/10 hover:bg-white/20 text-white border border-white/30 flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-[#102A43] hover:bg-[#1E3A5F] text-[#CBD5E1] border border-[#1E3A5F] flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
             title="Save as Draft allows saving partial entries without minimum criteria"
           >
             <Bookmark className="w-3.5 h-3.5" />
@@ -530,7 +541,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
             type="button"
             onClick={() => handleSave(false)}
             disabled={isSubmitting}
-            className="px-4 py-1.5 text-xs font-bold rounded bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-sm flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            className="px-4 py-2 text-xs font-bold rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs flex items-center space-x-1.5 transition-colors cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -549,7 +560,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="px-3 py-1.5 text-xs font-semibold rounded bg-rose-800/80 hover:bg-rose-900 text-white border border-rose-600/50 flex items-center space-x-1 transition-colors cursor-pointer"
+            className="px-3 py-2 text-xs font-semibold rounded-lg bg-white/10 hover:bg-white/15 text-[#CBD5E1] hover:text-white border border-white/20 flex items-center space-x-1.5 transition-colors cursor-pointer"
           >
             <XCircle className="w-3.5 h-3.5" />
             <span>Close</span>
@@ -559,13 +570,13 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
       {/* Validation / Error Banner */}
       {errorMessage && (
-        <div className="bg-rose-50 border-b border-rose-200 p-3 text-xs text-rose-800 flex items-start space-x-2">
-          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+        <div className="bg-[#FEF2F2] border-b border-[#FECACA] p-4 text-xs text-[#991B1B] flex items-start space-x-3">
+          <AlertTriangle className="w-4 h-4 text-[#DC2626] shrink-0 mt-0.5" />
           <div className="flex-1">
-            <span className="font-bold block">Validation Failure:</span>
+            <span className="font-semibold block mb-0.5">Validation Failure:</span>
             <span>{errorMessage}</span>
             {Object.keys(fieldErrors).length > 0 && (
-              <ul className="list-disc list-inside mt-1 text-[11px] text-rose-700">
+              <ul className="list-disc list-inside mt-1.5 text-xs text-[#991B1B] space-y-0.5">
                 {Object.values(fieldErrors).map((msg, idx) => (
                   <li key={idx}>{msg}</li>
                 ))}
@@ -574,7 +585,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
           </div>
           <button
             onClick={() => setErrorMessage(null)}
-            className="text-rose-700 hover:text-rose-900 font-bold cursor-pointer text-xs"
+            className="text-[#991B1B] hover:text-[#7F1D1D] font-bold cursor-pointer text-xs"
           >
             &times;
           </button>
@@ -582,7 +593,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
       )}
 
       {/* Sub-Tab Navigation Bar */}
-      <div className="flex items-center space-x-1 px-3 pt-2 bg-[#E9EEF4] border-b border-[#B8CCE4] overflow-x-auto select-none">
+      <div className="flex items-center space-x-1 px-4 pt-2.5 bg-[#F4F7FB] border-b border-[#DCE4EE] overflow-x-auto select-none">
         {[
           { id: 'general', label: '1. General Info', icon: Info },
           { id: 'patient', label: '2. Patient', icon: User },
@@ -601,10 +612,10 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setActiveSubTab(tab.id as typeof activeSubTab)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-t flex items-center space-x-1.5 whitespace-nowrap transition-colors cursor-pointer ${
+              className={`px-3.5 py-2 text-xs rounded-t-lg flex items-center space-x-2 whitespace-nowrap transition-colors cursor-pointer ${
                 isActive
-                  ? 'bg-white text-[#0E3D6B] border-t-2 border-t-[#19589D] border-x border-[#B8CCE4] font-bold shadow-xs'
-                  : 'bg-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  ? 'bg-white text-[#2563EB] border-t-2 border-t-[#2563EB] border-x border-[#DCE4EE] font-semibold shadow-2xs -mb-px'
+                  : 'bg-transparent text-[#52657A] hover:text-[#102A43] hover:bg-white/50 font-medium'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -614,27 +625,27 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
         })}
       </div>
 
-      {/* Main Tab Content */}
-      <div className="p-4 bg-white flex-1 overflow-y-auto space-y-4">
+      {/* Main Tab Content Area */}
+      <div className="p-6 bg-white flex-1 overflow-y-auto space-y-6">
         {/* TAB 1: GENERAL INFO */}
         {activeSubTab === 'general' && (
-          <div className="space-y-4 text-xs">
-            <div className="bg-sky-50 border border-sky-200 rounded p-2.5 text-sky-900 text-[11px] flex items-center space-x-2">
-              <Info className="w-4 h-4 text-sky-700 shrink-0" />
+          <div className="space-y-5 text-xs">
+            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-3 text-[#1E40AF] text-xs flex items-center space-x-2.5">
+              <Info className="w-4 h-4 text-[#2563EB] shrink-0" />
               <span>
                 <strong>ICH E2B Section A:</strong> Administrative Information, country of incident, and sponsor receipt dates. Case numbers are automatically allocated sequentially by the PostgreSQL backend.
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">
-                  Country of Incident <span className="text-rose-600">*</span>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">
+                  Country of Incident <span className="text-[#DC2626]">*</span>
                 </label>
                 <select
                   value={formData.countryCode}
                   onChange={(e) => setFormData({ ...formData, countryCode: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
                   <option value="USA">USA - United States</option>
                   <option value="GBR">GBR - United Kingdom</option>
@@ -645,30 +656,36 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   <option value="AUS">AUS - Australia</option>
                   <option value="IND">IND - India</option>
                 </select>
+                {fieldErrors.countryCode && (
+                  <p className="mt-1 text-xs text-[#DC2626] font-medium">{fieldErrors.countryCode}</p>
+                )}
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">
-                  Report Type <span className="text-rose-600">*</span>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">
+                  Report Type <span className="text-[#DC2626]">*</span>
                 </label>
                 <select
                   value={formData.reportType}
                   onChange={(e) => setFormData({ ...formData, reportType: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
                   <option value="Spontaneous">Spontaneous (Health Professional / Consumer)</option>
                   <option value="Clinical Trial">Clinical Trial (Interventional Study)</option>
                   <option value="Literature">Literature Report (Published Article)</option>
                   <option value="Other">Other Post-Marketing Surveillance</option>
                 </select>
+                {fieldErrors.reportType && (
+                  <p className="mt-1 text-xs text-[#DC2626] font-medium">{fieldErrors.reportType}</p>
+                )}
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Priority</label>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Priority</label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
                   <option value="Routine">Routine</option>
                   <option value="Priority">Priority</option>
@@ -677,39 +694,45 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">
-                  Initial Sponsor Receipt Date <span className="text-rose-600">*</span>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">
+                  Initial Sponsor Receipt Date <span className="text-[#DC2626]">*</span>
                 </label>
                 <input
                   type="date"
                   value={formData.initialReceiptDate}
                   onChange={(e) => setFormData({ ...formData, initialReceiptDate: e.target.value })}
-                  className={`w-full px-2.5 py-1.5 border rounded text-xs bg-[#FDFEFF] ${
-                    fieldErrors.initialReceiptDate ? 'border-rose-500' : 'border-[#9BB5D6]'
+                  className={`w-full px-3 py-2 border rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 ${
+                    fieldErrors.initialReceiptDate ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
                   }`}
                 />
+                {fieldErrors.initialReceiptDate && (
+                  <p className="mt-1 text-xs text-[#DC2626] font-medium">{fieldErrors.initialReceiptDate}</p>
+                )}
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">
-                  Latest Received Date <span className="text-rose-600">*</span>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">
+                  Latest Received Date <span className="text-[#DC2626]">*</span>
                 </label>
                 <input
                   type="date"
                   value={formData.latestReceivedDate}
                   onChange={(e) => setFormData({ ...formData, latestReceivedDate: e.target.value })}
-                  className={`w-full px-2.5 py-1.5 border rounded text-xs bg-[#FDFEFF] ${
-                    fieldErrors.latestReceivedDate ? 'border-rose-500' : 'border-[#9BB5D6]'
+                  className={`w-full px-3 py-2 border rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 ${
+                    fieldErrors.latestReceivedDate ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
                   }`}
                 />
+                {fieldErrors.latestReceivedDate && (
+                  <p className="mt-1 text-xs text-[#DC2626] font-medium">{fieldErrors.latestReceivedDate}</p>
+                )}
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Workflow State</label>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Workflow State</label>
                 <select
                   value={formData.workflowState}
                   onChange={(e) => setFormData({ ...formData, workflowState: e.target.value })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
                   <option value="Data Entry">Data Entry</option>
                   <option value="Quality Review">Quality Review</option>
@@ -724,17 +747,17 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 2: PATIENT DEMOGRAPHICS */}
         {activeSubTab === 'patient' && (
-          <div className="space-y-4 text-xs">
-            <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-amber-900 text-[11px] flex items-center space-x-2">
-              <Info className="w-4 h-4 text-amber-700 shrink-0" />
+          <div className="space-y-5 text-xs">
+            <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-lg p-3 text-[#92400E] text-xs flex items-center space-x-2.5">
+              <Info className="w-4 h-4 text-[#D97706] shrink-0" />
               <span>
                 <strong>PII Protection:</strong> In compliance with GDPR and HIPAA safe-harbor standards, do not enter full patient names or national identity numbers. Use anonymized patient initials or trial subject identifiers.
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Patient Initials / ID</label>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Patient Initials / ID</label>
                 <input
                   type="text"
                   placeholder="e.g. J.D. or PT-4091"
@@ -743,19 +766,19 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     ...formData,
                     patient: { ...formData.patient, patientIdentifier: e.target.value }
                   })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Gender</label>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Gender</label>
                 <select
                   value={formData.patient.gender || 'Unknown'}
                   onChange={(e) => setFormData({
                     ...formData,
                     patient: { ...formData.patient, gender: e.target.value }
                   })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
                   <option value="Unknown">Unknown</option>
                   <option value="Female">Female</option>
@@ -765,8 +788,8 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Age Value &amp; Unit</label>
-                <div className="flex space-x-1">
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Age Value &amp; Unit</label>
+                <div className="flex space-x-2">
                   <input
                     type="number"
                     step="0.1"
@@ -776,7 +799,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       ...formData,
                       patient: { ...formData.patient, ageValue: e.target.value ? parseFloat(e.target.value) : undefined }
                     })}
-                    className="w-1/2 px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                    className="w-1/2 px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB]"
                   />
                   <select
                     value={formData.patient.ageUnit || 'Years'}
@@ -784,7 +807,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       ...formData,
                       patient: { ...formData.patient, ageUnit: e.target.value }
                     })}
-                    className="w-1/2 px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                    className="w-1/2 px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB]"
                   >
                     <option value="Years">Years</option>
                     <option value="Months">Months</option>
@@ -796,7 +819,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Date of Birth</label>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Date of Birth</label>
                 <input
                   type="date"
                   value={formData.patient.dateOfBirth || ''}
@@ -804,12 +827,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     ...formData,
                     patient: { ...formData.patient, dateOfBirth: e.target.value }
                   })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB]"
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Weight (kg)</label>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Weight (kg)</label>
                 <input
                   type="number"
                   step="0.1"
@@ -819,12 +842,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     ...formData,
                     patient: { ...formData.patient, weightKg: e.target.value ? parseFloat(e.target.value) : undefined }
                   })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
                 />
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Height (cm)</label>
+                <label className="font-semibold text-[#172B4D] block mb-1.5">Height (cm)</label>
                 <input
                   type="number"
                   step="0.1"
@@ -834,11 +857,11 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     ...formData,
                     patient: { ...formData.patient, heightCm: e.target.value ? parseFloat(e.target.value) : undefined }
                   })}
-                  className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                  className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
                 />
               </div>
 
-              <div className="flex items-center space-x-2 pt-6">
+              <div className="flex items-center space-x-2.5 pt-6">
                 <input
                   type="checkbox"
                   id="pregnantCheck"
@@ -847,9 +870,9 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     ...formData,
                     patient: { ...formData.patient, pregnant: e.target.checked }
                   })}
-                  className="w-4 h-4 text-blue-600 rounded"
+                  className="w-4 h-4 text-[#2563EB] rounded border-[#DCE4EE]"
                 />
-                <label htmlFor="pregnantCheck" className="font-semibold text-slate-700">
+                <label htmlFor="pregnantCheck" className="font-semibold text-[#172B4D] cursor-pointer">
                   Patient is Pregnant
                 </label>
               </div>
@@ -859,30 +882,36 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 3: REPORTERS */}
         {activeSubTab === 'reporters' && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 text-sm">Primary &amp; Secondary Reporters</span>
+              <h3 className="font-bold text-[#102A43] text-sm">Primary &amp; Secondary Reporters</h3>
               <button
                 type="button"
                 onClick={addReporter}
-                className="px-2.5 py-1 bg-[#19589D] text-white rounded font-semibold text-xs flex items-center space-x-1 cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg font-semibold text-xs flex items-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Reporter</span>
               </button>
             </div>
 
+            {fieldErrors.reporters && (
+              <div className="p-3 bg-[#FEF2F2] border border-[#FECACA] rounded-lg text-xs text-[#991B1B]">
+                {fieldErrors.reporters}
+              </div>
+            )}
+
             {formData.reporters.map((rep, idx) => (
-              <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded space-y-3 relative">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                  <span className="font-bold text-[#0E3D6B]">
+              <div key={idx} className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[#DCE4EE] pb-2.5">
+                  <span className="font-bold text-[#102A43] text-xs">
                     Reporter #{idx + 1} {rep.primary ? '(Primary Contact)' : ''}
                   </span>
                   {formData.reporters.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeReporter(idx)}
-                      className="text-rose-600 hover:text-rose-800 text-xs flex items-center space-x-1 cursor-pointer"
+                      className="text-[#DC2626] hover:text-[#991B1B] text-xs font-semibold flex items-center space-x-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Remove</span>
@@ -890,9 +919,9 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Qualification</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Qualification</label>
                     <select
                       value={rep.qualification}
                       onChange={(e) => {
@@ -900,7 +929,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].qualification = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     >
                       <option value="Physician">Physician</option>
                       <option value="Pharmacist">Pharmacist</option>
@@ -911,7 +940,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">First Name</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">First Name</label>
                     <input
                       type="text"
                       value={rep.firstName || ''}
@@ -920,12 +949,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].firstName = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Last Name</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Last Name</label>
                     <input
                       type="text"
                       value={rep.lastName || ''}
@@ -934,12 +963,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].lastName = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Institution / Hospital</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Institution / Hospital</label>
                     <input
                       type="text"
                       value={rep.institution || ''}
@@ -948,12 +977,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].institution = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">City</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">City</label>
                     <input
                       type="text"
                       value={rep.city || ''}
@@ -962,12 +991,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].city = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Country</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Country</label>
                     <input
                       type="text"
                       value={rep.countryCode || 'USA'}
@@ -976,12 +1005,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].countryCode = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Email</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Email</label>
                     <input
                       type="email"
                       value={rep.email || ''}
@@ -990,12 +1019,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].email = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Phone</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Phone</label>
                     <input
                       type="text"
                       value={rep.phone || ''}
@@ -1004,7 +1033,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].phone = e.target.value;
                         setFormData({ ...formData, reporters: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
                 </div>
@@ -1015,26 +1044,32 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 4: MEDICINAL PRODUCTS */}
         {activeSubTab === 'products' && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 text-sm">Suspect &amp; Concomitant Medicinal Products</span>
+              <h3 className="font-bold text-[#102A43] text-sm">Suspect &amp; Concomitant Medicinal Products</h3>
               <button
                 type="button"
                 onClick={addProduct}
-                className="px-2.5 py-1 bg-[#19589D] text-white rounded font-semibold text-xs flex items-center space-x-1 cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg font-semibold text-xs flex items-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Product</span>
               </button>
             </div>
 
+            {fieldErrors.products && (
+              <div className="p-3 bg-[#FEF2F2] border border-[#FECACA] rounded-lg text-xs text-[#991B1B]">
+                {fieldErrors.products}
+              </div>
+            )}
+
             {formData.products.map((prod, idx) => (
-              <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-[#0E3D6B]">Product #{idx + 1}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      prod.productType === 'Suspect' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-slate-200 text-slate-800'
+              <div key={idx} className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[#DCE4EE] pb-2.5">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="font-bold text-[#102A43] text-xs">Product #{idx + 1}</span>
+                    <span className={`px-2.5 py-0.5 rounded text-xs font-semibold ${
+                      prod.productType === 'Suspect' ? 'bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]' : 'bg-[#F1F5F9] text-[#334155] border border-[#CBD5E1]'
                     }`}>
                       {prod.productType}
                     </span>
@@ -1043,7 +1078,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     <button
                       type="button"
                       onClick={() => removeProduct(idx)}
-                      className="text-rose-600 hover:text-rose-800 text-xs flex items-center space-x-1 cursor-pointer"
+                      className="text-[#DC2626] hover:text-[#991B1B] text-xs font-semibold flex items-center space-x-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Remove</span>
@@ -1051,10 +1086,10 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      Product Type <span className="text-rose-600">*</span>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">
+                      Product Type <span className="text-[#DC2626]">*</span>
                     </label>
                     <select
                       value={prod.productType}
@@ -1063,7 +1098,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].productType = e.target.value;
                         setFormData({ ...formData, products: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     >
                       <option value="Suspect">Suspect (Investigational / Drug under study)</option>
                       <option value="Concomitant">Concomitant (Co-administered Medication)</option>
@@ -1073,8 +1108,8 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      Product Name <span className="text-rose-600">*</span>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">
+                      Product Name <span className="text-[#DC2626]">*</span>
                     </label>
                     <input
                       type="text"
@@ -1085,12 +1120,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].productName = e.target.value;
                         setFormData({ ...formData, products: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Active Substance</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Active Substance</label>
                     <input
                       type="text"
                       placeholder="e.g. Cardiolol Hydrochloride"
@@ -1100,12 +1135,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].activeSubstance = e.target.value;
                         setFormData({ ...formData, products: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Reported Indication</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Reported Indication</label>
                     <input
                       type="text"
                       placeholder="e.g. Essential Hypertension"
@@ -1115,12 +1150,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].indication = e.target.value;
                         setFormData({ ...formData, products: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Dosage Regimen</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Dosage Regimen</label>
                     <input
                       type="text"
                       placeholder="e.g. 50mg Once daily"
@@ -1130,13 +1165,13 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].dosageText = e.target.value;
                         setFormData({ ...formData, products: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Formulation &amp; Route</label>
-                    <div className="flex space-x-1">
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Formulation &amp; Route</label>
+                    <div className="flex space-x-2">
                       <input
                         type="text"
                         placeholder="Tablet"
@@ -1146,7 +1181,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           updated[idx].formulation = e.target.value;
                           setFormData({ ...formData, products: updated });
                         }}
-                        className="w-1/2 px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                        className="w-1/2 px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                       />
                       <input
                         type="text"
@@ -1157,13 +1192,13 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           updated[idx].routeOfAdministration = e.target.value;
                           setFormData({ ...formData, products: updated });
                         }}
-                        className="w-1/2 px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                        className="w-1/2 px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Start Date</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Start Date</label>
                     <input
                       type="date"
                       value={prod.startDate || ''}
@@ -1172,12 +1207,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].startDate = e.target.value;
                         setFormData({ ...formData, products: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Stop Date</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Stop Date</label>
                     <input
                       type="date"
                       value={prod.stopDate || ''}
@@ -1186,7 +1221,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].stopDate = e.target.value;
                         setFormData({ ...formData, products: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
                 </div>
@@ -1197,26 +1232,32 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 5: ADVERSE EVENTS */}
         {activeSubTab === 'events' && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 text-sm">Adverse Events &amp; Seriousness Criteria</span>
+              <h3 className="font-bold text-[#102A43] text-sm">Adverse Events &amp; Seriousness Criteria</h3>
               <button
                 type="button"
                 onClick={addEvent}
-                className="px-2.5 py-1 bg-[#19589D] text-white rounded font-semibold text-xs flex items-center space-x-1 cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg font-semibold text-xs flex items-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Event</span>
               </button>
             </div>
 
+            {fieldErrors.events && (
+              <div className="p-3 bg-[#FEF2F2] border border-[#FECACA] rounded-lg text-xs text-[#991B1B]">
+                {fieldErrors.events}
+              </div>
+            )}
+
             {formData.events.map((ev, idx) => (
-              <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-[#0E3D6B]">Event #{idx + 1}</span>
+              <div key={idx} className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[#DCE4EE] pb-2.5">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="font-bold text-[#102A43] text-xs">Event #{idx + 1}</span>
                     {ev.serious && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                      <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-[#FEF2F2] text-[#991B1B] border border-[#FECACA]">
                         Serious Criteria Met
                       </span>
                     )}
@@ -1225,7 +1266,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     <button
                       type="button"
                       onClick={() => removeEvent(idx)}
-                      className="text-rose-600 hover:text-rose-800 text-xs flex items-center space-x-1 cursor-pointer"
+                      className="text-[#DC2626] hover:text-[#991B1B] text-xs font-semibold flex items-center space-x-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Remove</span>
@@ -1233,10 +1274,10 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="md:col-span-2">
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      Event Verbatim (Reported Term) <span className="text-rose-600">*</span>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">
+                      Event Verbatim (Reported Term) <span className="text-[#DC2626]">*</span>
                     </label>
                     <input
                       type="text"
@@ -1247,12 +1288,17 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].eventVerbatim = e.target.value;
                         setFormData({ ...formData, events: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] ${
+                        fieldErrors[`event_${idx}`] ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
+                      }`}
                     />
+                    {fieldErrors[`event_${idx}`] && (
+                      <p className="mt-1 text-xs text-[#DC2626] font-medium">{fieldErrors[`event_${idx}`]}</p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">MedDRA Preferred Term (PT)</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">MedDRA Preferred Term (PT)</label>
                     <input
                       type="text"
                       list={`meddra-terms-${idx}`}
@@ -1283,7 +1329,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           }
                         }
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8]"
                     />
                     <datalist id={`meddra-terms-${idx}`}>
                       {(meddraSuggestions[idx] || []).map(term => (
@@ -1293,7 +1339,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Outcome</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Outcome</label>
                     <select
                       value={ev.outcome}
                       onChange={(e) => {
@@ -1305,7 +1351,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         }
                         setFormData({ ...formData, events: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     >
                       <option value="Recovered/Resolved">Recovered / Resolved</option>
                       <option value="Recovering/Resolving">Recovering / Resolving</option>
@@ -1317,8 +1363,8 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">
-                      Onset Date <span className="text-rose-600">*</span>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">
+                      Onset Date <span className="text-[#DC2626]">*</span>
                     </label>
                     <input
                       type="date"
@@ -1328,12 +1374,17 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].onsetDate = e.target.value;
                         setFormData({ ...formData, events: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className={`w-full px-3 py-2 border rounded-lg text-sm bg-white text-[#172B4D] ${
+                        fieldErrors[`event_date_${idx}`] ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
+                      }`}
                     />
+                    {fieldErrors[`event_date_${idx}`] && (
+                      <p className="mt-1 text-xs text-[#DC2626] font-medium">{fieldErrors[`event_date_${idx}`]}</p>
+                    )}
                   </div>
 
                   <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Stop / Resolution Date</label>
+                    <label className="font-semibold text-[#172B4D] block mb-1.5">Stop / Resolution Date</label>
                     <input
                       type="date"
                       value={ev.stopDate || ''}
@@ -1342,18 +1393,18 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                         updated[idx].stopDate = e.target.value;
                         setFormData({ ...formData, events: updated });
                       }}
-                      className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                      className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                     />
                   </div>
                 </div>
 
                 {/* Seriousness Criteria Checkboxes */}
-                <div className="bg-white p-2.5 rounded border border-slate-200 mt-2">
-                  <span className="font-bold text-[#0E3D6B] block mb-1 text-[11px] uppercase tracking-wider">
+                <div className="bg-white p-4 rounded-xl border border-[#DCE4EE] mt-3">
+                  <span className="font-semibold text-[#102A43] block mb-3 text-xs uppercase tracking-wider">
                     ICH E2B Seriousness Criteria (Check all that apply)
                   </span>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-[11px]">
-                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={ev.resultsInDeath}
@@ -1366,12 +1417,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           }
                           setFormData({ ...formData, events: updated });
                         }}
-                        className="rounded text-rose-600"
+                        className="w-4 h-4 rounded text-[#DC2626] border-[#DCE4EE]"
                       />
-                      <span className="font-semibold text-rose-800">Results in Death</span>
+                      <span className="font-semibold text-[#DC2626]">Results in Death</span>
                     </label>
 
-                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={ev.lifeThreatening}
@@ -1381,12 +1432,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           if (e.target.checked) updated[idx].serious = true;
                           setFormData({ ...formData, events: updated });
                         }}
-                        className="rounded text-blue-600"
+                        className="w-4 h-4 rounded text-[#2563EB] border-[#DCE4EE]"
                       />
-                      <span>Life Threatening</span>
+                      <span className="text-[#172B4D]">Life Threatening</span>
                     </label>
 
-                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={ev.requiresHospitalization}
@@ -1396,12 +1447,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           if (e.target.checked) updated[idx].serious = true;
                           setFormData({ ...formData, events: updated });
                         }}
-                        className="rounded text-blue-600"
+                        className="w-4 h-4 rounded text-[#2563EB] border-[#DCE4EE]"
                       />
-                      <span>Requires Hospitalization</span>
+                      <span className="text-[#172B4D]">Requires Hospitalization</span>
                     </label>
 
-                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={ev.disablingIncapacitating}
@@ -1411,12 +1462,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           if (e.target.checked) updated[idx].serious = true;
                           setFormData({ ...formData, events: updated });
                         }}
-                        className="rounded text-blue-600"
+                        className="w-4 h-4 rounded text-[#2563EB] border-[#DCE4EE]"
                       />
-                      <span>Disabling / Incapacitating</span>
+                      <span className="text-[#172B4D]">Disabling / Incapacitating</span>
                     </label>
 
-                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={ev.congenitalAnomaly}
@@ -1426,12 +1477,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           if (e.target.checked) updated[idx].serious = true;
                           setFormData({ ...formData, events: updated });
                         }}
-                        className="rounded text-blue-600"
+                        className="w-4 h-4 rounded text-[#2563EB] border-[#DCE4EE]"
                       />
-                      <span>Congenital Anomaly</span>
+                      <span className="text-[#172B4D]">Congenital Anomaly</span>
                     </label>
 
-                    <label className="flex items-center space-x-1.5 cursor-pointer">
+                    <label className="flex items-center space-x-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={ev.otherMedicallyImportant}
@@ -1441,9 +1492,9 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           if (e.target.checked) updated[idx].serious = true;
                           setFormData({ ...formData, events: updated });
                         }}
-                        className="rounded text-blue-600"
+                        className="w-4 h-4 rounded text-[#2563EB] border-[#DCE4EE]"
                       />
-                      <span>Other Medically Important</span>
+                      <span className="text-[#172B4D]">Other Medically Important</span>
                     </label>
                   </div>
                 </div>
@@ -1454,13 +1505,13 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 6: MEDICAL HISTORY */}
         {activeSubTab === 'history' && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800 text-sm">Patient Medical History &amp; Concurrent Conditions</span>
+              <h3 className="font-bold text-[#102A43] text-sm">Patient Medical History &amp; Concurrent Conditions</h3>
               <button
                 type="button"
                 onClick={addMedicalHistory}
-                className="px-2.5 py-1 bg-[#19589D] text-white rounded font-semibold text-xs flex items-center space-x-1 cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg font-semibold text-xs flex items-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add History Item</span>
@@ -1468,27 +1519,27 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
             </div>
 
             {formData.medicalHistoryList.length === 0 ? (
-              <div className="p-6 text-center text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded">
+              <div className="p-8 text-center text-[#7A8B9E] bg-[#F8FAFD] border border-dashed border-[#DCE4EE] rounded-xl">
                 No prior medical conditions entered for this patient. Click "Add History Item" to document relevant history.
               </div>
             ) : (
               formData.medicalHistoryList.map((mh, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#0E3D6B]">Condition #{idx + 1}</span>
+                <div key={idx} className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-[#DCE4EE] pb-2.5">
+                    <span className="font-bold text-[#102A43] text-xs">Condition #{idx + 1}</span>
                     <button
                       type="button"
                       onClick={() => removeMedicalHistory(idx)}
-                      className="text-rose-600 hover:text-rose-800 text-xs flex items-center space-x-1 cursor-pointer"
+                      className="text-[#DC2626] hover:text-[#991B1B] text-xs font-semibold flex items-center space-x-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       <span>Remove</span>
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="md:col-span-2">
-                      <label className="font-semibold text-slate-700 block mb-1">Disease / Surgical History</label>
+                      <label className="font-semibold text-[#172B4D] block mb-1.5">Disease / Surgical History</label>
                       <input
                         type="text"
                         placeholder="e.g. Type 2 Diabetes Mellitus"
@@ -1498,12 +1549,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           updated[idx].conditionName = e.target.value;
                           setFormData({ ...formData, medicalHistoryList: updated });
                         }}
-                        className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                        className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8]"
                       />
                     </div>
 
                     <div>
-                      <label className="font-semibold text-slate-700 block mb-1">Start Date</label>
+                      <label className="font-semibold text-[#172B4D] block mb-1.5">Start Date</label>
                       <input
                         type="date"
                         value={mh.startDate || ''}
@@ -1512,11 +1563,11 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           updated[idx].startDate = e.target.value;
                           setFormData({ ...formData, medicalHistoryList: updated });
                         }}
-                        className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                        className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                       />
                     </div>
 
-                    <div className="flex items-center space-x-2 pt-5">
+                    <div className="flex items-center space-x-2.5 pt-6">
                       <input
                         type="checkbox"
                         id={`cont_${idx}`}
@@ -1526,9 +1577,9 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                           updated[idx].continuing = e.target.checked;
                           setFormData({ ...formData, medicalHistoryList: updated });
                         }}
-                        className="rounded text-blue-600"
+                        className="w-4 h-4 rounded text-[#2563EB] border-[#DCE4EE]"
                       />
-                      <label htmlFor={`cont_${idx}`} className="font-semibold text-slate-700">
+                      <label htmlFor={`cont_${idx}`} className="font-semibold text-[#172B4D] cursor-pointer">
                         Condition Continuing
                       </label>
                     </div>
@@ -1541,16 +1592,16 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 7: ASSESSMENTS & CAUSALITY */}
         {activeSubTab === 'assessments' && (
-          <div className="space-y-4 text-xs">
-            <div className="bg-sky-50 border border-sky-200 rounded p-2.5 text-sky-900 text-[11px]">
+          <div className="space-y-5 text-xs">
+            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-3 text-[#1E40AF] text-xs">
               <strong>Causality Assessment:</strong> Evaluate the causal relationship between suspect drug(s) and observed adverse event(s). Company causality determination governs regulatory 7-day and 15-day expedited reporting obligations.
             </div>
 
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded space-y-3">
-              <span className="font-bold text-[#0E3D6B]">Medical Causality Assessment</span>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-5 bg-[#F8FAFD] border border-[#DCE4EE] rounded-xl space-y-4 shadow-2xs">
+              <span className="font-bold text-[#102A43] text-sm block">Medical Causality Assessment</span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Reporter Causality</label>
+                  <label className="font-semibold text-[#172B4D] block mb-1.5">Reporter Causality</label>
                   <select
                     value={formData.assessments[0]?.causalityReporter || 'Unassessable'}
                     onChange={(e) => {
@@ -1559,7 +1610,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       else updated[0].causalityReporter = e.target.value;
                       setFormData({ ...formData, assessments: updated });
                     }}
-                    className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                    className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                   >
                     <option value="Related">Related</option>
                     <option value="Not Related">Not Related</option>
@@ -1568,7 +1619,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Company Causality</label>
+                  <label className="font-semibold text-[#172B4D] block mb-1.5">Company Causality</label>
                   <select
                     value={formData.assessments[0]?.causalityCompany || 'Reasonable Possibility'}
                     onChange={(e) => {
@@ -1577,7 +1628,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       else updated[0].causalityCompany = e.target.value;
                       setFormData({ ...formData, assessments: updated });
                     }}
-                    className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                    className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                   >
                     <option value="Reasonable Possibility">Reasonable Possibility (Related)</option>
                     <option value="No Reasonable Possibility">No Reasonable Possibility (Unrelated)</option>
@@ -1586,7 +1637,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Expectedness / Listedness</label>
+                  <label className="font-semibold text-[#172B4D] block mb-1.5">Expectedness / Listedness</label>
                   <select
                     value={formData.assessments[0]?.expectedness || 'Unexpected'}
                     onChange={(e) => {
@@ -1595,7 +1646,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       else updated[0].expectedness = e.target.value;
                       setFormData({ ...formData, assessments: updated });
                     }}
-                    className="w-full px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                    className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"
                   >
                     <option value="Unexpected">Unexpected (Unlisted in Core Data Sheet)</option>
                     <option value="Expected">Expected (Listed in Core Data Sheet)</option>
@@ -1603,7 +1654,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 </div>
 
                 <div className="md:col-span-3">
-                  <label className="font-semibold text-slate-700 block mb-1">Assessment Comment / Medical Evaluation</label>
+                  <label className="font-semibold text-[#172B4D] block mb-1.5">Assessment Comment / Medical Evaluation</label>
                   <textarea
                     rows={3}
                     placeholder="Provide medical assessment rationale regarding temporal relationship, dechallenge, and biological plausibility..."
@@ -1614,7 +1665,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       else updated[0].assessmentComment = e.target.value;
                       setFormData({ ...formData, assessments: updated });
                     }}
-                    className="w-full px-2.5 py-1.5 border border-[#9BB5D6] rounded text-xs bg-white"
+                    className="w-full px-3.5 py-2.5 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
                   />
                 </div>
               </div>
@@ -1624,9 +1675,9 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 8: NARRATIVE & REFERENCES */}
         {activeSubTab === 'narrative' && (
-          <div className="space-y-4 text-xs">
+          <div className="space-y-5 text-xs">
             <div>
-              <label className="font-semibold text-slate-700 block mb-1">
+              <label className="font-semibold text-[#172B4D] block mb-1.5">
                 Case Narrative (Clinical Summary)
               </label>
               <textarea
@@ -1634,12 +1685,12 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 placeholder="Enter complete clinical case narrative describing timeline of drug exposure, onset of symptoms, treatment administered, and outcome..."
                 value={formData.narrative}
                 onChange={(e) => setFormData({ ...formData, narrative: e.target.value })}
-                className="w-full px-2.5 py-2 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                className="w-full px-3.5 py-2.5 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
               />
             </div>
 
             <div>
-              <label className="font-semibold text-slate-700 block mb-1">
+              <label className="font-semibold text-[#172B4D] block mb-1.5">
                 Company Comments (Internal Safety Review Notes)
               </label>
               <textarea
@@ -1647,18 +1698,18 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 placeholder="Internal pharmacovigilance safety evaluation notes..."
                 value={formData.companyComments}
                 onChange={(e) => setFormData({ ...formData, companyComments: e.target.value })}
-                className="w-full px-2.5 py-2 border border-[#9BB5D6] rounded text-xs bg-[#FDFEFF]"
+                className="w-full px-3.5 py-2.5 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
               />
             </div>
 
             {/* Source References */}
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-bold text-slate-800">Source References &amp; Literature Identifiers</span>
+            <div className="pt-3 border-t border-[#DCE4EE]">
+              <div className="flex items-center justify-between mb-3">
+                <span className="font-bold text-[#102A43] text-xs">Source References &amp; Literature Identifiers</span>
                 <button
                   type="button"
                   onClick={addReference}
-                  className="px-2 py-1 bg-[#19589D] text-white rounded font-semibold text-xs flex items-center space-x-1 cursor-pointer"
+                  className="px-3 py-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-lg font-semibold text-xs flex items-center space-x-1.5 cursor-pointer shadow-xs transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Reference</span>
@@ -1666,7 +1717,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               </div>
 
               {formData.references.map((ref, idx) => (
-                <div key={idx} className="flex items-center space-x-2 mb-2 p-2 bg-slate-50 border border-slate-200 rounded">
+                <div key={idx} className="flex items-center space-x-3 mb-2.5 p-3 bg-[#F8FAFD] border border-[#DCE4EE] rounded-lg">
                   <select
                     value={ref.referenceType}
                     onChange={(e) => {
@@ -1674,7 +1725,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       updated[idx].referenceType = e.target.value;
                       setFormData({ ...formData, references: updated });
                     }}
-                    className="px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                    className="px-3 py-1.5 border border-[#DCE4EE] rounded-lg text-xs bg-white text-[#172B4D]"
                   >
                     <option value="Source Reference">Source Document ID</option>
                     <option value="Literature">Literature / PubMed PMID</option>
@@ -1690,13 +1741,13 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       updated[idx].referenceId = e.target.value;
                       setFormData({ ...formData, references: updated });
                     }}
-                    className="flex-1 px-2 py-1 border border-[#9BB5D6] rounded text-xs bg-white"
+                    className="flex-1 px-3 py-1.5 border border-[#DCE4EE] rounded-lg text-xs bg-white text-[#172B4D]"
                   />
 
                   <button
                     type="button"
                     onClick={() => removeReference(idx)}
-                    className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer"
+                    className="text-[#DC2626] hover:text-[#991B1B] p-1.5 rounded cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -1708,16 +1759,16 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         {/* TAB 9: ATTACHMENTS */}
         {activeSubTab === 'attachments' && (
-          <div className="space-y-4 text-xs">
-            <div className="bg-sky-50 border border-sky-200 rounded p-3 text-sky-900 text-[11px]">
+          <div className="space-y-5 text-xs">
+            <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-lg p-3.5 text-[#1E40AF] text-xs">
               <strong className="block mb-1">Attachment Storage &amp; Access Controls:</strong>
               Safety attachments (lab reports, discharge summaries, electrocardiograms, and CIOMS forms) are recorded in the <code>case_attachments</code> metadata registry with SHA-256 cryptographic hashes for tamper-evidence. Secure file transfer pipeline is scheduled for Stage 6.
             </div>
 
-            <div className="p-6 text-center text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded">
-              <Paperclip className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="font-semibold text-slate-700">No attachments currently associated with this case.</p>
-              <p className="text-slate-500 text-[11px] mt-1">
+            <div className="p-8 text-center text-[#7A8B9E] bg-[#F8FAFD] border border-dashed border-[#DCE4EE] rounded-xl">
+              <Paperclip className="w-8 h-8 text-[#94A3B8] mx-auto mb-2" />
+              <p className="font-semibold text-[#102A43]">No attachments currently associated with this case.</p>
+              <p className="text-[#52657A] text-xs mt-1">
                 Attachment metadata records will link to secure S3 / local vault storage in Stage 6.
               </p>
             </div>
@@ -1725,20 +1776,42 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
         )}
       </div>
 
-      {/* Footer Controls */}
-      <div className="bg-[#E9EEF4] p-3 border-t border-[#B8CCE4] flex items-center justify-between">
-        <div className="text-[11px] text-slate-500 flex items-center space-x-2">
-          <span>Assigned Specialist: <strong className="text-slate-800">{user?.username}</strong></span>
+      {/* Footer Controls & Workflow Actions */}
+      <div className="bg-[#F8FAFD] p-4 border-t border-[#DCE4EE] flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-[#52657A] flex items-center space-x-2">
+          <span>Assigned Specialist: <strong className="text-[#102A43]">{user?.username}</strong></span>
           <span>&bull;</span>
-          <span>Database: <strong className="text-slate-800">PostgreSQL (Live)</strong></span>
+          <span>Database: <strong className="text-emerald-700">PostgreSQL (Live)</strong></span>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {workflowMessage && <span className="text-xs text-emerald-700 font-medium mr-2">{workflowMessage}</span>}
+          {initialCase && formData.workflowState === 'Data Entry' && (
+            <button type="button" onClick={() => requestTransition('Medical Review')} className="bg-white hover:bg-[#F4F7FB] border border-[#DCE4EE] text-[#102A43] px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
+              Submit for Medical Review
+            </button>
+          )}
+          {initialCase && formData.workflowState === 'Medical Review' && user?.role === 'ROLE_MEDICAL_REVIEWER' && (
+            <>
+              <button type="button" onClick={() => requestTransition('Data Entry')} className="bg-white hover:bg-[#F4F7FB] border border-[#DCE4EE] text-[#102A43] px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">Return for Correction</button>
+              <button type="button" onClick={() => requestTransition('Quality Review')} className="bg-white hover:bg-[#F4F7FB] border border-[#DCE4EE] text-[#102A43] px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">Pass Medical Review</button>
+            </>
+          )}
+          {initialCase && formData.workflowState === 'Quality Review' && user?.role === 'ROLE_QUALITY_REVIEWER' && (
+            <>
+              <button type="button" onClick={() => requestTransition('Medical Review')} className="bg-white hover:bg-[#F4F7FB] border border-[#DCE4EE] text-[#102A43] px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">Return to Medical Review</button>
+              <button type="button" onClick={() => requestTransition('Approved')} className="bg-white hover:bg-[#F4F7FB] border border-[#DCE4EE] text-[#102A43] px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">Approve Case</button>
+            </>
+          )}
+          <button type="button" onClick={downloadCaseSummary} className="bg-white hover:bg-[#F4F7FB] border border-[#DCE4EE] text-[#102A43] px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
+            Download Case Summary
+          </button>
+
           <button
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="px-3 py-1 text-xs font-semibold rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-white hover:bg-[#F4F7FB] text-[#52657A] border border-[#DCE4EE] transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -1746,7 +1819,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
             type="button"
             onClick={() => handleSave(true)}
             disabled={isSubmitting}
-            className="px-3 py-1 text-xs font-semibold rounded bg-sky-600 hover:bg-sky-700 text-white transition-colors cursor-pointer"
+            className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#0B1F33] hover:bg-[#102A43] text-white transition-colors cursor-pointer"
           >
             Save Draft
           </button>
@@ -1754,33 +1827,10 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
             type="button"
             onClick={() => handleSave(false)}
             disabled={isSubmitting}
-            className="px-4 py-1 text-xs font-bold rounded bg-[#19589D] hover:bg-[#124B8A] text-white shadow-xs transition-colors cursor-pointer flex items-center space-x-1"
+            className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
           >
             {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             <span>{initialCase ? 'Update Case' : 'Save Case'}</span>
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2 justify-end">
-          {workflowMessage && <span className="text-[11px] text-slate-700">{workflowMessage}</span>}
-          {initialCase && formData.workflowState === 'Data Entry' && (
-            <button type="button" onClick={() => requestTransition('Medical Review')} className="argus-toolbar-btn px-2 py-1 text-[10px]">
-              Submit for Medical Review
-            </button>
-          )}
-          {initialCase && formData.workflowState === 'Medical Review' && user?.role === 'ROLE_MEDICAL_REVIEWER' && (
-            <>
-              <button type="button" onClick={() => requestTransition('Data Entry')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Return for Correction</button>
-              <button type="button" onClick={() => requestTransition('Quality Review')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Pass Medical Review</button>
-            </>
-          )}
-          {initialCase && formData.workflowState === 'Quality Review' && user?.role === 'ROLE_QUALITY_REVIEWER' && (
-            <>
-              <button type="button" onClick={() => requestTransition('Medical Review')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Return to Medical Review</button>
-              <button type="button" onClick={() => requestTransition('Approved')} className="argus-toolbar-btn px-2 py-1 text-[10px]">Approve Case</button>
-            </>
-          )}
-          <button type="button" onClick={downloadCaseSummary} className="argus-toolbar-btn px-2 py-1 text-[10px]">
-            Download Case Summary
           </button>
         </div>
       </div>

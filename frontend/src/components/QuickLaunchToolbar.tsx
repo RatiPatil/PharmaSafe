@@ -23,7 +23,7 @@ export interface QuickAction {
   name: string;
   tooltip: string;
   shortcut: string;
-  shortcutKey: string; // Key code for keyboard listener
+  shortcutKey: string;
   icon: React.ComponentType<{ className?: string }>;
   stage: string;
   enabled: boolean;
@@ -202,7 +202,6 @@ export const QuickLaunchToolbar: React.FC<QuickLaunchToolbarProps> = ({ onSelect
     }
   };
 
-  // Keyboard shortcut listener (CTRL + ALT + Key)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.altKey) {
@@ -222,9 +221,9 @@ export const QuickLaunchToolbar: React.FC<QuickLaunchToolbarProps> = ({ onSelect
   }, []);
 
   return (
-    <div className="flex flex-col space-y-1 w-full max-w-full min-w-0">
-      <div className="flex items-center space-x-1 overflow-x-auto py-1 px-1.5 bg-[#DCE7F5] rounded border border-[#B0C7E2] shadow-inner w-full max-w-full">
-        <span className="text-[10px] font-bold text-[#0E3D6B] uppercase tracking-wider pr-1 pl-0.5 border-r border-[#B8CCE4] mr-1 hidden sm:inline select-none shrink-0">
+    <div className="flex flex-col space-y-1.5 w-full max-w-full min-w-0">
+      <div className="flex items-center space-x-1.5 overflow-x-auto py-1.5 px-2 bg-white rounded-lg border border-[#DCE4EE] shadow-2xs w-full max-w-full">
+        <span className="text-xs font-semibold text-[#102A43] uppercase tracking-wider pr-2 pl-1 border-r border-[#DCE4EE] mr-1 hidden sm:inline select-none shrink-0">
           Quick Launch
         </span>
 
@@ -236,26 +235,26 @@ export const QuickLaunchToolbar: React.FC<QuickLaunchToolbarProps> = ({ onSelect
               key={action.id}
               data-testid={`quick-launch-${action.id}`}
               onClick={() => handleActionClick(action)}
-              className="argus-toolbar-btn group relative p-1.5 shrink-0"
+              className="argus-toolbar-btn group relative p-2 rounded-md shrink-0 focus-visible:ring-2 focus-visible:ring-[#2563EB]"
               title={`${action.name} (${action.shortcut}) - ${action.tooltip} [${action.stage}]`}
               aria-label={action.name}
             >
-              <Icon className={`w-3.5 h-3.5 ${action.enabled ? 'text-[#0E3D6B]' : 'text-slate-500'}`} />
+              <Icon className={`w-4 h-4 ${action.enabled ? 'text-[#102A43] group-hover:text-[#2563EB]' : 'text-[#94A3B8]'}`} />
 
-              {/* Hover Tooltip Popup - positioned safely away from left edge */}
+              {/* Modern Tooltip Popup */}
               <div
-                className={`absolute top-full mt-1.5 hidden group-hover:flex flex-col items-center z-50 pointer-events-none whitespace-nowrap ${
+                className={`absolute top-full mt-2 hidden group-hover:flex flex-col items-center z-50 pointer-events-none whitespace-nowrap ${
                   isNearLeftEdge ? 'left-0' : 'left-1/2 -translate-x-1/2'
                 }`}
               >
-                <div className="bg-[#0E3D6B] text-white text-[10px] rounded px-2 py-1 shadow-md border border-[#19589D] flex flex-col items-center">
-                  <div className="font-bold flex items-center space-x-1">
+                <div className="bg-[#0B1F33] text-white text-xs rounded-lg px-2.5 py-1.5 shadow-lg border border-[#1E3A5F] flex flex-col items-center space-y-0.5">
+                  <div className="font-semibold flex items-center space-x-1.5">
                     <span>{action.name}</span>
-                    <span className="text-sky-300 font-mono text-[9px]">({action.shortcut})</span>
+                    <span className="text-[#93C5FD] font-mono text-[10px]">({action.shortcut})</span>
                   </div>
-                  <span className="text-[9px] text-sky-100">{action.tooltip}</span>
+                  <span className="text-[11px] text-[#CBD5E1]">{action.tooltip}</span>
                   {!action.enabled && (
-                    <span className="mt-0.5 text-[8px] bg-amber-500/30 text-amber-200 border border-amber-400/30 px-1 rounded">
+                    <span className="mt-1 text-[10px] bg-[#D97706]/20 text-[#FDE68A] border border-[#D97706]/40 px-1.5 py-0.2 rounded font-medium">
                       Planned: {action.stage}
                     </span>
                   )}
@@ -266,16 +265,17 @@ export const QuickLaunchToolbar: React.FC<QuickLaunchToolbarProps> = ({ onSelect
         })}
       </div>
 
-      {/* Ephemeral Feedback Strip if an action is clicked */}
+      {/* Ephemeral Feedback Strip */}
       {activeNotification && (
-        <div className="text-[11px] bg-amber-50 border border-amber-200 text-amber-900 px-2 py-1 rounded flex items-center justify-between animate-fadeIn">
-          <div className="flex items-center space-x-1.5">
-            <Info className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-            <span>{activeNotification}</span>
+        <div className="text-xs bg-[#FFFBEB] border border-[#FDE68A] text-[#92400E] px-3 py-1.5 rounded-lg flex items-center justify-between animate-fadeIn shadow-2xs">
+          <div className="flex items-center space-x-2">
+            <Info className="w-4 h-4 text-[#D97706] flex-shrink-0" />
+            <span className="font-medium">{activeNotification}</span>
           </div>
           <button
             onClick={() => setActiveNotification(null)}
-            className="text-[10px] text-amber-700 hover:text-amber-900 font-bold ml-2 cursor-pointer"
+            className="text-xs text-[#92400E] hover:text-[#78350F] font-bold ml-3 px-1.5 py-0.5 rounded cursor-pointer"
+            aria-label="Dismiss message"
           >
             &times;
           </button>

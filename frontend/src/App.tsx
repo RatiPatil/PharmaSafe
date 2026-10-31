@@ -9,10 +9,10 @@ const AppContent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#E9EEF4] flex flex-col items-center justify-center font-sans text-slate-700">
-        <div className="bg-white p-6 rounded border border-[#B8CCE4] shadow-md flex items-center space-x-3">
-          <Loader2 className="w-5 h-5 animate-spin text-[#124B8A]" />
-          <span className="text-xs font-semibold">Verifying PharmaSafe Session Security...</span>
+      <div className="min-h-screen bg-[#F4F7FB] flex flex-col items-center justify-center font-sans text-[#172B4D]">
+        <div className="bg-white px-6 py-5 rounded-xl border border-[#DCE4EE] shadow-sm flex items-center space-x-3">
+          <Loader2 className="w-5 h-5 animate-spin text-[#2563EB]" />
+          <span className="text-sm font-medium text-[#102A43]">Verifying PharmaSafe Session Security...</span>
         </div>
       </div>
     );

@@ -33,85 +33,87 @@ export const LoginPage: React.FC = () => {
     await login(username.trim(), password);
   };
 
-  const isLockedAccount = error && error.toLowerCase().includes('lock');
-  const isInactiveAccount = error && error.toLowerCase().includes('inactive');
+  const isLockedAccount = Boolean(error && error.toLowerCase().includes('lock'));
+  const isInactiveAccount = Boolean(error && error.toLowerCase().includes('inactive'));
 
   return (
-    <div className="min-h-screen bg-[#E9EEF4] flex flex-col justify-between font-sans text-slate-800">
-      {/* Argus Style Top Enterprise Header Banner */}
-      <header className="argus-header-bar px-6 py-2.5 flex items-center justify-between shadow-sm">
+    <div className="min-h-screen bg-[#F4F7FB] flex flex-col justify-between font-sans text-[#172B4D]">
+      {/* Top Navigation Bar */}
+      <header className="bg-[#0B1F33] border-b border-[#1A3654] px-6 py-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center space-x-3">
-          <div className="bg-white/10 p-1.5 rounded border border-white/20">
-            <ShieldCheck className="w-5 h-5 text-sky-300" />
+          <div className="bg-[#102A43] p-2 rounded-lg border border-[#234567]">
+            <ShieldCheck className="w-5 h-5 text-[#60A5FA]" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-bold text-base tracking-wide text-white">PharmaSafe</span>
-              <span className="text-[10px] bg-sky-500/30 text-sky-200 border border-sky-400/30 px-1.5 py-0.5 rounded font-mono">
-                SAFETY MANAGEMENT
+              <span className="font-bold text-base tracking-tight text-white">PharmaSafe</span>
+              <span className="text-[11px] bg-[#1E3A5F] text-[#93C5FD] border border-[#2563EB]/40 px-2 py-0.5 rounded font-medium">
+                SAFETY WORKSPACE
               </span>
             </div>
-            <p className="text-[11px] text-sky-200/80 font-normal">
+            <p className="text-xs text-[#94A3B8] font-normal">
               Pharmacovigilance &amp; Adverse Event Reporting System
             </p>
           </div>
         </div>
-        <div className="text-right text-[11px] text-sky-100 hidden sm:block">
-          <div>Oracle Argus Safety 7.0.3 Architecture Baseline</div>
-          <div className="text-sky-300 font-mono text-[10px]">Version 1.2.0-STAGE2 (Secure Auth)</div>
+        <div className="text-right text-xs text-[#94A3B8] hidden sm:block">
+          <div className="font-medium text-[#E2E8F0]">Oracle Argus Safety 7.0.3 Architecture Baseline</div>
+          <div className="text-[#60A5FA] font-mono text-[11px]">Secure Enterprise Auth</div>
         </div>
       </header>
 
-      {/* Main Login Card Container */}
-      <main className="flex-1 flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white border border-[#B8CCE4] rounded shadow-lg overflow-hidden">
+      {/* Main Login Card */}
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
+        <div className="w-full max-w-md bg-white border border-[#DCE4EE] rounded-xl shadow-sm overflow-hidden">
           {/* Card Header */}
-          <div className="argus-sub-header px-5 py-3 border-b border-[#B8CCE4] flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-[#0E3D6B]">
-              <Lock className="w-4 h-4 text-blue-700" />
-              <span className="font-bold text-xs uppercase tracking-wider">System User Authentication</span>
+          <div className="bg-[#F8FAFD] px-6 py-4 border-b border-[#DCE4EE] flex items-center justify-between">
+            <div className="flex items-center space-x-2.5 text-[#102A43]">
+              <Lock className="w-4 h-4 text-[#2563EB]" />
+              <h1 className="font-semibold text-sm tracking-normal">System User Authentication</h1>
             </div>
-            <span className="text-[11px] text-slate-500 font-mono">Restricted Access</span>
+            <span className="text-xs text-[#52657A] bg-[#EBF1F7] px-2 py-0.5 rounded font-medium">
+              Restricted Access
+            </span>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-4" noValidate>
-            {/* Global Server Error Banner */}
+          <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-5" noValidate>
+            {/* Global Server Error Alert */}
             {error && (
               <div
                 role="alert"
-                className={`p-3 rounded border text-xs flex items-start space-x-2.5 ${
+                className={`p-3.5 rounded-lg border text-xs flex items-start space-x-3 ${
                   isLockedAccount
-                    ? 'bg-amber-50 border-amber-300 text-amber-900'
+                    ? 'bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]'
                     : isInactiveAccount
-                    ? 'bg-slate-100 border-slate-300 text-slate-800'
-                    : 'bg-rose-50 border-rose-300 text-rose-900'
+                    ? 'bg-[#F1F5F9] border-[#CBD5E1] text-[#334155]'
+                    : 'bg-[#FEF2F2] border-[#FECACA] text-[#991B1B]'
                 }`}
               >
                 {isLockedAccount ? (
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-4 h-4 text-[#D97706] shrink-0 mt-0.5" />
                 ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0 mt-0.5" />
                 )}
-                <div>
-                  <div className="font-semibold mb-0.5">
+                <div className="space-y-0.5">
+                  <div className="font-semibold">
                     {isLockedAccount
                       ? 'Account Locked'
                       : isInactiveAccount
                       ? 'Account Inactive'
                       : 'Authentication Failure'}
                   </div>
-                  <div>{error}</div>
+                  <div className="leading-relaxed">{error}</div>
                 </div>
               </div>
             )}
 
             {/* Username Input */}
             <div>
-              <label htmlFor="username" className="block text-xs font-semibold text-slate-700 mb-1">
-                Username <span className="text-rose-600">*</span>
+              <label htmlFor="username" className="block text-xs font-semibold text-[#172B4D] mb-1.5">
+                Username <span className="text-[#DC2626]">*</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#7A8B9E]">
                   <User className="w-4 h-4" />
                 </div>
                 <input
@@ -128,24 +130,24 @@ export const LoginPage: React.FC = () => {
                       setClientErrors((prev) => ({ ...prev, username: undefined }));
                     }
                   }}
-                  className={`w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border rounded focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-600 transition ${
-                    clientErrors.username ? 'border-rose-500 bg-rose-50/50' : 'border-[#B8CCE4]'
+                  className={`w-full pl-10 pr-3.5 py-2 text-sm bg-white border rounded-lg text-[#172B4D] placeholder-[#94A3B8] transition focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] ${
+                    clientErrors.username ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
                   }`}
                   placeholder="Enter your system username"
                 />
               </div>
               {clientErrors.username && (
-                <p className="mt-1 text-[11px] text-rose-600 font-medium">{clientErrors.username}</p>
+                <p className="mt-1.5 text-xs text-[#DC2626] font-medium">{clientErrors.username}</p>
               )}
             </div>
 
             {/* Password Input */}
             <div>
-              <label htmlFor="password" className="block text-xs font-semibold text-slate-700 mb-1">
-                Password <span className="text-rose-600">*</span>
+              <label htmlFor="password" className="block text-xs font-semibold text-[#172B4D] mb-1.5">
+                Password <span className="text-[#DC2626]">*</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#7A8B9E]">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -161,8 +163,8 @@ export const LoginPage: React.FC = () => {
                       setClientErrors((prev) => ({ ...prev, password: undefined }));
                     }
                   }}
-                  className={`w-full pl-9 pr-10 py-1.5 text-xs bg-slate-50 border rounded focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-600 transition ${
-                    clientErrors.password ? 'border-rose-500 bg-rose-50/50' : 'border-[#B8CCE4]'
+                  className={`w-full pl-10 pr-10 py-2 text-sm bg-white border rounded-lg text-[#172B4D] placeholder-[#94A3B8] transition focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] ${
+                    clientErrors.password ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
                   }`}
                   placeholder="Enter your password"
                 />
@@ -170,13 +172,13 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#7A8B9E] hover:text-[#172B4D] transition cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               {clientErrors.password && (
-                <p className="mt-1 text-[11px] text-rose-600 font-medium">{clientErrors.password}</p>
+                <p className="mt-1.5 text-xs text-[#DC2626] font-medium">{clientErrors.password}</p>
               )}
             </div>
 
@@ -185,39 +187,42 @@ export const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#124B8A] hover:bg-[#0E3D6B] active:bg-[#092B4D] text-white py-2 px-4 rounded text-xs font-semibold shadow transition flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] active:bg-[#1E40AF] text-white py-2.5 px-4 rounded-lg text-sm font-semibold shadow-xs transition-colors flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin text-sky-200" />
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
                     <span>Verifying Credentials...</span>
                   </>
                 ) : (
                   <>
-                    <Lock className="w-3.5 h-3.5 text-sky-200" />
+                    <Lock className="w-4 h-4 text-blue-100" />
                     <span>Log In to PharmaSafe</span>
                   </>
                 )}
               </button>
             </div>
 
-            {/* Enterprise Security Notice */}
-            <div className="pt-3 border-t border-slate-200 text-[11px] text-slate-500 leading-relaxed">
+            {/* Security Notice */}
+            <div className="pt-3 border-t border-[#DCE4EE] text-xs text-[#52657A] leading-relaxed">
               <p>
-                <strong>Security Notice:</strong> Consecutive failed login attempts will trigger automatic account lockout.
-                Audit records with timestamps and network identifiers are logged for all access events.
+                <strong className="text-[#102A43]">Security Policy:</strong> Consecutive failed login attempts will trigger automatic account lockout. All actions are logged to the 21 CFR Part 11 audit trail.
               </p>
             </div>
           </form>
         </div>
       </main>
 
-      {/* Argus Style Enterprise Footer */}
-      <footer className="bg-slate-200 border-t border-[#B8CCE4] px-6 py-2 text-[11px] text-slate-600 flex flex-col sm:flex-row items-center justify-between space-y-1 sm:space-y-0">
-        <div>
-          <span>PharmaSafe Pharmacovigilance Case Management</span> &bull; <span>Inspired by Oracle Argus Safety</span>
+      {/* Modern Footer */}
+      <footer className="bg-white border-t border-[#DCE4EE] px-6 py-3 text-xs text-[#52657A] flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="flex items-center space-x-2">
+          <span className="font-medium text-[#102A43]">PharmaSafe</span>
+          <span>&bull;</span>
+          <span>Pharmacovigilance Case Management</span>
+          <span>&bull;</span>
+          <span>Inspired by Oracle Argus Safety</span>
         </div>
-        <div className="font-mono text-slate-500 text-[10px]">
+        <div className="font-mono text-[#7A8B9E] text-[11px]">
           Session Security: HttpOnly Cookies &bull; CSRF Protected &bull; BCrypt Hashing
         </div>
       </footer>
