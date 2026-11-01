@@ -19,13 +19,13 @@ import java.security.*;
 @Service
 public class CaseDocumentService {
  private final SafetyCaseRepository cases; private final UserRepository users; private final CaseDocumentExportRepository documents;
- private final CaseFollowUpRepository receipts; private final CaseContactLogRepository contacts; private final CaseActionItemRepository actions;
+ private final CaseLabResultRepository labs; private final CaseFollowUpRepository receipts; private final CaseContactLogRepository contacts; private final CaseActionItemRepository actions;
  private final CaseReviewEventRepository reviews; private final SafetyReportRepository reports; private final AuditService audit;
  private final ObjectMapper json; private final CasePdfRenderer renderer;
  private static final Set<String> SUPPORTED=Set.of("ROLE_ADMIN","ROLE_SAFETY_MANAGER","ROLE_CASE_PROCESSOR","ROLE_USER","ROLE_MEDICAL_REVIEWER","ROLE_QUALITY_REVIEWER","ROLE_REPORTING_SPECIALIST","ROLE_AUDITOR");
  public CaseDocumentService(SafetyCaseRepository cases,UserRepository users,CaseDocumentExportRepository documents,
  CaseFollowUpRepository receipts,CaseContactLogRepository contacts,CaseActionItemRepository actions,CaseReviewEventRepository reviews,
- SafetyReportRepository reports,AuditService audit,ObjectMapper json,CasePdfRenderer renderer){this.cases=cases;this.users=users;this.documents=documents;this.receipts=receipts;this.contacts=contacts;this.actions=actions;this.reviews=reviews;this.reports=reports;this.audit=audit;this.json=json;this.renderer=renderer;}
+ SafetyReportRepository reports,CaseLabResultRepository labs,AuditService audit,ObjectMapper json,CasePdfRenderer renderer){this.labs=labs;this.cases=cases;this.users=users;this.documents=documents;this.receipts=receipts;this.contacts=contacts;this.actions=actions;this.reviews=reviews;this.reports=reports;this.audit=audit;this.json=json;this.renderer=renderer;}
  private SafetyCase access(Long id,String actor,String role,boolean lock){
   if(!SUPPORTED.contains(role))throw new AccessDeniedException("Document access is not configured for your role");
   SafetyCase c=(lock?cases.findForUpdate(id):cases.findById(id)).orElseThrow(()->new EntityNotFoundException("Case not found"));
@@ -58,6 +58,7 @@ public class CaseDocumentService {
  }
  private ObjectNode snapshot(SafetyCase c,CaseDocumentExport d){
   ObjectNode out=json.createObjectNode();ObjectNode control=out.putObject("documentControl");control.put("product","PharmaSafe Safety Suite");control.put("documentId",d.getId());control.put("caseNumber",c.getCaseNumber());control.put("documentKind",d.getDocumentKind());control.put("finalDocument",d.getFinalDocument());control.put("caseVersion",c.getVersionNumber());control.put("sourceRowVersion",c.getRowVersion());control.put("workflowState",c.getWorkflowState());control.put("generatedBy",d.getGeneratedByUsername());control.put("generatedAtUtc",d.getGeneratedAt().toString());control.put("templateVersion",d.getTemplateVersion());
+  out.set("laboratoryEvidence",json.valueToTree(labs.findBySafetyCaseIdOrderByTestDateDescIdDesc(c.getId()).stream().map(LabResultDto::from).toList()));
   JsonNode clinical=json.valueToTree(CaseResponseDto.fromEntity(c));ObjectNode admin=out.putObject("administration");
   clinical.fields().forEachRemaining(f->{if(!f.getValue().isContainerNode()&&!Set.of("patient","narrative","companyComments").contains(f.getKey()))admin.set(f.getKey(),f.getValue());});
   for(String key:List.of("patient","products","events","assessments","medicalHistoryList"))out.set(key,clinical.path(key));

@@ -1,3 +1,4 @@
+import { CaseLaboratory } from '../workspaces/CaseLaboratory';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest as request } from '../config/api';
@@ -48,6 +49,7 @@ export function RoleWorkspace() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [activityDirty,setActivityDirty]=useState(false);
+  const [labDirty,setLabDirty]=useState(false);
   const [closureReady,setClosureReady]=useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
   const lastRoute = useRef(window.location.hash);
@@ -71,7 +73,7 @@ export function RoleWorkspace() {
   useEffect(() => {
     if(menuOpen) document.querySelector<HTMLElement>('#workspace-navigation a')?.focus();
   }, [menuOpen]);
-  const confirmLeave = () => !(activityDirty || dirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)) || window.confirm('Discard unsaved changes and leave this page?');
+  const confirmLeave = () => !(labDirty || activityDirty || dirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)) || window.confirm('Discard unsaved changes and leave this page?');
   const routeUrl = (next: Section, id?: number) => `#/workspace/${canonicalRole(user?.role || '').replace('ROLE_', '').toLowerCase()}/${next}${id ? `/${id}` : ''}`;
   const go = (next: Section, saved = false) => {
     if (actionPending.current) { setError('Please wait for the current save to finish.'); return; }
@@ -97,14 +99,14 @@ export function RoleWorkspace() {
       setSection(next); setSelected(null); setPage(0);setStateFilter('');setPriorityFilter(''); setSearch(''); setQuery(''); setError(''); setNotice(''); setForm({}); setChecks({}); setComments(''); setDirty(false); setMenuOpen(false);
       if (id) void openCase(id, false);
     };
-    const onUnload = (event: BeforeUnloadEvent) => { if (activityDirty || dirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)) { event.preventDefault(); event.returnValue = ''; } };
+    const onUnload = (event: BeforeUnloadEvent) => { if (labDirty || activityDirty || dirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)) { event.preventDefault(); event.returnValue = ''; } };
     const onEscape = (event: KeyboardEvent) => { if(event.key === 'Escape') setMenuOpen(false); };
     window.addEventListener('hashchange', onHash);
     window.addEventListener('popstate', onHash);
     window.addEventListener('beforeunload', onUnload);
     window.addEventListener('keydown', onEscape);
     return () => { window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onHash); window.removeEventListener('beforeunload', onUnload); window.removeEventListener('keydown', onEscape); };
-  }, [route, activityDirty, dirty, form, checks, user?.role]);
+  }, [route, labDirty, activityDirty, dirty, form, checks, user?.role]);
   useEffect(() => {
     const next = route();
     const id = next === 'cases' ? Number(window.location.hash.match(/\/(\d+)$/)?.[1]) : 0;
@@ -144,7 +146,7 @@ export function RoleWorkspace() {
     return () => controller.abort();
   }, [manager, refresh]);
   async function act(path: string, method: string, body?: unknown) {
-    if (activityDirty) {setError('Finish the open activity form first.');return false;}
+    if (activityDirty || labDirty) {setError('Finish the open activity form first.');return false;}
     if (actionPending.current) return false;
     actionPending.current = true;
     setMutating(true); setError(''); setNotice('');
@@ -155,7 +157,7 @@ export function RoleWorkspace() {
   async function openCase(id: number, navigate = true) {
     if(navigate && !confirmLeave()) return;
     const token = ++caseLoad.current;
-    setMutating(true); setError(''); setForm({}); setChecks({}); setComments(''); setDirty(false);setActivityDirty(false);setClosureReady(false);
+    setMutating(true); setError(''); setForm({}); setChecks({}); setComments(''); setDirty(false);setActivityDirty(false);setLabDirty(false);setClosureReady(false);
     try {
       const [c,h] = await Promise.all([request<SafetyCaseDetails>(`/api/cases/${id}`), request<Row[]>(`/api/cases/${id}/audit-history`)]);
       if(token !== caseLoad.current) return;
@@ -196,8 +198,9 @@ export function RoleWorkspace() {
       {selected.workflowState === 'Medical Review' && ['ROLE_ADMIN', 'ROLE_MEDICAL_REVIEWER'].includes(user!.role) && <form className="ws-card ws-form" onSubmit={async e => { e.preventDefault(); if (await act(`/api/cases/${selected.id}/assessments`, 'POST', form)) { setForm({}); await openCase(selected.id, false); } }}><h2>Medical assessment</h2><label>Product<select aria-label="Product" required value={form.productName||''} onChange={e=>setForm(f=>({...f,productName:e.target.value}))}><option value="">Select a case product</option>{selected.products.map((p,i)=><option key={p.id||i} value={p.productName}>{p.productName}</option>)}</select></label><label>Event<select aria-label="Event" required value={form.eventVerbatim||''} onChange={e=>setForm(f=>({...f,eventVerbatim:e.target.value}))}><option value="">Select a case event</option>{selected.events.map((ev,i)=><option key={ev.id||i} value={ev.eventVerbatim}>{ev.eventVerbatim}</option>)}</select></label><label>Company causality<select aria-label="Company causality" required value={form.causalityCompany || ''} onChange={e => setForm(f => ({ ...f, causalityCompany: e.target.value }))}><option value="">Select causality</option>{['Possible', 'Probable', 'Certain', 'Unlikely', 'Unassessable'].map(v => <option key={v}>{v}</option>)}</select></label><label>Expectedness<select aria-label="Expectedness" required value={form.expectedness||''} onChange={e=>setForm(f=>({...f,expectedness:e.target.value}))}><option value="">Select expectedness</option><option>Expected</option><option>Unexpected</option><option>Unknown</option></select></label>{input('assessmentComment', 'Assessment comment')}<button disabled={busy}>Save assessment</button></form>}
       {manager && selected.workflowState !== 'Closed' && <form className="ws-card ws-form" onSubmit={async e => { e.preventDefault(); if (await act(`/api/cases/${selected.id}/assign`, 'POST', { userId: Number(form.assignee) })) await openCase(selected.id, false); }}><h2>Case assignment</h2><label>Assign to<select required value={form.assignee || ''} onChange={e => setForm(f => ({ ...f, assignee: e.target.value }))}><option value="">Select a user</option>{assignees.map(a => <option key={text(a.id)} value={text(a.id)}>{text(a.username)} · {text(a.role)}</option>)}</select></label><button disabled={busy}>Assign case</button></form>}
       {manager && selected.workflowState !== 'Closed' && <section className="ws-card"><h2>Case controls</h2><div className="ws-actions"><label>Priority<select disabled={busy || selected.locked} value={selected.priority} onChange={async e => { if (await act(`/api/cases/${selected.id}/priority`, 'PATCH', { priority: e.target.value })) await openCase(selected.id, false); }}>{['Routine', 'Priority', 'Expedited'].map(p => <option key={p}>{p}</option>)}</select></label><button disabled={busy} onClick={async () => { if (await act(`/api/cases/${selected.id}/${selected.locked ? 'unlock' : 'lock'}`, 'POST')) await openCase(selected.id, false); }}>{selected.locked ? 'Unlock case' : 'Lock case'}</button></div></section>}
-      <CaseDocuments key={`documents-${selected.id}`} record={selected} blocked={busy || dirty || activityDirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)}/>
-      <CaseActivities key={selected.id} record={selected} blocked={busy || dirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)} assignees={assignees} onReload={()=>void openCase(selected.id,false)} onDirtyChange={setActivityDirty} onReadiness={setClosureReady}/>
+      <CaseLaboratory key={`laboratory-${selected.id}`} record={selected} blocked={busy || dirty || activityDirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)} onReload={()=>void openCase(selected.id,false)} onDirtyChange={setLabDirty}/>
+      <CaseDocuments key={`documents-${selected.id}`} record={selected} blocked={busy || dirty || labDirty || activityDirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)}/>
+      <CaseActivities key={selected.id} record={selected} blocked={labDirty || busy || dirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)} assignees={assignees} onReload={()=>void openCase(selected.id,false)} onDirtyChange={setActivityDirty} onReadiness={setClosureReady}/>
       <section className="ws-card"><h2>Case audit history</h2><div className="ws-timeline">{history.map(row=><div key={text(row.id)}><strong>{text(row.eventType).replaceAll('_',' ')}</strong><span>{text(row.username)} · {new Date(String(row.createdAt)).toLocaleString()}</span><p>{text(row.details)}</p></div>)}{!history.length&&<p>No case history recorded.</p>}</div></section></>
     : section === 'new' ? <CaseEntryForm onOpenCandidate={id=>void openCase(id)} onDirtyChange={setDirty} onCancel={() => go('cases')} onSaveSuccess={c => { go('cases',true); setSelected(c); const url=routeUrl('cases',c.id); window.history.replaceState(null,'',url); lastRoute.current=url; setRefresh(v => v + 1); }} />
     : section === 'profile' ? <ProfilePanel refresh={refresh} onDirtyChange={setDirty}/>
