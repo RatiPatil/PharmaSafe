@@ -47,6 +47,14 @@ for (const populated of [false, true]) {
   await assert.rejects(db.exec("UPDATE case_document_exports SET file_name='changed.pdf'"),e=>e.code==='23514');
   await assert.rejects(db.exec('DELETE FROM case_document_exports'),e=>e.code==='23514');
   assert.equal((await db.query('SELECT count(*)::int AS n FROM case_document_exports')).rows[0].n,1);
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V10, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
+  await db.exec(`INSERT INTO case_lab_results(case_id,test_name,test_date,result_text,interpretation,normal_low,normal_high,recorded_by,recorded_at) SELECT id,'ALT',CURRENT_DATE,'120','HIGH',0,40,'receipt-actor',CURRENT_TIMESTAMP FROM cases WHERE case_number='RECEIPT-A'`);
+  await assert.rejects(db.exec("UPDATE case_lab_results SET result_text='999'"),e=>e.code==='23514');
+  await assert.rejects(db.exec('DELETE FROM case_lab_results'),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE case_lab_results SET voided_at=CURRENT_TIMESTAMP,voided_by='receipt-actor',void_reason=''"),e=>e.code==='23514');
+  await db.exec("UPDATE case_lab_results SET voided_at=CURRENT_TIMESTAMP,voided_by='receipt-actor',void_reason='Wrong specimen'");
+  await assert.rejects(db.exec("UPDATE case_lab_results SET void_reason='changed'"),e=>e.code==='23514');
+  assert.equal((await db.query('SELECT result_text FROM case_lab_results')).rows[0].result_text,'120');
+  await assert.rejects(db.exec(`INSERT INTO case_lab_results(case_id,test_name,test_date,result_text,interpretation,normal_low,normal_high,recorded_by,recorded_at) SELECT id,'ALT',CURRENT_DATE,'120','HIGH',80,40,'receipt-actor',CURRENT_TIMESTAMP FROM cases WHERE case_number='RECEIPT-A'`),e=>e.code==='23514');
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V11, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }
