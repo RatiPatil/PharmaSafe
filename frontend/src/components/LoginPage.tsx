@@ -4,7 +4,7 @@ import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loade
 import './LoginPage.css';
 
 export const LoginPage: React.FC = () => {
-  const { login, error, clearError, isLoading, isConnectionError } = useAuth();
+  const { login, error, clearError, isLoading, isConnectionError, isInitialLoading } = useAuth();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -64,7 +64,7 @@ export const LoginPage: React.FC = () => {
         <div className="login-orbit login-orbit-one" aria-hidden="true"/><div className="login-orbit login-orbit-two" aria-hidden="true"/>
       </section>
       <section className="login-access" aria-labelledby="login-title">
-        <div className="login-access-top"><span><Lock size={14} aria-hidden="true"/>Authorized access</span></div>
+        <div className="login-access-top"><span role={isInitialLoading?'status':undefined}>{isInitialLoading?<Loader2 size={14} className="login-spinner" aria-hidden="true"/>:<Lock size={14} aria-hidden="true"/>}{isInitialLoading?'Checking existing session…':'Authorized access'}</span></div>
         <div className="login-form-container">
           <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">Welcome back.</h1><p>Sign in to your PharmaSafe workspace.</p></div>
           <form onSubmit={handleSubmit} className="login-form" noValidate aria-busy={isLoading}>

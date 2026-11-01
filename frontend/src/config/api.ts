@@ -27,6 +27,34 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}): 
   }
 }
 
+/** Bound both response headers and JSON body reads, and honor caller cancellation. */
+export async function fetchJsonWithTimeout<T>(url: string, options: RequestInit = {}): Promise<{ response: Response; data: T | null }> {
+  const controller = new AbortController();
+  const callerAbort = () => controller.abort();
+  let rejectAbort: (reason: Error) => void = () => {};
+  const cancelled = new Promise<never>((_resolve, reject) => { rejectAbort = reject; });
+  const onAbort = () => rejectAbort(new DOMException('Request cancelled or timed out', 'AbortError'));
+  controller.signal.addEventListener('abort', onAbort, { once: true });
+  options.signal?.addEventListener('abort', callerAbort, { once: true });
+  if (options.signal?.aborted) controller.abort();
+  const timer = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  try {
+    const operation = (async () => {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      const contentType = response.headers?.get?.('content-type');
+      if (contentType && !contentType.includes('application/json')) throw new ApiError('The server did not return a JSON response.', 502);
+      const data = typeof response.json === 'function' ? await response.json().catch(() => null) as T | null : null;
+      if (response.ok && data === null) throw new ApiError('The server returned an invalid JSON response.', 502);
+      return { response, data };
+    })();
+    return await Promise.race([operation, cancelled]);
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort', callerAbort);
+    controller.signal.removeEventListener('abort', onAbort);
+  }
+}
+
 /**
  * Returns full URL for an API path.
  * In development / tests without VITE_API_URL, returns the relative path (e.g. "/api/cases").
@@ -64,9 +92,10 @@ export function getCsrfToken(): string | null {
 /**
  * Fetches fresh CSRF token from the backend /api/auth/csrf endpoint and stores it in memory.
  */
-export async function refreshCsrfToken(): Promise<string | null> {
+export async function refreshCsrfToken(signal?: AbortSignal): Promise<string | null> {
   try {
-    const response = await fetchWithTimeout(getApiUrl('/api/auth/csrf'), {
+    const { response, data } = await fetchJsonWithTimeout<{ token?: string }>(getApiUrl('/api/auth/csrf'), {
+      signal,
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -79,7 +108,6 @@ export async function refreshCsrfToken(): Promise<string | null> {
       return null;
     }
     if (response.ok) {
-      const data = await response.json();
       if (data && data.token) {
         setCsrfToken(data.token);
         return data.token;

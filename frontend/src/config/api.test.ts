@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getApiUrl, getCsrfToken, setCsrfToken, fetchWithTimeout, AUTH_REQUEST_TIMEOUT_MS } from './api';
+import { getApiUrl, getCsrfToken, setCsrfToken, fetchWithTimeout, fetchJsonWithTimeout, AUTH_REQUEST_TIMEOUT_MS } from './api';
 
 describe('API Configuration & URL Normalization', () => {
   beforeEach(() => {
@@ -32,6 +32,19 @@ describe('API Configuration & URL Normalization', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
     expect(await fetchWithTimeout('/api/auth/me')).toBe(response);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('bounds a JSON body that stalls after response headers arrive', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue({ok:true,json:()=>new Promise(()=>{})}));
+    const result=expect(fetchJsonWithTimeout('/api/auth/me')).rejects.toMatchObject({name:'AbortError'});
+    await vi.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);await result;expect(vi.getTimerCount()).toBe(0);
+  });
+  it('cancels an obsolete JSON request when a newer authentication action starts',async()=>{
+    vi.useFakeTimers();const controller=new AbortController();
+    vi.stubGlobal('fetch',vi.fn().mockImplementation(()=>new Promise(()=>{})));
+    const result=expect(fetchJsonWithTimeout('/api/auth/me',{signal:controller.signal})).rejects.toMatchObject({name:'AbortError'});
+    controller.abort();await result;expect(vi.getTimerCount()).toBe(0);
   });
 
   it('normalizes relative API paths correctly', () => {
