@@ -1,32 +1,19 @@
-import React from 'react';
+import React, { Component, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoginPage } from './components/LoginPage';
-import { RoleWorkspace } from './components/RoleWorkspace';
-import { Loader2 } from 'lucide-react';
 
-const AppContent: React.FC = () => {
-  const { isAuthenticated, isInitialLoading } = useAuth();
-
-  if (isInitialLoading) {
-    return (
-      <div className="min-h-screen bg-[#F4F7FB] flex flex-col items-center justify-center font-sans text-[#172B4D]">
-        <div className="bg-white px-6 py-5 rounded-xl border border-[#DCE4EE] shadow-sm flex items-center space-x-3">
-          <Loader2 className="w-5 h-5 animate-spin text-[#2563EB]" />
-          <span className="text-sm font-medium text-[#102A43]">Verifying PharmaSafe Session Security...</span>
-        </div>
-      </div>
-    );
-  }
-
-  return isAuthenticated ? <RoleWorkspace /> : <LoginPage />;
+// The sign-in screen does not download case editors, tables or role workspaces.
+const RoleWorkspace=lazy(()=>import('./components/RoleWorkspace').then(module=>({default:module.RoleWorkspace})));
+class WorkspaceLoadBoundary extends Component<{children:React.ReactNode},{failed:boolean}> {
+ state={failed:false};
+ static getDerivedStateFromError(){return {failed:true};}
+ render(){return this.state.failed?<main className="min-h-screen flex items-center justify-center bg-[#F4F7FB] p-6"><section className="bg-white rounded-xl border border-[#DCE4EE] p-7 max-w-md"><h1 className="font-semibold text-lg text-[#102A43]">Workspace could not load</h1><p className="my-4 text-sm text-[#52657A]">Check your connection and reload to open your workspace.</p><button className="bg-[#102A43] text-white px-4 py-2 rounded-lg" onClick={()=>window.location.reload()}>Reload workspace</button></section></main>:this.props.children;}
+}
+const AppContent:React.FC=()=>{
+ const {isAuthenticated}=useAuth();
+ // Render immediately while session restoration runs in the background. Protected
+ // content is still rendered only after the server verifies the current account.
+ return isAuthenticated?<WorkspaceLoadBoundary><Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-[#F4F7FB]"><p role="status" className="text-sm text-[#52657A]">Opening your workspace…</p></main>}><RoleWorkspace/></Suspense></WorkspaceLoadBoundary>:<LoginPage/>;
 };
-
-export const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-};
-
+export const App:React.FC=()=> <AuthProvider><AppContent/></AuthProvider>;
 export default App;

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import App from './App';
 
@@ -6,6 +6,32 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('shows an editable login immediately while the initial session request is pending',()=>{
+    vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})));
+    render(<App/>);
+    expect(screen.getByRole('button',{name:/Log In to PharmaSafe/i})).toBeEnabled();
+    fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'ready-to-sign-in'}});
+    expect(screen.getByLabelText(/Username/i)).toHaveValue('ready-to-sign-in');
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    expect(screen.queryByText('Verifying PharmaSafe Session Security...')).not.toBeInTheDocument();
+  });
+  it('ignores a late startup response after successful sign-in and does not wait for CSRF prefetch',async()=>{
+    let finishInitial!:(value:unknown)=>void;let checks=0;
+    const verified={id:99,username:'fast-admin',role:'ROLE_ADMIN',enabled:true,locked:false,createdAt:new Date().toISOString()};
+    vi.stubGlobal('fetch',vi.fn((url:string)=>{
+      if(url.includes('/api/auth/me'))return ++checks===1?new Promise(resolve=>{finishInitial=resolve;}):Promise.resolve({ok:true,json:async()=>verified});
+      if(url.includes('/api/auth/login'))return Promise.resolve({ok:true,json:async()=>({success:true,user:verified})});
+      if(url.includes('/api/auth/csrf'))return new Promise(()=>{});
+      if(url.includes('/api/workspace/assignees'))return Promise.resolve({ok:true,json:async()=>[]});
+      if(url.includes('/api/workspace/overview'))return Promise.resolve({ok:true,json:async()=>({states:{},totalCases:0})});
+      return Promise.resolve({ok:true,json:async()=>({content:[],totalElements:0,totalPages:0})});
+    }));
+    render(<App/>);fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'fast-admin'}});fireEvent.change(screen.getByLabelText(/^Password/i),{target:{value:'SyntheticPassword123!'}});fireEvent.click(screen.getByRole('button',{name:/Log In to PharmaSafe/i}));
+    await waitFor(()=>expect(screen.getByRole('navigation')).toBeInTheDocument());
+    await act(async()=>{finishInitial({ok:false,status:401});await Promise.resolve();});
+    expect(screen.getByRole('navigation')).toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Welcome back.'})).not.toBeInTheDocument();
   });
 
   it('shows a recoverable login screen when session restoration cannot reach the server', async () => {
