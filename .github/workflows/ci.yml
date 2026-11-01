@@ -76,6 +76,13 @@ jobs:
       - name: Execute Backend Tests
         run: mvn -B clean test
 
+      - name: Archive synthetic PDF layout samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: case-pdf-previews
+          path: backend/target/qa-pdfs/*.pdf
+          retention-days: 7
+
       - name: Setup Node.js for integration verification
         uses: actions/setup-node@v4
         with:
@@ -95,11 +102,11 @@ jobs:
           npx --prefix scripts/qa playwright install --with-deps chromium
           node scripts/verify-role-workflow.cjs
 
-      - name: Archive login preview screenshots
+      - name: Archive workspace preview screenshots
         uses: actions/upload-artifact@v4
         with:
-          name: login-previews
-          path: /tmp/pharmasafe-ui-qa-*/screens/login-*.png
+          name: ui-previews
+          path: /tmp/pharmasafe-ui-qa-*/screens/*.png
           retention-days: 7
 
       - name: Package Executable JAR

@@ -53,9 +53,9 @@ public class WorkspaceController {
 
     @GetMapping("/cases")
     public Page<CaseSummaryDto> cases(Authentication auth, @RequestParam(required=false) String search,
-            @RequestParam(required=false) String state, @RequestParam(defaultValue="0") int page,
+            @RequestParam(required=false) String state, @RequestParam(required=false) String priority, @RequestParam(defaultValue="0") int page,
             @RequestParam(defaultValue="20") int size) {
-        return queue.queue(auth, search, state, null, null, null, false,
+        return queue.queue(auth, search, state, priority, null, null, false,
                 PageRequest.of(Math.max(0, page), Math.max(1, Math.min(50, size)),
                 auth.getAuthorities().stream().anyMatch(a -> Set.of("ROLE_MEDICAL_REVIEWER", "ROLE_QUALITY_REVIEWER").contains(a.getAuthority()))
                     ? Sort.by(Sort.Order.asc("initialReceiptDate"), Sort.Order.asc("id"))

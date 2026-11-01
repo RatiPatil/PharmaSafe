@@ -49,7 +49,7 @@ export const LoginPage: React.FC = () => {
   return (
     <main className="login-page">
       <section className="login-story" aria-label="PharmaSafe">
-        <div className="login-brand"><span className="login-brand-icon"><ShieldCheck aria-hidden="true" size={24}/></span><span>PharmaSafe<span className="login-brand-caption">SAFETY WORKSPACE</span></span></div>
+        <div className="login-brand"><span className="login-brand-icon"><ShieldCheck aria-hidden="true" size={24}/></span><span>PharmaSafe<span className="login-brand-caption">SAFETY SUITE</span></span></div>
         <div className="login-story-content">
           <span className="login-kicker">CONNECTED CASE MANAGEMENT</span>
           <h2>Clarity for every<br/>safety case.</h2>
@@ -79,7 +79,7 @@ export const LoginPage: React.FC = () => {
           </form>
           <div className="login-help"><ShieldCheck size={17} aria-hidden="true"/><p>Use the account provided by your administrator.<br/>Your role determines your workspace.</p></div>
         </div>
-        <footer className="login-footer"><span>PharmaSafe</span><span>For authorized users only</span></footer>
+        <footer className="login-footer"><span>PharmaSafe Safety Suite</span><span>For authorized users only</span></footer>
       </section>
     </main>
   );

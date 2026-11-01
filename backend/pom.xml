@@ -72,6 +72,10 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId><artifactId>pdfbox</artifactId><version>3.0.8</version>
+        </dependency>
+
         <!-- Testing Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -1,4 +1,4 @@
-export type Section = 'overview' | 'cases' | 'new' | 'contacts' | 'tasks' | 'reports' | 'users' | 'audit';
+export type Section = 'overview' | 'cases' | 'new' | 'contacts' | 'tasks' | 'reports' | 'users' | 'audit' | 'profile';
 export type Row = Record<string, unknown>;
 export type Page<T> = { content: T[]; totalElements: number; totalPages: number };
 export type Overview = {
@@ -16,8 +16,9 @@ export const profiles: Record<string, { title: string; home: string; queue: stri
   ROLE_REPORTING_SPECIALIST: { title: 'Regulatory reporting', home: 'Reporting control desk', queue: 'Approved cases', description: 'Prepare report records and track regulatory deadlines.', sections: ['overview', 'reports', 'cases'] },
   ROLE_AUDITOR: { title: 'Audit workspace', home: 'Inspection desk', queue: 'Case explorer', description: 'Inspect case records and history with read-only access.', sections: ['overview', 'cases', 'audit', 'reports'] },
 };
+Object.values(profiles).forEach(profile => { if(!profile.sections.includes('reports')) profile.sections.push('reports'); profile.sections.push('profile'); });
 export const canonicalRole = (role: string) => role === 'ROLE_USER' ? 'ROLE_CASE_PROCESSOR' : role;
-export const labels: Record<Section, string> = { overview: 'Overview', cases: 'Case queue', new: 'Create case', contacts: 'Contact logs', tasks: 'Action items', reports: 'Safety reports', users: 'Users & access', audit: 'Audit history' };
+export const labels: Record<Section, string> = { overview: 'Overview', cases: 'Case queue', profile: 'My profile', new: 'Create case', contacts: 'Contact logs', tasks: 'Action items', reports: 'Safety reports', users: 'Users & access', audit: 'Audit history' };
 export const text = (v: unknown) => v == null || v === '' ? '—' : String(v);
 export const date = (v: unknown) => {
  if (!v) return '—';
