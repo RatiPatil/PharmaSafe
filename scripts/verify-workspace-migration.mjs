@@ -42,6 +42,11 @@ for (const populated of [false, true]) {
   await assert.rejects(db.exec(`UPDATE case_follow_ups SET related_action_item_id=(SELECT id FROM case_action_items WHERE description='Follow up')`),e=>e.code==='23503');
   await assert.rejects(db.exec(`UPDATE case_follow_ups SET kind='AMENDMENT',safety_received_date=CURRENT_DATE`),e=>e.code==='23514');
   assert.equal((await db.query('SELECT count(*)::int AS n FROM case_follow_ups')).rows[0].n,1);
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V9, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
+  await db.exec(`INSERT INTO case_document_exports(id,case_id,document_kind,final_document,case_version,source_row_version,workflow_state,template_version,generated_by_user_id,generated_by_username,generated_at,snapshot_json,pdf_bytes,pdf_sha256,file_name)
+   SELECT '11111111-1111-1111-1111-111111111111',c.id,'CASE_FORM',false,1,0,'Draft','case-tables-1.0',u.id,u.username,CURRENT_TIMESTAMP,'{"synthetic":true}'::jsonb,decode('25504446','hex'),repeat('a',64),'synthetic.pdf' FROM cases c CROSS JOIN users u WHERE c.case_number='RECEIPT-A' AND u.username='receipt-actor'`);
+  await assert.rejects(db.exec("UPDATE case_document_exports SET file_name='changed.pdf'"),e=>e.code==='23514');
+  await assert.rejects(db.exec('DELETE FROM case_document_exports'),e=>e.code==='23514');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM case_document_exports')).rows[0].n,1);
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V10, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }

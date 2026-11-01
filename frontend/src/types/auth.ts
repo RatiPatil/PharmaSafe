@@ -1,6 +1,8 @@
 export interface User {
   id: number;
   username: string;
+  fullName?: string | null;
+  department?: string | null;
   role: string;
   enabled: boolean;
   locked: boolean;

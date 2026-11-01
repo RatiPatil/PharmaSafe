@@ -128,3 +128,23 @@ export async function apiRequest<T>(path: string, method = 'GET', body?: unknown
     signal?.removeEventListener('abort', abort);
   }
 }
+
+/** Download a session-authorized PDF without exposing a public document URL. */
+export async function downloadPdf(path: string, fileName: string): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(getApiUrl(path), { credentials: 'include', signal: controller.signal, headers: { Accept: 'application/pdf' } });
+    if (response.status === 401) {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      throw new ApiError('Your session expired. Sign in again to download the document.', 401);
+    }
+    if (!response.ok) { const error = await response.json().catch(() => null); throw new ApiError(error?.message || `PDF download failed (${response.status}).`, response.status); }
+    if (!response.headers.get('content-type')?.includes('application/pdf')) throw new ApiError('The server did not return a PDF document.', 502);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);const anchor = document.createElement('a');anchor.href = url;anchor.download = fileName;document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    throw new ApiError(controller.signal.aborted ? 'The PDF download timed out. Download the archived copy again.' : 'Could not download the PDF. Check your connection and retry from the archive.', 0);
+  } finally { clearTimeout(timer); }
+}

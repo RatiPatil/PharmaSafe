@@ -39,6 +39,11 @@ public class AuditService {
     }
 
     @Transactional
+    public void logAccountEvent(String eventType, String username, String details) {
+        auditEventRepository.save(new AuditEvent(eventType, username, null, null, "SUCCESS", details));
+    }
+
+    @Transactional
     public void logCaseEvent(Long caseId, String eventType, String username, String status, String details) {
         logCaseEvent(caseId, eventType, username, status, details, null, null);
     }

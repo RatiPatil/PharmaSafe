@@ -19,6 +19,7 @@ public class User {
     @Version
     @Column(name="account_row_version", nullable=false)
     private long accountRowVersion;
+    public long getAccountRowVersion() { return accountRowVersion; }
     public long getAuthVersion() { return authVersion; }
     public void revokeSessions() { authVersion++; }
 

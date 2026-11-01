@@ -15,6 +15,7 @@ import java.util.Optional;
 @Repository
 public interface SafetyReportRepository extends JpaRepository<SafetyReport, Long> {
 
+    List<SafetyReport> findByRelatedCasesId(Long caseId);
     Optional<SafetyReport> findByReportId(String reportId);
 
     long countByStatus(String status);

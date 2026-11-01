@@ -11,6 +11,9 @@ public class CaseReviewEvent {
     @Column(name="patient_reviewed", nullable=false) private boolean patientReviewed;
     @Column(name="products_events_reviewed", nullable=false) private boolean productsEventsReviewed;
     @Column(name="medical_reviewed", nullable=false) private boolean medicalReviewed;
+    public boolean isPatientReviewed() { return patientReviewed; }
+    public boolean isProductsEventsReviewed() { return productsEventsReviewed; }
+    public boolean isMedicalReviewed() { return medicalReviewed; }
     public void setPatientReviewed(boolean value) { patientReviewed = value; }
     public void setProductsEventsReviewed(boolean value) { productsEventsReviewed = value; }
     public void setMedicalReviewed(boolean value) { medicalReviewed = value; }
