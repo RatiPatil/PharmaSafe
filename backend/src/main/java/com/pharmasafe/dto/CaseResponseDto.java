@@ -14,6 +14,12 @@ public class CaseResponseDto {
     public long getRowVersion() { return rowVersion; }
     public void setRowVersion(long version) { this.rowVersion = version; }
 
+    private Instant closedAt;
+    private String closedByUsername;
+    public Instant getClosedAt() { return closedAt; }
+    public void setClosedAt(Instant value) { closedAt=value; }
+    public String getClosedByUsername() { return closedByUsername; }
+    public void setClosedByUsername(String value) { closedByUsername=value; }
     private Long id;
     private String caseNumber;
     private String countryCode;
@@ -51,6 +57,8 @@ public class CaseResponseDto {
     public static CaseResponseDto fromEntity(SafetyCase c) {
         CaseResponseDto dto = new CaseResponseDto();
         dto.setId(c.getId());
+        dto.setClosedAt(c.getClosedAt());
+        dto.setClosedByUsername(c.getClosedByUser()==null?null:c.getClosedByUser().getUsername());
         dto.setRowVersion(c.getRowVersion());
         dto.setCaseNumber(c.getCaseNumber());
         dto.setCountryCode(c.getCountryCode());
@@ -81,6 +89,8 @@ public class CaseResponseDto {
             dto.setLockedByUsername(c.getLockedByUser().getUsername());
         }
         dto.setLockedAt(c.getLockedAt());
+        dto.setClosedAt(c.getClosedAt());
+        dto.setClosedByUsername(c.getClosedByUser()==null?null:c.getClosedByUser().getUsername());
 
         if (c.getPatient() != null) {
             PatientResponseDto p = new PatientResponseDto();

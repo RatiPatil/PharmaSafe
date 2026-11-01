@@ -33,6 +33,15 @@ for (const populated of [false, true]) {
   }
   if(populated) await assert.rejects(db.exec("INSERT INTO case_review_events(case_id,reviewer_username,from_state,to_state,outcome,comments) SELECT id,'qc','Quality Review','Approved','APPROVED','Missing evidence' FROM cases WHERE case_number='PRESERVED-CASE'"),e=>e.code==='23514');
   await assert.rejects(db.exec("INSERT INTO users(username,password_hash,role) VALUES ('invalid','hash','ROLE_TYPO')"),e=>e.code==='23503');
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V8, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
+  await db.exec(`INSERT INTO users(username,password_hash,role) VALUES ('receipt-actor','hash','ROLE_ADMIN');
+   INSERT INTO cases(case_number,country_code,report_type,initial_receipt_date,latest_received_date) VALUES ('RECEIPT-A','USA','Spontaneous',CURRENT_DATE,CURRENT_DATE),('RECEIPT-B','USA','Spontaneous',CURRENT_DATE,CURRENT_DATE);
+   INSERT INTO case_action_items(case_id,description,assigned_user_id,due_at,created_by_user_id,action_code) SELECT c.id,'Follow up',u.id,CURRENT_TIMESTAMP,u.id,'FOLLOW_UP' FROM cases c CROSS JOIN users u WHERE c.case_number='RECEIPT-B' AND u.username='receipt-actor';`);
+  const insert = `INSERT INTO case_follow_ups(case_id,follow_up_number,kind,received_date,justification,summary,previous_case_version,case_version,created_by_user_id,created_by_username) SELECT c.id,1,'FOLLOW_UP',CURRENT_DATE,'New information','Synthetic receipt',1,2,u.id,u.username FROM cases c CROSS JOIN users u WHERE c.case_number='RECEIPT-A' AND u.username='receipt-actor'`;
+  await db.exec(insert);
+  await assert.rejects(db.exec(insert),e=>e.code==='23505');
+  await assert.rejects(db.exec(`UPDATE case_follow_ups SET related_action_item_id=(SELECT id FROM case_action_items WHERE description='Follow up')`),e=>e.code==='23503');
+  await assert.rejects(db.exec(`UPDATE case_follow_ups SET kind='AMENDMENT',safety_received_date=CURRENT_DATE`),e=>e.code==='23514');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM case_follow_ups')).rows[0].n,1);
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V9, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }

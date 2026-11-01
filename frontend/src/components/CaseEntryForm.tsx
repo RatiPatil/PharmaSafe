@@ -1,3 +1,4 @@
+import { DuplicateCheck } from '../workspaces/DuplicateCheck';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { SafetyCaseDetails, CaseFormInput } from '../types/case';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +25,7 @@ const getTodayDateString = (): string => new Date().toISOString().split('T')[0];
 
 interface CaseEntryFormProps {
   initialCase?: SafetyCaseDetails | null;
+  onOpenCandidate?: (id:number)=>void;
   onSaveSuccess: (savedCase: SafetyCaseDetails) => void;
   onCancel: () => void;
   saveTrigger?: number;
@@ -39,6 +41,7 @@ interface MeddraTerm {
 
 export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   initialCase,
+  onOpenCandidate,
   onSaveSuccess,
   onCancel,
   saveTrigger,
@@ -606,6 +609,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
       {/* Main Tab Content Area */}
       <div className="p-6 bg-white flex-1 overflow-y-auto space-y-6">
+        {activeSubTab === 'general' && <DuplicateCheck patientIdentifier={formData.patient.patientIdentifier} productName={formData.products[0]?.productName} eventTerm={formData.events[0]?.eventVerbatim} excludeCaseId={initialCase?.id} onOpen={onOpenCandidate}/>}
         {/* TAB 1: GENERAL INFO */}
         {activeSubTab === 'general' && (
           <div className="space-y-5 text-xs">

@@ -22,7 +22,7 @@ jobs:
   # ==========================================
   frontend-ci:
     name: Frontend Verification & Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: frontend
@@ -58,7 +58,7 @@ jobs:
   # ==========================================
   backend-ci:
     name: Backend Test & Packaging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: backend
@@ -76,6 +76,25 @@ jobs:
       - name: Execute Backend Tests
         run: mvn -B clean test
 
+      - name: Setup Node.js for integration verification
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Verify PostgreSQL migration integrity
+        working-directory: .
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pv-migrations" --no-audit --no-fund @electric-sql/pglite@0.3.14
+          node scripts/verify-workspace-migration.mjs "$RUNNER_TEMP/pv-migrations"
+
+      - name: Verify seven-role browser workflow
+        working-directory: .
+        run: |
+          npm ci --prefix frontend
+          npm ci --prefix scripts/qa
+          npx --prefix scripts/qa playwright install --with-deps chromium
+          node scripts/verify-role-workflow.cjs
+
       - name: Package Executable JAR
         run: mvn -B package -DskipTests
 
@@ -92,7 +111,7 @@ jobs:
   deploy-gate:
     name: Deployment Gate (Manual Approval Required)
     needs: [frontend-ci, backend-ci]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Check Deployment Authorization
         run: |

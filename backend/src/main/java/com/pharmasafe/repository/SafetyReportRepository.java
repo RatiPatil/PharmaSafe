@@ -35,4 +35,8 @@ public interface SafetyReportRepository extends JpaRepository<SafetyReport, Long
     List<SafetyReport> findTop10ByOrderByDueDateAsc();
     long countByStatusNotAndDueDateBefore(String status, java.time.LocalDate date);
     org.springframework.data.domain.Page<SafetyReport> findByStatusNotOrderByDueDateAscIdAsc(String status, org.springframework.data.domain.Pageable page);
+    @Query("SELECT COUNT(r) FROM SafetyReport r JOIN r.relatedCases c WHERE c.id=:caseId AND r.reportType IN ('7-day','15-day') AND (r.status<>'Submitted' OR r.submittedDate IS NULL)")
+    long countPendingExpedited(@Param("caseId") Long caseId);
+    @Query("SELECT COUNT(r) FROM SafetyReport r JOIN r.relatedCases c WHERE c.id=:caseId AND r.status='Submitted' AND r.submittedDate IS NOT NULL")
+    long countSubmittedForCase(@Param("caseId") Long caseId);
 }

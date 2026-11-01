@@ -94,12 +94,13 @@ public class SafetyReportService {
             int serious = 0;
             int fatal = 0;
             Set<Long> linkedIds = new HashSet<>();
-            for (String caseNum : request.getRelatedCaseNumbers()) {
+            for (String caseNum : request.getRelatedCaseNumbers().stream().sorted(java.util.Comparator.nullsFirst(String::compareTo)).toList()) {
                 if (caseNum == null || caseNum.isBlank()) throw new IllegalArgumentException("Case number is required");
                 Optional<SafetyCase> cOpt = safetyCaseRepository.findByCaseNumberIgnoreCase(caseNum.trim());
                 if (cOpt.isEmpty()) throw new IllegalArgumentException("Related case not found: " + caseNum);
                 if (cOpt.isPresent()) {
-                    SafetyCase c = cOpt.get();
+                    SafetyCase c = safetyCaseRepository.findForUpdate(cOpt.get().getId()).orElseThrow();
+                    if ("Closed".equals(c.getWorkflowState()) && Set.of("7-day","15-day").contains(report.getReportType())) throw new IllegalArgumentException("Reopen the case before scheduling a new expedited report");
                     if (!Set.of("Approved", "Locked", "Closed").contains(c.getWorkflowState())) {
                         throw new IllegalArgumentException("Related case must be approved before report preparation");
                     }
@@ -133,6 +134,8 @@ public class SafetyReportService {
         SafetyReport report = safetyReportRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety report not found with ID: " + id));
 
+        if ("Submitted".equals(report.getStatus())) throw new IllegalStateException("Submitted report records cannot be edited");
+        if (request.getStatus()!=null && !request.getStatus().equals(report.getStatus())) throw new IllegalArgumentException("Use the submission action to record submission");
         if (request.getProduct() != null) report.setProduct(request.getProduct());
         if (request.getAuthority() != null) report.setAuthority(request.getAuthority());
         if (request.getDueDate() != null) report.setDueDate(request.getDueDate());

@@ -75,4 +75,7 @@ public interface SafetyCaseRepository extends JpaRepository<SafetyCase, Long>, o
             @Param("reportType") String reportType,
             Pageable pageable
     );
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM SafetyCase c WHERE c.id=:id")
+    Optional<SafetyCase> findForUpdate(@Param("id") Long id);
 }
