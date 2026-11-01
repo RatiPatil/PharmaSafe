@@ -63,8 +63,9 @@ describe('role workspaces', () => {
  });
  it('restores a case detail deep link without requiring another queue click',async()=>{
   auth.user.role='ROLE_MEDICAL_REVIEWER';window.location.hash='#/workspace/medical_reviewer/cases/42';
-  vi.stubGlobal('fetch',vi.fn(async(url:string)=>({ok:true,status:200,json:async()=>url.includes('/audit-history')?[]:url.endsWith('/api/cases/42')?{id:42,caseNumber:'CASE-DEEP-LINK',workflowState:'Medical Review',reporters:[],products:[],events:[],assessments:[],medicalHistoryList:[],references:[],attachments:[]}:{content:[],totalElements:0,totalPages:0}})));
+  vi.stubGlobal('fetch',vi.fn(async(url:string)=>({ok:true,status:200,json:async()=>url.includes('/closure-readiness')?{canClose:false,openActionItems:0,pendingExpeditedReports:0,blockers:['Case is under medical review']}:url.includes('/audit-history')?[]:url.endsWith('/api/cases/42')?{id:42,caseNumber:'CASE-DEEP-LINK',workflowState:'Medical Review',reporters:[],products:[],events:[],assessments:[],medicalHistoryList:[],references:[],attachments:[]}:{content:[],totalElements:0,totalPages:0}})));
   render(<RoleWorkspace/>);await waitFor(()=>expect(screen.getByRole('heading',{name:'CASE-DEEP-LINK',level:1})).toBeInTheDocument());
+  await waitFor(()=>expect(screen.queryByText('Loading activities…')).not.toBeInTheDocument());
   expect(screen.getByRole('tab',{name:'Events',exact:true})).toHaveAttribute('aria-selected','true');
  });
 

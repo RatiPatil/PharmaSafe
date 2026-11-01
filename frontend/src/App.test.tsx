@@ -34,7 +34,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText(/System User Authentication/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Welcome back.' })).toBeInTheDocument();
     });
 
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
@@ -269,7 +269,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
 
     // Verify return to login page
     await waitFor(() => {
-      expect(screen.getByText(/System User Authentication/i)).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Welcome back.' })).toBeInTheDocument();
     });
   });
 
