@@ -87,13 +87,13 @@ public class CasePdfRenderer {
    for(String paragraph:s.split("\\n",-1)){
     if(paragraph.isEmpty()){result.add("");continue;}StringBuilder current=new StringBuilder();
     for(int offset=0;offset<paragraph.length();){int cp=paragraph.codePointAt(offset);String next=new String(Character.toChars(cp));offset+=Character.charCount(cp);
-     if(current.length()>0&&font.getStringWidth(current+next)*size/1000>max){result.add(current.toString());current.setLength(0);}current.append(next);
+     if(current.length()>0&&font.getStringWidth(current+next)*size/1000>max){int space=current.lastIndexOf(" ");if(space>0){result.add(current.substring(0,space));String remaining=current.substring(space+1);current.setLength(0);current.append(remaining);}else{result.add(current.toString());current.setLength(0);}}current.append(next);
     }if(!current.isEmpty())result.add(current.toString());
    }return result;
   }
   String safe(String value){StringBuilder out=new StringBuilder();value.replace("\r\n","\n").replace('\r','\n').codePoints().forEach(cp->{if(cp=='\n')out.append('\n');else if(cp=='\t')out.append("    ");else out.append(glyphs.computeIfAbsent(cp,c->{if(Character.isISOControl(c))return String.format("[U+%04X]",c);String t=new String(Character.toChars(c));try{font.encode(t);return t;}catch(Exception e){return String.format("[U+%04X]",c);}}));});return out.toString();}
   void text(PDPageContentStream target,String value,float x,float y,float size,Color color)throws IOException {target.beginText();target.setFont(font,size);target.setNonStrokingColor(color);target.newLineAtOffset(x,y);target.showText(value);target.endText();}
-  String label(String s){return s.replaceAll("([a-z0-9])([A-Z])","$1 $2").replace('_',' ');}
+  String label(String s){String value=s.replaceAll("([a-z0-9])([A-Z])","$1 $2").replace('_',' ');return value.isEmpty()?"Field":Character.toUpperCase(value.charAt(0))+value.substring(1);}
   public void close()throws IOException {if(stream!=null)stream.close();doc.close();}
  }
 }
