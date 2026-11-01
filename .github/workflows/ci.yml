@@ -102,11 +102,11 @@ jobs:
           npx --prefix scripts/qa playwright install --with-deps chromium
           node scripts/verify-role-workflow.cjs
 
-      - name: Archive login preview screenshots
+      - name: Archive workspace preview screenshots
         uses: actions/upload-artifact@v4
         with:
-          name: login-previews
-          path: /tmp/pharmasafe-ui-qa-*/screens/login-*.png
+          name: ui-previews
+          path: /tmp/pharmasafe-ui-qa-*/screens/*.png
           retention-days: 7
 
       - name: Package Executable JAR
