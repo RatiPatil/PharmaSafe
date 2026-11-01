@@ -17,7 +17,7 @@ function Dialog({title,children,onClose,busy}:{title:string;children:React.React
   panel.current?.querySelector<HTMLElement>('input,select,textarea,button')?.focus();
   return ()=>{if(root)root.inert=!!wasInert;previous?.focus();};
  },[]);
- return createPortal(<div className="ws-modal-backdrop"><div ref={panel} className="ws-modal ws-card" role="dialog" aria-modal="true" aria-labelledby="activity-dialog-title" onKeyDown={e=>{
+ return createPortal(<div className="ws-modal-backdrop ws-shell"><div ref={panel} className="ws-modal ws-card" role="dialog" aria-modal="true" aria-labelledby="activity-dialog-title" onKeyDown={e=>{
   if(e.key==='Escape'&&!busy){e.stopPropagation();onClose();}
   if(e.key==='Tab'){const items=panel.current?.querySelectorAll<HTMLElement>('input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled])');if(!items?.length)return;const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
  }}><div className="ws-section-heading"><h2 id="activity-dialog-title">{title}</h2><button type="button" disabled={busy} onClick={onClose}>Cancel</button></div>{children}</div></div>,document.body);
