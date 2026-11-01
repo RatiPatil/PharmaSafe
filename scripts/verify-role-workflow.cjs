@@ -52,6 +52,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await auditor.reload();await auditor.getByRole('heading',{name:created.caseNumber,level:1,exact:true}).waitFor();await auditor.getByRole('button',{name:'Back to Case explorer',exact:false}).click();await auditor.goBack();await auditor.getByRole('heading',{name:created.caseNumber,level:1,exact:true}).waitFor();console.log('PASS case detail reload and browser back navigation');
   diagnosticPage=manager;
   await manager.getByRole('button',{name:'Reopen for follow-up',exact:true}).click();
+  await manager.waitForTimeout(100);console.log('REOPEN DIALOG',await manager.evaluate(()=>({dialogs:[...document.querySelectorAll('[role=dialog]')].map(el=>({html:el.outerHTML,rect:el.getBoundingClientRect().toJSON(),inert:!!el.closest('[inert]'),display:getComputedStyle(el).display})),rootInert:document.getElementById('root').inert})));
   const reopen=manager.getByRole('dialog');await reopen.getByLabel('Case processor',{exact:true}).selectOption({label:'analyst'});
   await reopen.getByLabel('Follow-up due',{exact:true}).fill(new Date(Date.now()+86400000).toISOString().slice(0,16));
   await reopen.getByLabel('Reason for reopening',{exact:true}).fill('Synthetic additional clinical information');
