@@ -12,6 +12,10 @@ public class CaseActionItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(name="action_code",nullable=false,length=32) private String actionCode="GENERAL";
+    public String getActionCode() { return actionCode; }
+    public void setActionCode(String value) { actionCode=value; }
+
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "case_id", nullable = false)

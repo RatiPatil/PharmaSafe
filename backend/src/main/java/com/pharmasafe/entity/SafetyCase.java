@@ -18,6 +18,13 @@ public class SafetyCase {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(name="closed_at") private Instant closedAt;
+    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="closed_by_user_id") private User closedByUser;
+    public Instant getClosedAt() { return closedAt; }
+    public void setClosedAt(Instant value) { closedAt=value; }
+    public User getClosedByUser() { return closedByUser; }
+    public void setClosedByUser(User value) { closedByUser=value; }
+
 
     @Column(name = "case_number", nullable = false, unique = true, length = 64)
     private String caseNumber;

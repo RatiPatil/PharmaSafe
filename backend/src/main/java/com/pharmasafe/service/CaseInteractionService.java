@@ -101,8 +101,9 @@ public class CaseInteractionService {
     @Transactional
     public ActionItemResponse createAction(Long caseId, ActionItemRequest request, String username, String role) {
         User actor = actor(username);
-        SafetyCase safetyCase = caseById(caseId);
+        SafetyCase safetyCase = caseRepository.findForUpdate(caseId).orElseThrow(() -> new EntityNotFoundException("Case not found"));
         requireCaseAccess(safetyCase, actor, role);
+        if ("Closed".equals(safetyCase.getWorkflowState())) throw new IllegalStateException("Reopen the case before creating new actions");
         CaseActionItem item = new CaseActionItem();
         item.setSafetyCase(safetyCase);
         item.setDescription(request.description().trim());
@@ -146,6 +147,7 @@ public class CaseInteractionService {
         if ("COMPLETED".equals(item.getStatus()) || "CANCELLED".equals(item.getStatus())) {
             throw new IllegalStateException("Action item is already closed");
         }
+        if ("FOLLOW_UP".equals(item.getActionCode())) throw new IllegalStateException("Record the follow-up receipt to complete this request");
         item.setStatus("COMPLETED");
         item.setCompletedByUser(actor);
         item.setCompletedAt(Instant.now());

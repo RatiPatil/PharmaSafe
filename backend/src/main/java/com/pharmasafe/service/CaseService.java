@@ -6,6 +6,8 @@ import com.pharmasafe.dto.CaseSummaryDto;
 import com.pharmasafe.entity.*;
 import com.pharmasafe.repository.SafetyCaseRepository;
 import com.pharmasafe.repository.CaseReviewEventRepository;
+import com.pharmasafe.repository.CaseFollowUpRepository;
+import com.pharmasafe.repository.SafetyReportRepository;
 import com.pharmasafe.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
@@ -32,12 +34,16 @@ public class CaseService {
     private final CaseNumberGeneratorService caseNumberGeneratorService;
     private final AuditService auditService;
     private final CaseReviewEventRepository caseReviewEventRepository;
+    private final CaseClosureGuard closureGuard;
+    private final CaseFollowUpRepository followUps;
+    private final SafetyReportRepository reports;
 
     public CaseService(SafetyCaseRepository safetyCaseRepository,
                        UserRepository userRepository,
                        CaseNumberGeneratorService caseNumberGeneratorService,
                        AuditService auditService,
-                       CaseReviewEventRepository caseReviewEventRepository) {
+                       CaseReviewEventRepository caseReviewEventRepository, CaseClosureGuard closureGuard, CaseFollowUpRepository followUps, SafetyReportRepository reports) {
+        this.closureGuard=closureGuard;this.followUps=followUps;this.reports=reports;
         this.safetyCaseRepository = safetyCaseRepository;
         this.userRepository = userRepository;
         this.caseNumberGeneratorService = caseNumberGeneratorService;
@@ -147,6 +153,10 @@ public class CaseService {
             user = userRepository.findByUsername(username.trim().toLowerCase()).orElse(null);
         }
 
+        var earliest = followUps.earliestReceipt(id); var latest = followUps.latestReceipt(id);
+        if (earliest != null && (request.getInitialReceiptDate() == null || request.getInitialReceiptDate().isAfter(earliest))) throw new IllegalArgumentException("Initial receipt date cannot follow an existing receipt");
+        if (latest != null && (request.getLatestReceivedDate() == null || request.getLatestReceivedDate().isBefore(latest))) throw new IllegalArgumentException("Latest receipt date cannot precede recorded follow-up information");
+        if (reports.countSubmittedForCase(id)>0 && !java.util.Objects.equals(request.getInitialReceiptDate(),safetyCase.getInitialReceiptDate())) throw new IllegalArgumentException("Initial receipt date cannot change after report submission");
         safetyCase.setCountryCode(request.getCountryCode() != null ? request.getCountryCode().trim().toUpperCase() : safetyCase.getCountryCode());
         safetyCase.setReportType(request.getReportType());
         safetyCase.setInitialReceiptDate(request.getInitialReceiptDate());
@@ -300,6 +310,7 @@ public class CaseService {
     public CaseResponseDto lockCase(Long id, String username) {
         SafetyCase safetyCase = safetyCaseRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+        if ("Closed".equals(safetyCase.getWorkflowState())) throw new IllegalStateException("Reopen the case before changing it");
 
         if (safetyCase.isLocked()) {
             throw new IllegalStateException("Case " + safetyCase.getCaseNumber() + " is already locked by " +
@@ -330,6 +341,7 @@ public class CaseService {
     public CaseResponseDto unlockCase(Long id, String username) {
         SafetyCase safetyCase = safetyCaseRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+        if ("Closed".equals(safetyCase.getWorkflowState())) throw new IllegalStateException("Reopen the case before changing it");
 
         if (!safetyCase.isLocked()) {
             throw new IllegalStateException("Case " + safetyCase.getCaseNumber() + " is not currently locked");
@@ -357,6 +369,7 @@ public class CaseService {
         }
         SafetyCase c = safetyCaseRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Case not found"));
+        if ("Closed".equals(c.getWorkflowState())) throw new IllegalStateException("Reopen the case before changing it");
         if (c.isLocked()) throw new IllegalStateException("Unlock the case before changing its priority");
         c.setPriority(priority);
         c.setUpdatedByUser(findUser(username));
@@ -369,6 +382,7 @@ public class CaseService {
     public CaseResponseDto assignCase(Long id, Long targetUserId, String username) {
         SafetyCase safetyCase = safetyCaseRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
+        if ("Closed".equals(safetyCase.getWorkflowState())) throw new IllegalStateException("Reopen the case before changing it");
 
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new EntityNotFoundException("Target user not found with ID: " + targetUserId));
@@ -398,7 +412,7 @@ public class CaseService {
     @Transactional
     public CaseResponseDto transitionWorkflow(Long id, String targetState, String comments, String username, String role,
                                                java.util.Set<String> qcChecklist) {
-        SafetyCase safetyCase = safetyCaseRepository.findById(id)
+        SafetyCase safetyCase = safetyCaseRepository.findForUpdate(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety case not found with ID: " + id));
 
         if (targetState == null || targetState.trim().isEmpty()) {
@@ -414,6 +428,11 @@ public class CaseService {
         if ("Approved".equals(nextState) && (qcChecklist == null || !qcChecklist.containsAll(
                 java.util.Set.of("patient", "productsEvents", "medical")))) {
             throw new IllegalArgumentException("Confirm all three quality review checks before approval");
+        }
+        if ("Closed".equals(nextState)) {
+            closureGuard.requireReady(safetyCase);
+            safetyCase.setLocked(false); safetyCase.setLockedAt(null); safetyCase.setLockedByUser(null);
+            safetyCase.setClosedAt(Instant.now()); safetyCase.setClosedByUser(findUser(username));
         }
         safetyCase.setWorkflowState(nextState);
         if ("Locked".equals(nextState)) {

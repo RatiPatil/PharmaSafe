@@ -9,3 +9,24 @@ html:has(body.workspace-open),body.workspace-open{height:100%;overflow:hidden}bo
 @media(prefers-reduced-motion:reduce){.ws-shell *{transition:none!important;scroll-behavior:auto!important}}
 
 .ws-board-scroll{overflow:auto;max-width:100%}.ws-workflow-board{display:grid;grid-template-columns:repeat(4,minmax(210px,1fr));gap:14px;min-width:920px}.ws-workflow-board>section{min-width:0;background:#f4f7fb;border:1px solid #e3eaf4;border-radius:9px;padding:14px}.ws-workflow-board h3{margin:0;font-size:12px}.ws-workflow-board article{padding:14px;background:#fff;border:1px solid #dce4ee;border-radius:8px;margin-top:12px;overflow-wrap:anywhere}.ws-workflow-board article>strong{font-size:12px}.ws-workflow-board article p{font-size:12px;margin:10px 0}.ws-workflow-board button{font-size:12px}
+
+/* Case activities share the existing workspace surfaces and responsive spacing. */
+.ws-closure-summary { display:grid; gap:8px; padding:16px; margin:16px 0; background:#f4f7fb; border:1px solid #dce4ee; border-radius:10px; }
+.ws-closure-summary p { margin:0; }
+.ws-closure-summary small,.ws-activity-actions small { color:#52657a; }
+.ws-activity-actions { margin:16px 0; }
+.ws-case-activities article { padding:16px 0; border-bottom:1px solid #dce4ee; overflow-wrap:anywhere; }
+.ws-case-activities article span { display:block; color:#52657a; margin-top:8px; }
+.ws-modal-backdrop { position:fixed; inset:0; z-index:1000; background:#0b1f3380; display:flex; align-items:center; justify-content:center; padding:20px; }
+.ws-modal.ws-card { width:min(760px,100%); max-height:calc(100dvh - 40px); overflow:auto; margin:0; box-shadow:0 24px 70px #0b1f3340; }
+.ws-modal .ws-form { padding:0; margin:0; }
+.ws-full { grid-column:1/-1; }
+.ws-inline-check { display:flex!important; align-items:center; gap:10px; }
+.ws-inline-check input { width:auto!important; }
+.ws-modal textarea { min-height:100px; resize:vertical; }
+@media(max-width:600px) { .ws-modal-backdrop { padding:10px; } .ws-modal.ws-card { max-height:calc(100dvh - 20px); padding:20px; } }
+
+.ws-duplicate-check { padding:16px; background:#f4f7fb; border:1px solid #dce4ee; border-radius:10px; font-size:14px; color:#172b4d; }
+.ws-duplicate-check p { margin:8px 0; line-height:1.6; }
+.ws-duplicate-check li { padding:8px 0; overflow-wrap:anywhere; }
+.ws-duplicate-check button { padding:8px 12px; min-height:40px; border:1px solid #dce4ee; background:white; border-radius:8px; }

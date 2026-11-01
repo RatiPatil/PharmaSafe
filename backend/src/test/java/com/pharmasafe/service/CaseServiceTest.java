@@ -36,6 +36,9 @@ public class CaseServiceTest {
     @Mock
     private AuditService auditService;
 
+    @Mock private com.pharmasafe.repository.CaseFollowUpRepository followUps;
+    @Mock private com.pharmasafe.repository.SafetyReportRepository reports;
+    @Mock private CaseClosureGuard closureGuard;
     @InjectMocks
     private CaseService caseService;
 

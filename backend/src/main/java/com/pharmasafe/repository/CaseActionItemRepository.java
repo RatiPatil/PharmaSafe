@@ -30,4 +30,5 @@ public interface CaseActionItemRepository extends JpaRepository<CaseActionItem, 
         "OR (:role = 'ROLE_QUALITY_REVIEWER' AND a.safetyCase.workflowState = 'Quality Review'))))")
     long countWorkspaceOpen(@Param("username") String username, @Param("role") String role,
             @Param("overdue") boolean overdue, @Param("now") Instant now);
+    long countBySafetyCaseIdAndStatusNotIn(Long caseId, java.util.Collection<String> closedStatuses);
 }

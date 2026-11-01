@@ -6,7 +6,7 @@ import java.time.Instant;
 public record ActionItemResponse(
         Long id, Long caseId, String caseNumber, String description, String assignedUsername,
         String status, Instant dueAt, boolean overdue, String createdByUsername, Instant createdAt,
-        String completedByUsername, Instant completedAt, int versionNumber
+        String completedByUsername, Instant completedAt, int versionNumber, String actionCode
 ) {
     public static ActionItemResponse fromEntity(CaseActionItem item, Instant now) {
         boolean overdue = item.getDueAt().isBefore(now)
@@ -17,6 +17,6 @@ public record ActionItemResponse(
                 item.getDescription(), item.getAssignedUser().getUsername(), item.getStatus(),
                 item.getDueAt(), overdue, item.getCreatedByUser().getUsername(), item.getCreatedAt(),
                 item.getCompletedByUser() != null ? item.getCompletedByUser().getUsername() : null,
-                item.getCompletedAt(), item.getVersionNumber());
+                item.getCompletedAt(), item.getVersionNumber(), item.getActionCode());
     }
 }
