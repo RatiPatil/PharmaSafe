@@ -46,7 +46,7 @@ export function CaseActivities({record,blocked,assignees,onReload,onDirtyChange,
    }
   };
   load().catch(e=>{if(!controller.signal.aborted)setError(e.message);}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});return ()=>controller.abort();
- },[record.id,record.rowVersion,tab,page,refresh,onReadiness]);
+ },[record,tab,page,refresh,onReadiness]);
  useEffect(()=>{
   if(mode!=='receipt')return;const controller=new AbortController();
   apiRequest<Page<Row>>(`/api/action-items?caseId=${record.id}&size=50`,'GET',undefined,controller.signal).then(data=>{if(!controller.signal.aborted)setFollowTasks(data.content.filter(t=>t.actionCode==='FOLLOW_UP'&&!['COMPLETED','CANCELLED'].includes(text(t.status))));}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});return ()=>controller.abort();

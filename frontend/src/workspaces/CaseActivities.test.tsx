@@ -17,6 +17,13 @@ describe('case activity safeguards',()=>{
   api.mockRejectedValueOnce(new Error('Password confirmation failed'));fireEvent.click(screen.getByRole('button',{name:'Save activity'}));await screen.findByRole('alert');expect(screen.getByLabelText('Reason for reopening')).toHaveValue('Additional information');
   fireEvent.click(screen.getByRole('button',{name:'Cancel'}));expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
  });
+ it('rechecks readiness when Refresh returns the same case revision',async()=>{
+  const callback=vi.fn();const props={record,blocked:false,assignees:[],onReload:vi.fn(),onDirtyChange:vi.fn(),onReadiness:callback};
+  const {rerender}=render(<CaseActivities {...props}/>);await waitFor(()=>expect(api).toHaveBeenCalledWith('/api/cases/7/closure-readiness','GET',undefined,expect.any(AbortSignal)));
+  const before=api.mock.calls.filter(c=>c[0].includes('closure-readiness')).length;
+  rerender(<CaseActivities {...props} record={{...record}}/>);
+  await waitFor(()=>expect(api.mock.calls.filter(c=>c[0].includes('closure-readiness')).length).toBe(before+1));
+ });
  it('prevents activity mutations while clinical edits are unsaved',async()=>{
   render(<CaseActivities record={record} blocked={true} assignees={[]} onReload={vi.fn()} onDirtyChange={vi.fn()} onReadiness={vi.fn()}/>);expect(screen.getByRole('button',{name:'Reopen for follow-up'})).toBeDisabled();
  });
