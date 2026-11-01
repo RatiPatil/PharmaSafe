@@ -22,7 +22,7 @@ jobs:
   # ==========================================
   frontend-ci:
     name: Frontend Verification & Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: frontend
@@ -58,7 +58,7 @@ jobs:
   # ==========================================
   backend-ci:
     name: Backend Test & Packaging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: backend
@@ -111,7 +111,7 @@ jobs:
   deploy-gate:
     name: Deployment Gate (Manual Approval Required)
     needs: [frontend-ci, backend-ci]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Check Deployment Authorization
         run: |
