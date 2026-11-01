@@ -41,6 +41,7 @@ public class CasePdfRenderer {
    for(int i=0;i<total;i++)try(var footer=new PDPageContentStream(doc,doc.getPage(i),PDPageContentStream.AppendMode.APPEND,true,true)){
     footer.setStrokingColor(new Color(218,227,236));footer.moveTo(left,43);footer.lineTo(left+width,43);footer.stroke();
     text(footer,"CONFIDENTIAL - Internal case record",left,29,8,new Color(88,109,130));
+    text(footer,control.path("generatedAtUtc").asText(),left+205,29,7,new Color(88,109,130));
     text(footer,"Page "+(i+1)+" of "+total,left+width-65,29,8,new Color(88,109,130));
    }
    PDComplexFileSpecification file=new PDComplexFileSpecification();file.setFile("source-data.json");file.setFileUnicode("source-data.json");file.setFileDescription("Original UTF-8 case document snapshot");

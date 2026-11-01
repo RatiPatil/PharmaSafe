@@ -32,7 +32,7 @@ public class CaseDocumentService {
   if(!new WorkspaceAccess().canRead(c,actor,role))throw new AccessDeniedException("You do not have access to this case document");return c;
  }
  @Transactional(readOnly=true)
- public Page<CaseDocumentDto> list(Long id,String actor,String role,Pageable page){access(id,actor,role,false);return documents.findBySafetyCaseId(id,page).map(CaseDocumentDto::from);}
+ public Page<CaseDocumentDto> list(Long id,String actor,String role,Pageable page){access(id,actor,role,false);return documents.findMetadataByCaseId(id,page);}
  @Transactional(isolation=Isolation.REPEATABLE_READ)
  public CaseDocumentDto create(Long id,CaseDocumentDto.Request request,String actor,String role){
   SafetyCase c=access(id,actor,role,true);
