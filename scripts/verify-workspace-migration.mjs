@@ -55,6 +55,25 @@ for (const populated of [false, true]) {
   await assert.rejects(db.exec("UPDATE case_lab_results SET void_reason='changed'"),e=>e.code==='23514');
   assert.equal((await db.query('SELECT result_text FROM case_lab_results')).rows[0].result_text,'120');
   await assert.rejects(db.exec(`INSERT INTO case_lab_results(case_id,test_name,test_date,result_text,interpretation,normal_low,normal_high,recorded_by,recorded_at) SELECT id,'ALT',CURRENT_DATE,'120','HIGH',80,40,'receipt-actor',CURRENT_TIMESTAMP FROM cases WHERE case_number='RECEIPT-A'`),e=>e.code==='23514');
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V11, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
+  await db.exec(`INSERT INTO users(username,password_hash,role,email,employee_id,account_status,enabled) VALUES ('pending-access','hash','ROLE_MEDICAL_REVIEWER','pending@example.test','EMP-ACCESS','PENDING',false);
+    INSERT INTO registration_requests(user_id,requested_role,reason,created_at) SELECT id,'ROLE_MEDICAL_REVIEWER','Training',CURRENT_TIMESTAMP FROM users WHERE username='pending-access';
+    INSERT INTO registration_details(request_id,field_name,field_value) SELECT id,'medicalQualification','Synthetic' FROM registration_requests;
+    INSERT INTO audit_events(event_type,username,status,details) VALUES ('REGISTRATION_SUBMITTED','pending-access','SUCCESS','Synthetic request');`);
+  await assert.rejects(db.exec("INSERT INTO users(username,password_hash,role,email) VALUES ('duplicate-access','hash','ROLE_AUDITOR','PENDING@EXAMPLE.TEST')"),e=>e.code==='23505');
+  await assert.rejects(db.exec("INSERT INTO users(username,password_hash,role,employee_id) VALUES ('duplicate-employee','hash','ROLE_AUDITOR','emp-access')"),e=>e.code==='23505');
+  await assert.rejects(db.exec("UPDATE users SET account_status='INVALID' WHERE username='pending-access'"),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE registration_requests SET requested_role='ROLE_ADMIN'"),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE registration_details SET field_value='Changed'"),e=>e.code==='23514');
+  await assert.rejects(db.exec("DELETE FROM registration_requests"),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE audit_events SET details='Changed'"),e=>e.code==='23514');
+  await assert.rejects(db.exec("DELETE FROM audit_events"),e=>e.code==='23514');
+  if(populated)assert.equal((await db.query("SELECT account_status FROM users WHERE username='legacy'")).rows[0].account_status,'APPROVED');
+  const rateSQL="INSERT INTO access_rate_limits(bucket,window_start,attempts) VALUES ('synthetic-rate',CURRENT_TIMESTAMP,1) ON CONFLICT(bucket) DO UPDATE SET attempts=CASE WHEN access_rate_limits.window_start < CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN 1 ELSE access_rate_limits.attempts+1 END, window_start=CASE WHEN access_rate_limits.window_start < CURRENT_TIMESTAMP - INTERVAL '1 hour' THEN CURRENT_TIMESTAMP ELSE access_rate_limits.window_start END RETURNING attempts";
+  assert.equal((await db.query(rateSQL)).rows[0].attempts,1);assert.equal((await db.query(rateSQL)).rows[0].attempts,2);
+  await db.exec("UPDATE access_rate_limits SET window_start=CURRENT_TIMESTAMP-INTERVAL '2 hours'");assert.equal((await db.query(rateSQL)).rows[0].attempts,1);
+  await db.exec("INSERT INTO password_reset_requests(user_id,status,created_at) SELECT id,'PENDING',CURRENT_TIMESTAMP FROM users WHERE username='pending-access'");
+  await assert.rejects(db.exec("UPDATE password_reset_requests SET status='APPROVED'"),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE password_reset_requests SET status='USED'"),e=>e.code==='23514');
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V12, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }

@@ -17,6 +17,14 @@ public class HealthController {
         this.healthService = healthService;
     }
 
+    @org.springframework.beans.factory.annotation.Value("${RENDER_GIT_COMMIT:local}")
+    private String deployedCommit;
+
+    @GetMapping("/release")
+    public java.util.Map<String,String> release() {
+        return java.util.Map.of("commit", deployedCommit);
+    }
+
     @GetMapping
     public ResponseEntity<HealthResponseDto> getHealth() {
         HealthResponseDto health = healthService.checkHealth();

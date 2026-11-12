@@ -2,6 +2,10 @@
 
 PharmaSafe is an educational pharmacovigilance case-management application inspired by the workflow, architecture, and visual aesthetics of **Oracle Argus Safety 7.0.3**.
 
+The current user-access workflow, V12 schema, SMTP configuration and automatic
+Render deployment instructions are documented in [User access management](docs/user-access-management.md).
+Older stage descriptions below are retained as project history.
+
 ---
 
 ## 1. Architecture & Technology Stack

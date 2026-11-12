@@ -60,6 +60,40 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name="account_status", length=16)
+    private String accountStatus = "APPROVED";
+    public String getAccountStatus() { return accountStatus; }
+    public void setAccountStatus(String value) { accountStatus=value; }
+    @Column(name="email", length=254)
+    private String email = null;
+    public String getEmail() { return email; }
+    public void setEmail(String value) { email=value; }
+    @Column(name="employee_id", length=64)
+    private String employeeId = null;
+    public String getEmployeeId() { return employeeId; }
+    public void setEmployeeId(String value) { employeeId=value; }
+    @Column(name="mobile_number", length=32)
+    private String mobileNumber = null;
+    public String getMobileNumber() { return mobileNumber; }
+    public void setMobileNumber(String value) { mobileNumber=value; }
+    @Column(name="designation", length=128)
+    private String designation = null;
+    public String getDesignation() { return designation; }
+    public void setDesignation(String value) { designation=value; }
+    @Column(name="organization", length=128)
+    private String organization = null;
+    public String getOrganization() { return organization; }
+    public void setOrganization(String value) { organization=value; }
+    @Column(name="approved_by")
+    private Long approvedBy = null;
+    public Long getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(Long value) { approvedBy=value; }
+    @Column(name="approved_at")
+    private Instant approvedAt = null;
+    public Instant getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(Instant value) { approvedAt=value; }
+    public boolean isApproved() { return "APPROVED".equals(accountStatus); }
+
     public User() {
     }
 

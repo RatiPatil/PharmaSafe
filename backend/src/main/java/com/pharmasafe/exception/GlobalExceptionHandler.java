@@ -82,6 +82,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(AuthResponseDto.error("This record changed during your action. Refresh and try again."));
     }
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<AuthResponseDto> handleStatus(org.springframework.web.server.ResponseStatusException ex) {
+        return ResponseEntity.status(ex.getStatusCode()).body(AuthResponseDto.error(ex.getReason()));
+    }
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<AuthResponseDto> handleDuplicate(org.springframework.dao.DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(AuthResponseDto.error("The request conflicts with an existing record. Refresh or contact your administrator."));
+    }
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<AuthResponseDto> handleMalformedBody(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest().body(AuthResponseDto.error("A valid JSON request body is required"));
+    }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthResponseDto> handleGenericException(Exception ex) {
         log.error("Unhandled internal server error: ", ex);

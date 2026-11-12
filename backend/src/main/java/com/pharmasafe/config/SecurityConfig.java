@@ -106,6 +106,11 @@ public class SecurityConfig {
                     "/api/health/**",
                     "/actuator/**",
                     "/error",
+                    "/api/auth/access-roles",
+                    "/api/auth/role-selection",
+                    "/api/auth/register",
+                    "/api/auth/forgot-password",
+                    "/api/auth/reset-password",
                     "/api/auth/login",
                     "/api/auth/csrf"
                 ).permitAll()

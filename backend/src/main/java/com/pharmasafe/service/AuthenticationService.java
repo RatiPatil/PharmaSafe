@@ -32,14 +32,8 @@ public class AuthenticationService {
     private static final Logger log = LoggerFactory.getLogger(AuthenticationService.class);
     private static final int MAX_FAILED_ATTEMPTS = 3;
 
-    /**
-     * Account lockout toggle.
-     * TEMPORARILY DISABLED FOR DEVELOPMENT: Set to false to avoid automatic lockout
-     * during active development, UI testing, and workflow iteration.
-     * MUST BE RESTORED TO 'true' BEFORE PRODUCTION DEPLOYMENT to satisfy ICH E2B(R3)
-     * and 21 CFR Part 11 security and audit compliance standards.
-     */
-    public static final boolean ACCOUNT_LOCKOUT_ENABLED = false;
+    /** Lock accounts after three consecutive failed attempts; recovery is administrator-approved. */
+    public static final boolean ACCOUNT_LOCKOUT_ENABLED = true;
 
     // Pre-computed BCrypt hash used for timing attack defense when username is not found
     private static final String DUMMY_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoO.6VupF1Hk/uYt1l585e1p9/5k6X.fS2";
@@ -77,7 +71,11 @@ public class AuthenticationService {
         String normalizedUsername = request.getUsername().trim().toLowerCase();
 
         // Row-level lock (SELECT ... FOR UPDATE) to serialize concurrent login attempts
-        Optional<User> userOpt = userRepository.findByUsernameForUpdate(normalizedUsername);
+        String loginName = normalizedUsername;
+        if (normalizedUsername.contains("@")) loginName = userRepository.findByEmailIgnoreCase(normalizedUsername)
+                .map(User::getUsername).orElse(normalizedUsername);
+        Optional<User> userOpt = userRepository.findByUsernameForUpdate(loginName);
+        normalizedUsername = loginName.length() > 64 ? "unknown-account" : loginName;
 
         if (userOpt.isEmpty()) {
             log.warn("Auth diagnostic: user '{}' exists=false", normalizedUsername);
@@ -102,7 +100,7 @@ public class AuthenticationService {
             throw new LockedException("Account is locked due to consecutive failed login attempts. Please contact an administrator.");
         }
 
-        if (!user.isEnabled()) {
+        if (!user.isEnabled() || !user.isApproved() || !com.pharmasafe.security.WorkspaceAccess.ROLES.contains(user.getRole())) {
             auditService.logEvent("LOGIN_FAILED", normalizedUsername, clientIp, userAgent, "FAILURE", "Account is disabled");
             throw new DisabledException("Account is inactive. Please contact an administrator.");
         }
@@ -126,7 +124,7 @@ public class AuthenticationService {
             } else {
                 userRepository.save(user);
                 auditService.logEvent("LOGIN_FAILED", normalizedUsername, clientIp, userAgent, "FAILURE",
-                        "Invalid credentials, attempt " + newAttempts + (ACCOUNT_LOCKOUT_ENABLED ? " of " + MAX_FAILED_ATTEMPTS : " (lockout disabled in dev)"));
+                        "Invalid credentials, attempt " + newAttempts + " of " + MAX_FAILED_ATTEMPTS);
                 throw new BadCredentialsException("Invalid username or password");
             }
         }

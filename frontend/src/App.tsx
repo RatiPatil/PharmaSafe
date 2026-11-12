@@ -1,6 +1,6 @@
 import React, { Component, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { LoginPage } from './components/LoginPage';
+import { PublicAccess } from './components/PublicAccess';
 
 // The sign-in screen does not download case editors, tables or role workspaces.
 const RoleWorkspace=lazy(()=>import('./components/RoleWorkspace').then(module=>({default:module.RoleWorkspace})));
@@ -13,7 +13,7 @@ const AppContent:React.FC=()=>{
  const {isAuthenticated}=useAuth();
  // Render immediately while session restoration runs in the background. Protected
  // content is still rendered only after the server verifies the current account.
- return isAuthenticated?<WorkspaceLoadBoundary><Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-[#F4F7FB]"><p role="status" className="text-sm text-[#52657A]">Opening your workspace…</p></main>}><RoleWorkspace/></Suspense></WorkspaceLoadBoundary>:<LoginPage/>;
+ return isAuthenticated?<WorkspaceLoadBoundary><Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-[#F4F7FB]"><p role="status" className="text-sm text-[#52657A]">Opening your workspace…</p></main>}><RoleWorkspace/></Suspense></WorkspaceLoadBoundary>:<PublicAccess/>;
 };
 export const App:React.FC=()=> <AuthProvider><AppContent/></AuthProvider>;
 export default App;

@@ -110,82 +110,29 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Repeated invalid logins do not automatically lock account (lockout temporarily disabled for development)")
-    void testRepeatedInvalidLoginsDoNotLockAccount() throws Exception {
-        LoginRequestDto badRequest = new LoginRequestDto("testuser", "WrongPassword!");
-
-        // Multiple consecutive failed attempts (1, 2, 3, 4)
-        for (int i = 1; i <= 4; i++) {
-            mockMvc.perform(post("/api/auth/login")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(badRequest)))
-                    .andExpect(status().isUnauthorized())
-                    .andExpect(jsonPath("$.success").value(false))
-                    .andExpect(jsonPath("$.message").value("Invalid username or password"));
-        }
-
-        User userAfterFails = userRepository.findByUsername("testuser").orElseThrow();
-        assertEquals(4, userAfterFails.getFailedLoginAttempts());
-        assertFalse(userAfterFails.isLocked(), "Account must NOT be automatically locked when lockout is disabled in dev");
-        assertNull(userAfterFails.getLockedAt());
-
-        // Valid login must succeed even after multiple failed attempts
-        LoginRequestDto correctRequest = new LoginRequestDto("testuser", "Password123!");
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(correctRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.user.username").value("testuser"))
-                .andExpect(jsonPath("$.user.locked").value(false));
-
-        User userAfterSuccess = userRepository.findByUsername("testuser").orElseThrow();
-        assertEquals(0, userAfterSuccess.getFailedLoginAttempts(), "Failed attempts counter should reset to 0 after success");
-        assertFalse(userAfterSuccess.isLocked());
+    @DisplayName("Three failed logins lock an account and correct credentials cannot bypass the lock")
+    void testThreeFailuresLockAccount() throws Exception {
+        for(int i=1;i<=3;i++) mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequestDto("testuser","WrongPassword!"))))
+                .andExpect(status().is(i<3?401:423));
+        User user=userRepository.findByUsername("testuser").orElseThrow();
+        assertTrue(user.isLocked());assertEquals(3,user.getFailedLoginAttempts());assertNotNull(user.getLockedAt());
+        mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequestDto("testuser","Password123!"))))
+                .andExpect(status().isLocked());
     }
 
     @Test
-    @DisplayName("An existing account already marked as locked can authenticate after lockout restriction is safely removed")
-    void testExistingLockedAccountCanAuthenticateWithValidCredentials() throws Exception {
-        // Mark user as locked in database
-        User user = userRepository.findByUsername("testuser").orElseThrow();
-        user.setLocked(true);
-        user.setLockedAt(Instant.now());
-        user.setFailedLoginAttempts(3);
-        userRepository.save(user);
-
-        // Attempt login with valid credentials
-        LoginRequestDto correctRequest = new LoginRequestDto("testuser", "Password123!");
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(correctRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.user.username").value("testuser"))
-                .andExpect(jsonPath("$.user.locked").value(false));
-
-        // Verify account is unlocked in database
-        User unlockedUser = userRepository.findByUsername("testuser").orElseThrow();
-        assertFalse(unlockedUser.isLocked(), "Account locked flag should be auto-cleared on valid login");
-        assertNull(unlockedUser.getLockedAt());
-        assertEquals(0, unlockedUser.getFailedLoginAttempts());
-    }
-
-    @Test
-    @DisplayName("Invalid credentials on existing locked account returns 401 Unauthorized, not 423 Locked")
-    void testInvalidCredentialsOnExistingLockedAccount() throws Exception {
-        User user = userRepository.findByUsername("testuser").orElseThrow();
-        user.setLocked(true);
-        user.setLockedAt(Instant.now());
-        userRepository.save(user);
-
-        LoginRequestDto badRequest = new LoginRequestDto("testuser", "WrongPassword!");
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(badRequest)))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Invalid username or password"));
+    @DisplayName("Existing locked accounts remain locked with either valid or invalid credentials")
+    void testExistingLockedAccountCannotAuthenticate() throws Exception {
+        User user=userRepository.findByUsername("testuser").orElseThrow();
+        user.setLocked(true);user.setLockedAt(Instant.now());userRepository.saveAndFlush(user);
+        for(String password:java.util.List.of("Password123!","WrongPassword!"))
+            mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(new LoginRequestDto("testuser",password))))
+                    .andExpect(status().isLocked());
+        assertTrue(userRepository.findByUsername("testuser").orElseThrow().isLocked());
     }
 
     @Test

@@ -24,7 +24,7 @@ public class CurrentAccountFilter extends OncePerRequestFilter {
                     || session.getAttribute("PHARMASAFE_AUTH_VERSION") != null)) {
             var current = users.findByUsername(auth.getName());
             Object version = session.getAttribute("PHARMASAFE_AUTH_VERSION");
-            boolean valid = current.isPresent() && current.get().isEnabled()
+            boolean valid = current.isPresent() && current.get().isEnabled() && current.get().isApproved()
                     && (!AuthenticationService.ACCOUNT_LOCKOUT_ENABLED || !current.get().isLocked())
                     && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals(current.get().getRole()))
                     && version instanceof Number && ((Number) version).longValue() == current.get().getAuthVersion();

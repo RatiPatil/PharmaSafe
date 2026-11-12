@@ -42,7 +42,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPasswordHash(),
-                user.isEnabled(),
+                user.isEnabled() && user.isApproved() && com.pharmasafe.security.WorkspaceAccess.ROLES.contains(user.getRole()),
                 true, // accountNonExpired
                 true, // credentialsNonExpired
                 accountNonLocked,

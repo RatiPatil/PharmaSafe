@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 public class LoginRequestDto {
 
     @NotBlank(message = "Username is required")
-    @Size(max = 64, message = "Username cannot exceed 64 characters")
+    @Size(max = 254, message = "Username or email cannot exceed 254 characters")
     private String username;
 
     @NotBlank(message = "Password is required")

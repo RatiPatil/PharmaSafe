@@ -128,6 +128,7 @@ public class AdminController {
             user.setDepartment(request.get("department"));
         }
         if (request.containsKey("role")) {
+            if (!user.isApproved()) throw new IllegalArgumentException("Review the original requested role before changing an account role");
             if (user.getUsername().equalsIgnoreCase(adminUsername)) {
                 throw new IllegalArgumentException("Ask another administrator to change your role");
             }
@@ -157,6 +158,7 @@ public class AdminController {
             throw new IllegalArgumentException("Cannot deactivate primary system administrator account");
         }
 
+        if (!user.isApproved()) throw new IllegalArgumentException("Use User Access Management to review or activate this account");
         user.setEnabled(!user.isEnabled());
         user.revokeSessions();
         User saved = userRepository.save(user);
