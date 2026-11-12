@@ -115,13 +115,17 @@ public class UserAccessService {
   audit("PASSWORD_CHANGED",u.getUsername(),u,r.id,"Single-use recovery completed; sessions revoked");
  }
  public static Map<String,Object> userView(User u){
-  Map<String,Object> m=new LinkedHashMap<>();m.put("userId",u.getId());m.put("username",u.getUsername());m.put("fullName",u.getFullName());m.put("email",u.getEmail());m.put("employeeId",u.getEmployeeId());m.put("department",u.getDepartment());m.put("organization",u.getOrganization());m.put("role",u.getRole());m.put("accountStatus",u.getAccountStatus());m.put("enabled",u.isEnabled());return m;
+  Map<String,Object> m=new LinkedHashMap<>();m.put("userId",u.getId());m.put("createdAt",u.getCreatedAt());m.put("mobileNumber",u.getMobileNumber());m.put("designation",u.getDesignation());m.put("approvedBy",u.getApprovedBy());m.put("approvedAt",u.getApprovedAt());m.put("username",u.getUsername());m.put("fullName",u.getFullName());m.put("email",u.getEmail());m.put("employeeId",u.getEmployeeId());m.put("department",u.getDepartment());m.put("organization",u.getOrganization());m.put("role",u.getRole());m.put("accountStatus",u.getAccountStatus());m.put("enabled",u.isEnabled());return m;
  }
  public static Map<String,Object> registrationView(RegistrationRequest r){
   var m=userView(r.user);m.put("id",r.id);m.put("requestedRole",r.requestedRole);m.put("reason",r.reason);m.put("additionalInformation",r.additionalInformation);m.put("details",r.details);m.put("mobileNumber",r.user.getMobileNumber());m.put("designation",r.user.getDesignation());m.put("createdAt",r.createdAt);review(m,r.reviewedBy,r.reviewedAt,r.decisionReason);return m;
  }
  public static Map<String,Object> resetView(PasswordResetRequest r){var m=userView(r.user);m.put("id",r.id);m.put("status",r.status);m.put("createdAt",r.createdAt);m.put("expiresAt",r.expiresAt);review(m,r.reviewedBy,r.reviewedAt,r.decisionReason);return m;}
  private static void review(Map<String,Object> m,User reviewer,Instant at,String reason){m.put("reviewedBy",reviewer==null?null:reviewer.getId());m.put("reviewedAt",at);m.put("decisionReason",reason);}
+ @Transactional(readOnly=true) public Map<String,Object> accountDetails(Long id){
+  User u=users.findById(id).orElseThrow(()->new EntityNotFoundException("User not found"));
+  return registrations.findByUserId(id).map(UserAccessService::registrationView).orElseGet(()->userView(u));
+ }
  @Transactional(readOnly=true) public Map<String,Object> details(Long id){return registrationView(registrations.findById(id).orElseThrow(()->new EntityNotFoundException("Request not found")));}
  @Transactional(readOnly=true)
  public Page<Map<String,Object>> registrations(String role,String status,String department,String organization,String search,LocalDate from,LocalDate to,int page,int size,String sort,String direction){

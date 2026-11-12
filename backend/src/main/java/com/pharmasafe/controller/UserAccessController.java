@@ -38,4 +38,6 @@ public class UserAccessController {
  @PutMapping("/api/admin/password-reset-requests/{id}/{decision:approve|reject}") @PreAuthorize("hasRole('ADMIN')") public Map<String,Object> resetDecision(@PathVariable Long id,@PathVariable String decision,@Valid @RequestBody Decision body,Authentication auth){return access.decideReset(id,decision,body.reason(),auth.getName());}
  @GetMapping("/api/admin/access-users") @PreAuthorize("hasRole('ADMIN')")
  public Page<Map<String,Object>> accounts(@RequestParam(defaultValue="") String role,@RequestParam(defaultValue="") String status,@RequestParam(defaultValue="") String department,@RequestParam(defaultValue="") String organization,@RequestParam(defaultValue="") String search,@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size){return access.accounts(role,status,department,organization,search,page,size);}
+ @GetMapping("/api/admin/access-users/{id}") @PreAuthorize("hasRole('ADMIN')")
+ public Map<String,Object> accountDetails(@PathVariable Long id){return access.accountDetails(id);}
 }

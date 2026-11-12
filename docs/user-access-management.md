@@ -105,7 +105,8 @@ login endpoint, public does not mean CSRF-exempt. Admin APIs require ROLE_ADMIN.
 | GET | /api/admin/registration-requests/{id} | Complete application and review details |
 | PUT | /api/admin/registration-requests/{id}/approve | {reason}; enables original requested role |
 | PUT | /api/admin/registration-requests/{id}/reject | {reason}; rejects pending request |
-| GET | /api/admin/access-users | Paginated account status views, no credentials |
+| GET | /api/admin/access-users | Paginated account status views with creation dates, no credentials |
+| GET | /api/admin/access-users/{id} | Complete account profile plus original registration details when available |
 | PUT | /api/admin/users/{id}/suspend | {reason}; disables access and revokes sessions |
 | PUT | /api/admin/users/{id}/activate | {reason}; reactivates a suspended account |
 | GET | /api/admin/password-reset-requests | Paginated requests; optional status filter |
@@ -154,3 +155,5 @@ admin guards, public/admin access controller, registration DTO/entities/reposito
 role-selection, rate-limit, mail and user-access services, exception handling,
 release health endpoint, mail dependency and configuration. See the commit diff for
 the complete file list. No case-management permissions were expanded.
+
+Access worklists use six readable columns and a horizontally scrollable table when space is limited. View details opens a native modal with immediate loading feedback, error/retry handling, keyboard Escape dismissal and restored row focus. Decision confirmation also opens a dialog. Sidebar navigation scrolls independently within its reserved space above the account footer. The dedicated login route fits normal desktop viewport heights; compact screens retain accessible scrolling.

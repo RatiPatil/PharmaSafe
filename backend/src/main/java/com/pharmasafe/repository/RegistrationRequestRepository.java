@@ -5,6 +5,7 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 import java.util.*;
 public interface RegistrationRequestRepository extends JpaRepository<RegistrationRequest,Long>, JpaSpecificationExecutor<RegistrationRequest> {
+    Optional<RegistrationRequest> findByUserId(Long userId);
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select r from RegistrationRequest r where r.id=:id")
     Optional<RegistrationRequest> lockById(@Param("id") Long id);
 }

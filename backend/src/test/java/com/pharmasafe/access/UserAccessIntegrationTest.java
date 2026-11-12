@@ -99,6 +99,13 @@ class UserAccessIntegrationTest {
   doThrow(new IllegalStateException("Mail unavailable")).when(mail).sendReset(anyString(),anyString());assertThrows(IllegalStateException.class,()->access.decideReset(req.id,"approve","Verified",admin));assertEquals("PENDING",resets.findById(req.id).orElseThrow().status);assertNull(resets.findById(req.id).orElseThrow().tokenHash);
   mvc.perform(post("/api/auth/forgot-password").with(csrf()).contentType("application/json").content("{\"identifier\":\"does-not-exist\"}")).andExpect(status().isOk()).andExpect(jsonPath("$.message").value("If an eligible account exists, your request will be reviewed by an administrator."));
  }
+ @Test void accountDetailsIncludeRegistrationAndLegacyDatesWithoutCredentials()throws Exception{
+  var b=body("ROLE_MEDICAL_REVIEWER");register(b);var u=users.findByUsername((String)b.get("username")).orElseThrow();
+  mvc.perform(get("/api/admin/access-users/"+u.getId()).with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.details.medicalQualification").value("Synthetic qualification")).andExpect(jsonPath("$.reason").value(b.get("reason"))).andExpect(jsonPath("$.createdAt").isNotEmpty()).andExpect(jsonPath("$.passwordHash").doesNotExist());
+  var legacy=users.findByUsername(admin).orElseThrow();mvc.perform(get("/api/admin/access-users/"+legacy.getId()).with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.createdAt").isNotEmpty()).andExpect(jsonPath("$.role").value("ROLE_ADMIN")).andExpect(jsonPath("$.passwordHash").doesNotExist());
+  mvc.perform(get("/api/admin/access-users/"+u.getId()).with(user("processor").roles("CASE_PROCESSOR"))).andExpect(status().isForbidden());
+  mvc.perform(get("/api/admin/access-users/99999999").with(user(admin).roles("ADMIN"))).andExpect(status().isNotFound());
+ }
  @Test void adminFiltersSortAndCompleteDetailsArePersisted()throws Exception{
   var b=body("ROLE_SAFETY_MANAGER");long id=register(b).get("requestId").asLong();
   mvc.perform(get("/api/admin/registration-requests").param("role","ROLE_SAFETY_MANAGER").param("status","PENDING").param("search",(String)b.get("email")).param("sort","fullName").param("direction","asc").with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].id").value(id)).andExpect(jsonPath("$.content[0].details.managementDepartment").value("Synthetic qualification")).andExpect(jsonPath("$.content[0].passwordHash").doesNotExist());

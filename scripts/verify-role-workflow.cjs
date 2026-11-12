@@ -66,13 +66,38 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    await p.getByLabel('Username',{exact:false}).waitFor({timeout:20000});await p.getByText('Checking existing session…',{exact:true}).waitFor({timeout:5000});if(!await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).isEnabled())throw Error('Login blocked by background session request');if(roleModules.length)throw Error('Role workspace downloaded before authentication');console.log('PASS editable login renders while session endpoint is held; workspace code remains deferred');
    await p.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();fs.mkdirSync(path.join(qaDirectory,'screens'),{recursive:true});
    for(const width of [1440,1024,768,390,320]){await p.setViewportSize({width,height:900});await p.waitForTimeout(60);const valid=await p.evaluate(()=>{const u=document.getElementById('username').getBoundingClientRect(),pw=document.getElementById('password').getBoundingClientRect(),b=document.querySelector('.login-submit').getBoundingClientRect();return document.documentElement.scrollWidth<=innerWidth&&u.width>150&&pw.top>u.bottom&&b.top>pw.bottom;});if(!valid)throw Error('Login layout overflow or overlap at '+width);if(width===1440||width===390)await p.screenshot({path:path.join(qaDirectory,'screens','login-'+width+'.png'),fullPage:true});}
-   await p.setViewportSize({width:1440,height:1000});console.log('PASS professional login layout at five widths without field overlap');
+   for(const [width,height] of [[1920,880],[1440,900],[1366,768],[1024,640]]){await p.setViewportSize({width,height});const fit=await p.evaluate(()=>({page:document.documentElement.scrollHeight<=innerHeight+1,form:document.querySelector('.login-access').scrollHeight<=document.querySelector('.login-access').clientHeight+1,focus:getComputedStyle(document.getElementById('username')).outlineStyle}));if(!fit.page||!fit.form||fit.focus!=='none')throw Error('Login must fit desktop viewport and use group focus '+width+'x'+height);}
+   await p.setViewportSize({width:1440,height:1000});console.log('PASS professional login layout at five widths without field overlap and four complete desktop viewport fits');
   }holdStartup=false;await Promise.all(heldSessions.map(route=>route.fulfill({status:401,contentType:'application/json',body:'{"message":"No test session"}'}).catch(()=>{})));await p.unroute('**/api/auth/me');await p.getByLabel('Username',{exact:false}).fill(username);await p.getByLabel(/^Password/).fill(password);await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).click();await p.getByTestId(home).waitFor({timeout:20000});return p;}
   const admin=await login('ui-admin','admin-home');console.log('PASS administrator login and dedicated home');
   await admin.getByRole('button',{name:'Users & access',exact:true}).click();
   const roles=[['analyst','Case processing','analyst-home'],['medical','Medical review','medical-home'],['quality','Quality review','quality-home'],['manager','Workflow management','manager-home'],['reporting','Regulatory reporting','reporting-home'],['auditor','Audit workspace','auditor-home']];
   for(const [username,role]of roles){await admin.getByLabel('Username',{exact:true}).fill(username);await admin.getByLabel('Full name',{exact:true}).fill('Synthetic '+username);await admin.getByLabel('Initial password',{exact:true}).fill(password);await admin.getByLabel(/^Workspace role/).first().selectOption({label:role});await admin.getByRole('button',{name:'Create user',exact:true}).click();await admin.getByLabel('Username',{exact:true}).waitFor();await admin.waitForFunction(()=>[...document.querySelectorAll('label')].find(x=>x.textContent==='Username')?.querySelector('input')?.value==='');}
   console.log('PASS create six role accounts through admin UI');
+  await admin.getByRole('navigation').getByRole('button',{name:'User access management',exact:true}).click();
+  await admin.getByRole('button',{name:'Account access',exact:true}).click();
+  const accountRow=admin.getByRole('row').filter({hasText:'Synthetic analyst'});
+  await accountRow.getByRole('button',{name:'View details',exact:true}).click();
+  const accountDialog=admin.getByRole('dialog',{name:'Complete request details',exact:true});await accountDialog.getByRole('heading',{name:'Synthetic analyst',exact:true}).waitFor();
+  if(!await accountDialog.isVisible())throw Error('Details must appear in a visible dialog');
+  await admin.keyboard.press('Escape');await accountDialog.waitFor({state:'hidden'});
+  if(!await accountRow.getByRole('button',{name:'View details',exact:true}).evaluate(el=>el===document.activeElement))throw Error('Details must restore row focus');
+  for(const [width,height]of [[1440,900],[1024,640],[768,640],[390,700]]){
+   await admin.setViewportSize({width,height});
+   if(width<760)await admin.getByRole('button',{name:'Toggle navigation',exact:true}).click();
+   const sidebar=await admin.evaluate(()=>{const n=document.querySelector('.ws-sidebar nav').getBoundingClientRect(),p=document.querySelector('.ws-person').getBoundingClientRect();return {overlap:n.bottom>p.top+1,footer:p.bottom>innerHeight+1};});
+   if(sidebar.overlap||sidebar.footer)throw Error('Sidebar navigation overlaps the account footer '+width);
+   if(width<760)await admin.keyboard.press('Escape');
+   if(await admin.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Access worklist page overflow '+width);
+   await admin.getByRole('row').filter({hasText:'Synthetic analyst'}).getByRole('button',{name:'View details',exact:true}).click();
+   await accountDialog.getByRole('heading',{name:'Synthetic analyst',exact:true}).waitFor();
+   if(await accountDialog.evaluate(el=>el.scrollWidth>el.clientWidth+1))throw Error('Details dialog overflow '+width);
+   await admin.screenshot({path:path.join(qaDirectory,'screens',`access-details-${width}.png`)});
+   await accountDialog.getByRole('button',{name:'Close complete request details',exact:true}).click();
+  }
+  await admin.setViewportSize({width:1440,height:1000});await admin.getByRole('navigation').getByRole('button',{name:'Users & access',exact:true}).click();
+  console.log('PASS full account details, Escape/focus restoration and non-overlapping navigation at desktop, zoom-sized tablet and mobile');
+
   await admin.getByRole('button',{name:'My profile',exact:true}).click();await admin.getByLabel('Full name',{exact:true}).fill('Synthetic System Administrator');await admin.getByLabel('Department',{exact:true}).fill('Safety operations');await admin.getByRole('button',{name:'Save profile details',exact:true}).click();await admin.getByText('Your profile was updated. Your workspace role is unchanged.',{exact:true}).waitFor();console.log('PASS personal profile update without changing role or invalidating session');
   const created=await admin.evaluate(async()=>{const csrf=await(await fetch('/api/auth/csrf',{credentials:'include'})).json();const r=await fetch('/api/cases',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','X-XSRF-TOKEN':csrf.token},body:JSON.stringify({countryCode:'USA',reportType:'Spontaneous',initialReceiptDate:'2026-10-30',latestReceivedDate:'2026-10-30',priority:'Routine',assignedToUsername:'analyst',patient:{patientIdentifier:'SYNTHETIC-P1',gender:'Unknown'},reporters:[{primary:true,qualification:'Physician',firstName:'Synthetic',lastName:'Reporter',countryCode:'USA'}],products:[{productType:'Suspect',productName:'Synthetic study product'}],events:[{eventVerbatim:'Example reaction',onsetDate:'2026-10-30',outcome:'Recovered',serious:true,otherMedicallyImportant:true}],narrative:'Fictional case for automated verification. No real patient data.'})});if(!r.ok)throw Error('Create case '+r.status+' '+await r.text());return r.json();});
   const pages={admin};for(const [name,,home]of roles){pages[name]=await login(name,home);console.log('PASS '+home+' unique role dashboard');}

@@ -54,3 +54,10 @@ body.workspace-open .ws-shell{height:auto;min-height:100svh;overflow:visible;ali
 .ws-shell textarea{min-height:96px;resize:vertical}.ws-shell label{font-size:12px;line-height:1.5;color:#304d65}.ws-shell :is(input[type=checkbox],input[type=radio]){width:16px;height:16px;min-height:0;accent-color:#176b72;flex-shrink:0}
 .ws-shell .ws-primary,.ws-shell .ws-primary:hover{background:#12344d;border-color:#12344d}.ws-sidebar nav button[aria-current=page]{background:#176b72;border-color:#176b72}.ws-card{border-color:#dce5ef;box-shadow:0 2px 10px #102a4303}.ws-table-wrap{overflow-y:visible;max-height:none}.ws-shell th{font-size:10px;letter-spacing:.04em;color:#69808f}.ws-shell td{font-size:12px}.ws-shell :is(input,select,textarea,button,a):focus-visible{outline:3px solid #91b9c5;outline-offset:3px}.ws-form label{align-content:start}
 @media(max-width:760px){.ws-sidebar{position:fixed;overflow-y:auto}.ws-content{padding:22px 16px}.ws-topbar{padding:12px 16px}.ws-sidebar nav{flex:initial}.ws-person{margin-top:20px}.ws-shell .ws-modal{overflow-y:auto}.ws-content>div,.ws-content>section{max-width:100%}}
+/* Reserve separate, non-overlapping space for navigation and the signed-in user. */
+.ws-sidebar{height:100svh;max-height:100svh;overflow:hidden;gap:18px}
+.ws-sidebar>.ws-brand,.ws-sidebar>p,.ws-sidebar>.ws-person{flex-shrink:0}
+.ws-sidebar nav{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-bottom:12px}
+.ws-sidebar .ws-person{margin-top:0;background:#102a43;position:relative;padding-top:16px}
+.ws-sidebar nav button{white-space:normal;overflow-wrap:normal;word-break:normal}
+@media(max-height:740px){.ws-sidebar{padding-top:20px;padding-bottom:16px;gap:14px}.ws-sidebar nav button{padding-top:9px;padding-bottom:9px}.ws-person{gap:6px}.ws-brand{font-size:22px}}
