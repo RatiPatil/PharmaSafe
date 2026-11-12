@@ -4,6 +4,7 @@ import App from './App';
 
 describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
   beforeEach(() => {
+    window.history.replaceState(null,"","/#/login");
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -14,7 +15,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
     expect(screen.getByRole('button',{name:/Log In to PharmaSafe/i})).toBeEnabled();
     fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'ready-to-sign-in'}});
     expect(screen.getByLabelText(/Username/i)).toHaveValue('ready-to-sign-in');
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', {name:/workspace/i})).not.toBeInTheDocument();
     expect(screen.queryByText('Verifying PharmaSafe Session Security...')).not.toBeInTheDocument();
   });
   it('ignores a late startup response after successful sign-in and does not wait for CSRF prefetch',async()=>{
@@ -29,9 +30,9 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
       return Promise.resolve({ok:true,json:async()=>({content:[],totalElements:0,totalPages:0})});
     }));
     render(<App/>);fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'fast-admin'}});fireEvent.change(screen.getByLabelText(/^Password/i),{target:{value:'SyntheticPassword123!'}});fireEvent.click(screen.getByRole('button',{name:/Log In to PharmaSafe/i}));
-    await waitFor(()=>expect(screen.getByRole('navigation')).toBeInTheDocument());
+    await waitFor(()=>expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument());
     await act(async()=>{finishInitial({ok:false,status:401});await Promise.resolve();});
-    expect(screen.getByRole('navigation')).toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Welcome back.'})).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Welcome back.'})).not.toBeInTheDocument();
   });
 
   it('shows a recoverable login screen when session restoration cannot reach the server', async () => {
@@ -335,7 +336,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
   fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'admin'}});fireEvent.change(screen.getByLabelText(/^Password/i),{target:{value:'SyntheticPassword123!'}});
   fireEvent.click(screen.getByRole('button',{name:/Log In to PharmaSafe/i}));
   await waitFor(()=>expect(screen.getByText(/browser session could not be established/i)).toBeInTheDocument());
-  expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+  expect(screen.queryByRole('navigation', {name:/workspace/i})).not.toBeInTheDocument();
  });
 
 });

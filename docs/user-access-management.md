@@ -8,11 +8,11 @@ processing workspace. Public registration cannot request ROLE_ADMIN or ROLE_USER
 
 ## Workflow
 
-The public home retains immediate sign-in and displays account-type cards below it.
+The public home is a dedicated page with a safety-workflow introduction and account-type cards. Sign-in has its own route (`#/login`), separate from the home page (`#/home`).
 Selecting a card creates a signed role selection valid for 30 minutes. The backend
 uses that signed role, never a client-supplied role assignment. A backend restart
 invalidates outstanding selection forms; choose the account type again to resubmit.
-Complete the common identity fields and the selected role's qualification fields.
+Complete the grouped identity, qualification and account-security sections. Structured registration fields use dropdowns for department, designation, business unit, region, qualification, specialization, experience and training. Organization names, identifiers and application explanations remain free text. Public pages and role workspaces use a shared navy/teal palette, consistent control sizing and document scrolling; wide data tables retain horizontal scrolling.
 Passwords require 12–72 UTF-8 bytes including letters and a number or symbol.
 Registration persists a disabled PENDING account, an original application and its
 role-specific details. Administrators use **User access management** to inspect,

@@ -33,12 +33,39 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   server=await createServer({root:root+'/frontend',envDir:false,define:{'import.meta.env.VITE_API_URL':JSON.stringify('')},server:{host:'127.0.0.1',port:frontendPort,strictPort:true,proxy:{'/api':{target:`http://127.0.0.1:${backendPort}`,changeOrigin:true}}}});await server.listen();
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const failures=[];const contexts=[];
+  // Public page layout checks use the real role catalog. Selection alone is stubbed
+  // because this isolated H2 harness has no PostgreSQL rate-limit table.
+  const publicContext=await browser.newContext({viewport:{width:1440,height:1000}});
+  const publicPage=await publicContext.newPage();
+  await publicPage.goto(origin+'/#/home');
+  await publicPage.getByRole('heading',{name:'Find your place in the safety workflow.'}).waitFor();
+  if(await publicPage.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).count())throw Error('Login form must not appear on home');
+  await publicPage.getByRole('button',{name:'Request access as Medical Reviewer',exact:true}).waitFor();
+  fs.mkdirSync(path.join(qaDirectory,'screens'),{recursive:true});
+  for(const width of [1440,768,390]){
+   await publicPage.setViewportSize({width,height:1000});
+   if(await publicPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Public home horizontal overflow '+width);
+   await publicPage.screenshot({path:path.join(qaDirectory,'screens',`home-${width}.png`),fullPage:true});
+  }
+  await publicPage.route('**/api/auth/role-selection',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({selectionToken:'layout-check-only'})}));
+  await publicPage.getByRole('button',{name:'Request access as Medical Reviewer',exact:true}).click();
+  await publicPage.getByRole('heading',{name:'Medical Reviewer registration',exact:true}).waitFor();
+  await publicPage.getByLabel('Department',{exact:true}).selectOption('Drug Safety / Pharmacovigilance');
+  await publicPage.getByLabel('Medical Qualification',{exact:true}).selectOption('MD');
+  for(const width of [1440,768,390]){
+   await publicPage.setViewportSize({width,height:1000});
+   const layout=await publicPage.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,nested:[...document.querySelectorAll('.pa-shell *')].filter(e=>e.scrollHeight>e.clientHeight+2&&['auto','scroll'].includes(getComputedStyle(e).overflowY)).length}));
+   if(layout.overflow||layout.nested)throw Error('Registration must use one page scroll '+width);
+   await publicPage.screenshot({path:path.join(qaDirectory,'screens',`registration-${width}.png`),fullPage:true});
+  }
+  await publicContext.close();console.log('PASS separate public home, role dropdowns and registration at desktop/tablet/mobile with one scroll surface');
+
   async function login(username,home){const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);const p=await context.newPage();diagnosticPage=p;p.on('pageerror',e=>failures.push(e.message));p.on('dialog',d=>d.accept());const heldSessions=[];let holdStartup=username==='ui-admin';const roleModules=[];p.on('request',r=>{if(/\/src\/components\/(RoleWorkspace|CaseEntryForm)\.tsx/.test(r.url()))roleModules.push(r.url());});
   if(holdStartup)await p.route('**/api/auth/me',route=>{if(holdStartup){heldSessions.push(route);return;}return route.continue();});
-  await p.goto(origin);if(username==='ui-admin'){
+  await p.goto(origin+'/#/login');if(username==='ui-admin'){
    await p.getByLabel('Username',{exact:false}).waitFor({timeout:20000});await p.getByText('Checking existing session…',{exact:true}).waitFor({timeout:5000});if(!await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).isEnabled())throw Error('Login blocked by background session request');if(roleModules.length)throw Error('Role workspace downloaded before authentication');console.log('PASS editable login renders while session endpoint is held; workspace code remains deferred');
    await p.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();fs.mkdirSync(path.join(qaDirectory,'screens'),{recursive:true});
-   for(const width of [1440,1024,768,390,320]){await p.setViewportSize({width,height:900});await p.waitForTimeout(60);const valid=await p.evaluate(()=>{const u=document.getElementById('username').getBoundingClientRect(),pw=document.getElementById('password').getBoundingClientRect(),b=document.querySelector('.login-submit').getBoundingClientRect();return document.documentElement.scrollWidth<=innerWidth&&document.querySelector('.login-page').getBoundingClientRect().height<=innerHeight+1&&u.width>150&&pw.top>u.bottom&&b.top>pw.bottom;});if(!valid)throw Error('Login layout overflow or overlap at '+width);if(width===1440||width===390)await p.screenshot({path:path.join(qaDirectory,'screens','login-'+width+'.png'),fullPage:true});}
+   for(const width of [1440,1024,768,390,320]){await p.setViewportSize({width,height:900});await p.waitForTimeout(60);const valid=await p.evaluate(()=>{const u=document.getElementById('username').getBoundingClientRect(),pw=document.getElementById('password').getBoundingClientRect(),b=document.querySelector('.login-submit').getBoundingClientRect();return document.documentElement.scrollWidth<=innerWidth&&u.width>150&&pw.top>u.bottom&&b.top>pw.bottom;});if(!valid)throw Error('Login layout overflow or overlap at '+width);if(width===1440||width===390)await p.screenshot({path:path.join(qaDirectory,'screens','login-'+width+'.png'),fullPage:true});}
    await p.setViewportSize({width:1440,height:1000});console.log('PASS professional login layout at five widths without field overlap');
   }holdStartup=false;await Promise.all(heldSessions.map(route=>route.fulfill({status:401,contentType:'application/json',body:'{"message":"No test session"}'}).catch(()=>{})));await p.unroute('**/api/auth/me');await p.getByLabel('Username',{exact:false}).fill(username);await p.getByLabel(/^Password/).fill(password);await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).click();await p.getByTestId(home).waitFor({timeout:20000});return p;}
   const admin=await login('ui-admin','admin-home');console.log('PASS administrator login and dedicated home');

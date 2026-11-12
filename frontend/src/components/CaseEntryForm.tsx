@@ -608,7 +608,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
       </div>
 
       {/* Main Tab Content Area */}
-      <div className="p-6 bg-white flex-1 overflow-y-auto space-y-6">
+      <div className="p-6 bg-white flex-1 space-y-6">
         {activeSubTab === 'general' && <DuplicateCheck patientIdentifier={formData.patient.patientIdentifier} productName={formData.products[0]?.productName} eventTerm={formData.events[0]?.eventVerbatim} excludeCaseId={initialCase?.id} onOpen={onOpenCandidate}/>}
         {/* TAB 1: GENERAL INFO */}
         {activeSubTab === 'general' && (

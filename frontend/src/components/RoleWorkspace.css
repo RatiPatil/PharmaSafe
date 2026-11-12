@@ -41,3 +41,16 @@ html:has(body.workspace-open),body.workspace-open{height:100%;overflow:hidden}bo
 .ws-lab-fields{border:1px solid #DCE4EE;border-radius:12px;padding:20px;min-width:0}.ws-lab-fields legend{font-weight:600;padding:0 8px}.ws-lab-notes{white-space:pre-wrap;overflow-wrap:anywhere;max-width:28rem}
 
 .ws-table-wrap{overflow-x:auto;max-width:100%}.ws-lab-fields .ws-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.ws-lab-fields .ws-full{grid-column:1/-1}@media(max-width:760px){.ws-lab-fields .ws-form-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* One document scroll surface; tables retain horizontal scrolling when needed. */
+html:has(body.workspace-open),body.workspace-open{height:auto;overflow:visible;overflow-x:clip}
+body.workspace-open #root{height:auto;min-height:100svh;overflow:visible}
+body.workspace-open .ws-shell{height:auto;min-height:100svh;overflow:visible;align-items:start}
+.ws-sidebar{position:sticky;top:0;height:100svh;overflow-y:auto;padding-top:26px}
+.ws-sidebar nav{overflow:visible;flex:initial}.ws-person{margin-top:auto}
+.ws-main{overflow:visible;min-height:100svh}.ws-topbar{position:sticky;top:0;z-index:20;background:#fffffffa;backdrop-filter:blur(10px)}
+.ws-content{overflow:visible;scrollbar-gutter:auto;max-width:1400px;margin:0 auto;padding:30px}
+.ws-shell :is(input:not([type=checkbox]):not([type=radio]),select,textarea){border:1px solid #d6e0e9;border-radius:7px;background:#fff;color:#24445e;font-size:13px;line-height:1.5;padding:10px 12px;width:100%;min-width:0;min-height:44px;box-sizing:border-box}
+.ws-shell textarea{min-height:96px;resize:vertical}.ws-shell label{font-size:12px;line-height:1.5;color:#304d65}.ws-shell :is(input[type=checkbox],input[type=radio]){width:16px;height:16px;min-height:0;accent-color:#176b72;flex-shrink:0}
+.ws-shell .ws-primary,.ws-shell .ws-primary:hover{background:#12344d;border-color:#12344d}.ws-sidebar nav button[aria-current=page]{background:#176b72;border-color:#176b72}.ws-card{border-color:#dce5ef;box-shadow:0 2px 10px #102a4303}.ws-table-wrap{overflow-y:visible;max-height:none}.ws-shell th{font-size:10px;letter-spacing:.04em;color:#69808f}.ws-shell td{font-size:12px}.ws-shell :is(input,select,textarea,button,a):focus-visible{outline:3px solid #91b9c5;outline-offset:3px}.ws-form label{align-content:start}
+@media(max-width:760px){.ws-sidebar{position:fixed;overflow-y:auto}.ws-content{padding:22px 16px}.ws-topbar{padding:12px 16px}.ws-sidebar nav{flex:initial}.ws-person{margin-top:20px}.ws-shell .ws-modal{overflow-y:auto}.ws-content>div,.ws-content>section{max-width:100%}}

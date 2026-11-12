@@ -84,7 +84,7 @@ export function RoleWorkspace() {
     const url = routeUrl(next);
     window.history.pushState(null, '', url); lastRoute.current = url;
     setSection(next);
-    mainPanel.current?.scrollTo?.(0,0);
+    if(document.scrollingElement) document.scrollingElement.scrollTop=0;
   };
   useEffect(() => {
     const onHash = () => {
@@ -164,7 +164,7 @@ export function RoleWorkspace() {
       if(token !== caseLoad.current) return;
       setSelected(c); setHistory(h); setSection('cases');
       if(navigate) { const url=routeUrl('cases',id); window.history.pushState(null,'',url); lastRoute.current=url; }
-      mainPanel.current?.scrollTo?.(0,0);
+      if(document.scrollingElement) document.scrollingElement.scrollTop=0;
     } catch (e) { if(token === caseLoad.current) setError(e instanceof Error ? e.message : 'Could not open case.'); }
     finally { if(token === caseLoad.current) setMutating(false); }
   }

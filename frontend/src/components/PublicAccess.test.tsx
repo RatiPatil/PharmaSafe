@@ -8,15 +8,16 @@ const roles=[{role:'ROLE_MEDICAL_REVIEWER',name:'Medical Reviewer',fields:['medi
 const request=vi.mocked(apiRequest);
 beforeEach(()=>{vi.resetAllMocks();window.history.replaceState(null,'','/');request.mockImplementation(async(path)=>path==='/api/auth/access-roles'?roles:path==='/api/auth/role-selection'?{selectionToken:'server-signed-role'}:{message:'Request received. Administrator approval required.'});});
 describe('Public user access',()=>{
- it('offers supported roles without a public administrator registration',async()=>{render(<PublicAccess/>);expect(await screen.findByRole('button',{name:'Request access as Medical Reviewer'})).toBeInTheDocument();expect(screen.queryByRole('button',{name:/Administrator/})).not.toBeInTheDocument();});
+ it('keeps sign in on its own route without account cards',()=>{window.history.replaceState(null,'','/#/login');render(<PublicAccess/>);expect(screen.getByText('Sign in screen')).toBeInTheDocument();expect(screen.queryByRole('button',{name:/Request access as/})).not.toBeInTheDocument();});
+ it('offers supported roles without a public administrator registration',async()=>{render(<PublicAccess/>);expect(await screen.findByRole('button',{name:'Request access as Medical Reviewer'})).toBeInTheDocument();expect(screen.queryByRole('button',{name:/Administrator/})).not.toBeInTheDocument();expect(screen.queryByText('Sign in screen')).not.toBeInTheDocument();});
  it('binds the selected role to a server token, shows relevant fields and submits a real request',async()=>{
   render(<PublicAccess/>);fireEvent.click(await screen.findByRole('button',{name:'Request access as Medical Reviewer'}));
   await screen.findByRole('heading',{name:'Medical Reviewer registration'});
-  expect(screen.queryByLabelText('Training')).not.toBeInTheDocument();
-  const entries={'Full name':'Synthetic Reviewer','Employee ID':'EMP-1','Official email address':'reviewer@example.test','Mobile number':'+12345678901','Department':'Safety','Designation':'Physician','Organization':'Synthetic Org','Username':'reviewer','Password':'SyntheticPassword123!','Confirm password':'SyntheticPassword123!','Medical Qualification':'MD','Specialization':'Clinical','Reason for access':'Assigned review work'};
+  expect(screen.queryByLabelText('Training')).not.toBeInTheDocument();expect(screen.getByLabelText('Department').tagName).toBe('SELECT');expect(screen.getByLabelText('Medical Qualification').tagName).toBe('SELECT');
+  const entries={'Full name':'Synthetic Reviewer','Employee ID':'EMP-1','Official email address':'reviewer@example.test','Mobile number':'+12345678901','Department':'Safety','Designation':'Physician','Organization':'Synthetic Org','Username':'reviewer','Password':'SyntheticPassword123!','Confirm password':'SyntheticPassword123!','Medical Qualification':'MD','Specialization':'Clinical pharmacology','Reason for access':'Assigned review work'};
   for(const [name,value] of Object.entries(entries))fireEvent.change(screen.getByLabelText(new RegExp('^'+name+'$','i')),{target:{value}});
   fireEvent.click(screen.getByRole('button',{name:'Submit access request'}));await screen.findByRole('heading',{name:'Request submitted'});
-  expect(request).toHaveBeenCalledWith('/api/auth/register','POST',expect.objectContaining({selectionToken:'server-signed-role',details:{medicalQualification:'MD',specialization:'Clinical'}}));
+  expect(request).toHaveBeenCalledWith('/api/auth/register','POST',expect.objectContaining({selectionToken:'server-signed-role',details:{medicalQualification:'MD',specialization:'Clinical pharmacology'}}));
  });
  it('shows password recovery and never places the reset token in the page',async()=>{
   window.history.replaceState(null,'','/#/reset-password?token=synthetic-single-use-token');render(<PublicAccess/>);
