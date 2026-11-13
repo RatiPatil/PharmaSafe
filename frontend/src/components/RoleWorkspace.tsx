@@ -1,3 +1,4 @@
+import { LayoutDashboard, ClipboardList, Plus, Phone, ListTodo, FileChartColumn, Users, ShieldCheck, UserRound, KeyRound } from 'lucide-react';
 import { UserAccessManagement } from '../workspaces/UserAccessManagement';
 import { CaseLaboratory } from '../workspaces/CaseLaboratory';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,6 +17,7 @@ import { CaseEntryForm } from './CaseEntryForm';
 import type { SafetyCaseDetails, SafetyCaseSummary } from '../types/case';
 import './RoleWorkspace.css';
 
+const navigationIcons={overview:LayoutDashboard,cases:ClipboardList,new:Plus,contacts:Phone,tasks:ListTodo,reports:FileChartColumn,users:Users,audit:ShieldCheck,profile:UserRound,access:KeyRound};
 function roleProfile(role: string) { return profiles[canonicalRole(role)]; }
 export function RoleWorkspace() {
   const { user, logout } = useAuth();
@@ -186,7 +188,7 @@ export function RoleWorkspace() {
     : manager && selected.workflowState === 'Approved' ? ['Locked'] : manager && selected.workflowState === 'Locked' ? ['Closed'] : [];
   return <div className="ws-shell">
     <aside role={menuOpen ? 'dialog' : undefined} aria-modal={menuOpen || undefined} aria-label={menuOpen ? 'Workspace navigation' : undefined} onKeyDown={e=>{if(e.key==='Tab' && menuOpen){const items=e.currentTarget.querySelectorAll<HTMLElement>('a[href],button:not([disabled])');const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}}} id="workspace-navigation" className={`ws-sidebar ${menuOpen ? 'is-open' : ''}`}><a className="ws-brand" href={routeUrl('overview')} onClick={e=>{e.preventDefault();go('overview');}}>PharmaSafe<span>SAFETY SUITE</span></a><p>{profile.title}</p>
-      <nav aria-label={`${profile.title} navigation`}>{profile.sections.map(s => <button key={s} aria-current={section === s ? 'page' : undefined} onClick={() => go(s)}>{s === 'cases' ? profile.queue : navLabel(s)}</button>)}</nav>
+      <nav aria-label={`${profile.title} navigation`}>{profile.sections.map(s => <button key={s} aria-current={section === s ? 'page' : undefined} onClick={() => go(s)}>{(() => {const Icon=navigationIcons[s];return <Icon size={17} aria-hidden="true"/>;})()}<span>{s === 'cases' ? profile.queue : navLabel(s)}</span></button>)}</nav>
       <div className="ws-person"><strong>{user?.username}</strong><span className="ws-role-caption">{profile.title}</span><span>{user?.role}</span><button onClick={() => { if(confirmLeave()) void logout(); }}>Log Out</button></div></aside>{menuOpen && <button className="ws-drawer-overlay" aria-label="Close navigation" onClick={()=>setMenuOpen(false)}/>}
     <div className="ws-main" inert={menuOpen || undefined}><header className="ws-topbar"><button className="ws-menu-toggle" aria-label="Toggle navigation" aria-expanded={menuOpen} aria-controls="workspace-navigation" onClick={()=>setMenuOpen(v=>!v)}>☰</button><span>{profile.title} / {navLabel(section)}</span><button disabled={busy} onClick={() => {if(!confirmLeave())return;if(selected)void openCase(selected.id,false);else{setDirty(false);setRefresh(v=>v+1);}}}>Refresh</button></header>
     <main className="ws-content" ref={mainPanel} tabIndex={-1}><div className="ws-heading"><div><p className="ws-eyebrow">{profile.title}</p><h1>{selected ? selected.caseNumber : section === 'overview' ? profile.home : section === 'cases' ? profile.queue : navLabel(section)}</h1><p>{profile.description}</p></div>{canonicalRole(user?.role || '') === 'ROLE_CASE_PROCESSOR' && section === 'overview' && <button className="ws-primary" onClick={() => go('new')}>Create case</button>}</div>

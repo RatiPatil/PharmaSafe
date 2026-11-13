@@ -70,6 +70,15 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    await p.setViewportSize({width:1440,height:1000});console.log('PASS professional login layout at five widths without field overlap and four complete desktop viewport fits');
   }holdStartup=false;await Promise.all(heldSessions.map(route=>route.fulfill({status:401,contentType:'application/json',body:'{"message":"No test session"}'}).catch(()=>{})));await p.unroute('**/api/auth/me');await p.getByLabel('Username',{exact:false}).fill(username);await p.getByLabel(/^Password/).fill(password);await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).click();await p.getByTestId(home).waitFor({timeout:20000});return p;}
   const admin=await login('ui-admin','admin-home');console.log('PASS administrator login and dedicated home');
+  const firstLegend=admin.locator('.premium-chart-legend button').first();await firstLegend.click();
+  if(await firstLegend.getAttribute('aria-pressed')!=='true')throw Error('Chart legend must highlight the selected stage');
+  await firstLegend.click();
+  await admin.emulateMedia({reducedMotion:'reduce'});
+  if(await admin.locator('.premium-metric-icon').first().count()===0)throw Error('Dashboard KPI icons missing');
+  if(await admin.locator('.premium-donut-segment').count() && await admin.locator('.premium-donut-segment').first().evaluate(el=>getComputedStyle(el).animationName)!=='none')throw Error('Reduced motion must disable chart animation');
+  await admin.emulateMedia({reducedMotion:'no-preference'});
+  console.log('PASS dashboard legend interaction and reduced-motion presentation');
+
   await admin.getByRole('button',{name:'Users & access',exact:true}).click();
   const roles=[['analyst','Case processing','analyst-home'],['medical','Medical review','medical-home'],['quality','Quality review','quality-home'],['manager','Workflow management','manager-home'],['reporting','Regulatory reporting','reporting-home'],['auditor','Audit workspace','auditor-home']];
   for(const [username,role]of roles){await admin.getByLabel('Username',{exact:true}).fill(username);await admin.getByLabel('Full name',{exact:true}).fill('Synthetic '+username);await admin.getByLabel('Initial password',{exact:true}).fill(password);await admin.getByLabel(/^Workspace role/).first().selectOption({label:role});await admin.getByRole('button',{name:'Create user',exact:true}).click();await admin.getByLabel('Username',{exact:true}).waitFor();await admin.waitForFunction(()=>[...document.querySelectorAll('label')].find(x=>x.textContent==='Username')?.querySelector('input')?.value==='');}
@@ -138,7 +147,10 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await analyst.getByRole('button',{name:'Check existing cases',exact:true}).click();await analyst.getByRole('status').filter({hasText:'No exact matches in your accessible cases.'}).waitFor();
   console.log('PASS manager-confirmed reopening, processor receipt, linked action completion and scoped duplicate check');
   fs.mkdirSync(path.join(qaDirectory,'screens'),{recursive:true});
-  for(const [name,p]of Object.entries(pages)){await p.goto(origin+'/#/workspace/'+(name==='admin'?'admin':name==='analyst'?'case_processor':name==='medical'?'medical_reviewer':name==='quality'?'quality_reviewer':name==='manager'?'safety_manager':name==='reporting'?'reporting_specialist':'auditor')+'/overview');await p.getByTestId(name==='admin'?'admin-home':roles.find(x=>x[0]===name)[2]).waitFor();await p.screenshot({path:path.join(qaDirectory,'screens',name+'.png')});}
+  for(const [name,p]of Object.entries(pages)){await p.goto(origin+'/#/workspace/'+(name==='admin'?'admin':name==='analyst'?'case_processor':name==='medical'?'medical_reviewer':name==='quality'?'quality_reviewer':name==='manager'?'safety_manager':name==='reporting'?'reporting_specialist':'auditor')+'/overview');await p.getByTestId(name==='admin'?'admin-home':roles.find(x=>x[0]===name)[2]).waitFor();
+   const serverOverview=await p.evaluate(async()=>{const r=await fetch('/api/workspace/overview',{credentials:'include'});if(!r.ok)throw Error('Overview unavailable');return r.json();});
+   const dashboardTotal=Number((await p.locator('.premium-donut-centre strong').innerText()).replace(/,/g,''));if(dashboardTotal!==serverOverview.totalCases)throw Error('Dashboard chart changed scoped case totals for '+name);
+   await p.screenshot({path:path.join(qaDirectory,'screens',name+'.png')});}
   for(const width of [1920,1366,1024,768,390]){await admin.setViewportSize({width,height:900});await admin.waitForTimeout(50);const layout=await admin.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,sidebar:document.querySelector('.ws-sidebar').getBoundingClientRect().toJSON(),main:document.querySelector('.ws-content').getBoundingClientRect().toJSON()}));if(layout.overflow)throw Error('Horizontal page overflow '+width);if(width<760){await admin.getByRole('button',{name:'Toggle navigation'}).click();await admin.getByRole('button',{name:'Users & access',exact:true}).click();await admin.getByRole('heading',{name:'Users & access',exact:true,level:1}).waitFor();await admin.getByRole('button',{name:'Toggle navigation'}).click();await admin.getByRole('button',{name:'Overview',exact:true}).click();}console.log('PASS responsive layout '+width);}
   await admin.screenshot({path:path.join(qaDirectory,'screens','admin-mobile.png')});
   await admin.getByRole('button',{name:'Toggle navigation'}).click();await admin.getByRole('navigation').getByRole('button',{name:'Create case',exact:true}).click();

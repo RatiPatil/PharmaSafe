@@ -157,3 +157,10 @@ release health endpoint, mail dependency and configuration. See the commit diff 
 the complete file list. No case-management permissions were expanded.
 
 Access worklists use six readable columns and a horizontally scrollable table when space is limited. View details opens a native modal with immediate loading feedback, error/retry handling, keyboard Escape dismissal and restored row focus. Decision confirmation also opens a dialog. Sidebar navigation scrolls independently within its reserved space above the account footer. The dedicated login route fits normal desktop viewport heights; compact screens retain accessible scrolling.
+
+
+## Dashboard presentation
+
+The dashboard UI presents the existing `/api/workspace/overview` response in role-specific KPI cards, a selectable workflow doughnut chart, workflow-stage bars and seriousness/priority counts. Counts retain the existing role scope and labels. Highlighting a legend entry affects only the chart presentation. Seriousness and expedited priority are labelled as overlapping indicators; they are not added together. Empty scopes display zero and an empty-state explanation. No synthetic trend data is generated. The existing dashboard refresh and operational action handlers are reused.
+
+The shared theme includes local medical photography, navigation icons, consistent controls and subtle entry/bar transitions. Reduced-motion preferences disable the decorative transitions. Photography sources are recorded in `frontend/public/images/CREDITS.md`. This is a frontend presentation update; authentication, API behaviour, permissions, database schemas and case workflows are unchanged.
