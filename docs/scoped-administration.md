@@ -223,7 +223,13 @@ assigned username. Switching role or account type clears entered credentials.
 Passwords are never bundled with the frontend or saved in application browser
 storage. The login fields use standard `username` and `current-password`
 autocomplete attributes. An authorized operator can save credentials in a browser
-password manager; autofill behavior remains controlled by that browser.
+password manager; autofill behavior remains controlled by that browser. Employee
+role forms request `autocomplete="off"` and do not autofocus. Admin forms have
+distinct role-specific form/field identities and autocomplete sections. Because
+browsers may ignore `off` on login forms, employee forms also clear the six known
+Role Admin usernames and their passwords if inserted through input, focus,
+browser-autofill animation or submission. The backend's account-type/role checks
+remain authoritative; autocomplete hints do not grant access.
 
 The separately delivered initial six-account SQL/PDF/password-manager CSV are
 private setup artifacts, not repository files or deployment migrations. Accounts

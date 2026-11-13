@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loader2, RefreshCw, ArrowRight } from 'lucide-react';
 import './LoginPage.css';
@@ -12,6 +12,26 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [clientErrors, setClientErrors] = useState<{ username?: string; password?: string }>({});
+  const usernameInput = useRef<HTMLInputElement>(null);
+  const passwordInput = useRef<HTMLInputElement>(null);
+  const employeeLogin = Boolean(applicationRole && !adminLogin);
+  const loginKind = employeeLogin ? 'employee' : adminLogin ? 'role-admin' : 'general';
+  const fieldPrefix = `pharmasafe-${(applicationRole || 'general').toLowerCase().replaceAll('_', '-')}-${loginKind}`;
+  const autocompleteSection = `section-${fieldPrefix}`;
+
+  // Browsers may ignore autocomplete=off. Never carry the known Role Admin
+  // credentials into an employee form, including DOM-only password-manager fills.
+  const clearAdminAutofill = (): boolean => {
+    const enteredUsername = usernameInput.current?.value.trim().toLowerCase() || '';
+    if (!employeeLogin || !Object.values(ROLE_ADMIN_USERNAMES).includes(enteredUsername)) return false;
+    if (usernameInput.current) usernameInput.current.value = '';
+    if (passwordInput.current) passwordInput.current.value = '';
+    setUsername('');
+    setPassword('');
+    setShowPassword(false);
+    setClientErrors({username: 'Use the Role Admin login tab for this account.'});
+    return true;
+  };
 
   useEffect(() => {
     setUsername(adminLogin && applicationRole ? ROLE_ADMIN_USERNAMES[applicationRole] || '' : '');
@@ -19,6 +39,16 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
     setShowPassword(false);
     setClientErrors({});
   }, [applicationRole, adminLogin]);
+
+  useEffect(() => {
+    const form = usernameInput.current?.form;
+    if (!employeeLogin || !form) return;
+    const detectAutofill = (event: Event) => {
+      if ((event as AnimationEvent).animationName === 'login-autofill-detected') clearAdminAutofill();
+    };
+    form.addEventListener('animationstart', detectAutofill);
+    return () => form.removeEventListener('animationstart', detectAutofill);
+  }, [employeeLogin]);
 
   const validate = (): boolean => {
     const errors: { username?: string; password?: string } = {};
@@ -39,6 +69,7 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
     e.preventDefault();
     clearError();
 
+    if (clearAdminAutofill()) return;
     if (!validate()) {
       return;
     }
@@ -69,13 +100,13 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
         <div className="login-access-top"><span role={isInitialLoading?'status':undefined}>{isInitialLoading?<Loader2 size={14} className="login-spinner" aria-hidden="true"/>:<Lock size={14} aria-hidden="true"/>}{isInitialLoading?'Checking existing session…':'Authorized access'}</span></div>
         <div className="login-form-container">
           <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">{roleName?`${roleName}${adminLogin?' Admin':''} sign in`:'Sign in to PharmaSafe'}</h1><p>{roleName?`Use your approved ${adminLogin?'Role Admin':'employee'} account for this role.`:'Access your approved safety workspace.'}</p></div>
-          <p className="login-recovery-links"><a href={registerHref||"#/home"}>Request access</a><a href="#/forgot-password">Forgot password?</a></p><form onSubmit={handleSubmit} className="login-form" noValidate aria-busy={isLoading}>
+          <p className="login-recovery-links"><a href={registerHref||"#/home"}>Request access</a><a href="#/forgot-password">Forgot password?</a></p><form id={`${fieldPrefix}-form`} name={`${fieldPrefix}-form`} data-login-kind={loginKind} autoComplete={employeeLogin ? 'off' : 'on'} onInputCapture={clearAdminAutofill} onChangeCapture={clearAdminAutofill} onFocusCapture={clearAdminAutofill} onSubmit={handleSubmit} className="login-form" noValidate aria-busy={isLoading}>
             {error && <div role="alert" className={`login-alert ${isLockedAccount ? 'login-alert-warning' : isConnFailure ? 'login-alert-connection' : 'login-alert-error'}`}>
               {isLockedAccount ? <AlertTriangle size={19} aria-hidden="true"/> : <AlertCircle size={19} aria-hidden="true"/>}
               <div><strong>{isLockedAccount ? 'Account Locked' : isInactiveAccount ? 'Account Inactive' : isConnFailure ? 'Connection interrupted' : 'Authentication Failure'}</strong><p>{error}</p>{isConnFailure && <><button type="button" disabled={isLoading} onClick={handleSubmit} className="login-retry"><RefreshCw size={14} aria-hidden="true"/>Retry Authentication</button><p className="login-alert-hint">The service may take a little longer to start. Your entries have been kept.</p></>}</div>
             </div>}
-            <div className="login-field"><label htmlFor="username">Username or official email</label><div className={`login-input-wrap ${clientErrors.username ? 'login-input-invalid' : ''}`}><User size={19} aria-hidden="true"/><input id="username" name="username" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} autoFocus required disabled={isLoading} value={username} aria-invalid={!!clientErrors.username} aria-describedby={clientErrors.username ? 'username-error' : undefined} placeholder="Enter your username" onChange={e=>{setUsername(e.target.value);if(clientErrors.username)setClientErrors(prev=>({...prev,username:undefined}));}}/></div>{clientErrors.username&&<p id="username-error" className="login-field-error">{clientErrors.username}</p>}</div>
-            <div className="login-field"><label htmlFor="password">Password</label><div className={`login-input-wrap ${clientErrors.password ? 'login-input-invalid' : ''}`}><Lock size={19} aria-hidden="true"/><input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required disabled={isLoading} value={password} aria-invalid={!!clientErrors.password} aria-describedby={clientErrors.password ? 'password-error' : undefined} placeholder="Enter your password" onChange={e=>{setPassword(e.target.value);if(clientErrors.password)setClientErrors(prev=>({...prev,password:undefined}));}}/><button type="button" disabled={isLoading} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="login-password-toggle" onClick={()=>setShowPassword(v=>!v)}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div>{clientErrors.password&&<p id="password-error" className="login-field-error">{clientErrors.password}</p>}</div>
+            <div className="login-field"><label htmlFor={`${fieldPrefix}-username`}>Username or official email</label><div className={`login-input-wrap ${clientErrors.username ? 'login-input-invalid' : ''}`}><User size={19} aria-hidden="true"/><input ref={usernameInput} id={`${fieldPrefix}-username`} name={`${fieldPrefix}-username`} type="text" autoComplete={employeeLogin ? 'off' : `${autocompleteSection} username`} autoCapitalize="none" spellCheck={false} autoFocus={!employeeLogin} required disabled={isLoading} value={username} aria-invalid={!!clientErrors.username} aria-describedby={clientErrors.username ? 'username-error' : undefined} placeholder="Enter your username" onChange={e=>{setUsername(e.target.value);if(clientErrors.username)setClientErrors(prev=>({...prev,username:undefined}));}}/></div>{clientErrors.username&&<p id="username-error" className="login-field-error">{clientErrors.username}</p>}</div>
+            <div className="login-field"><label htmlFor={`${fieldPrefix}-password`}>Password</label><div className={`login-input-wrap ${clientErrors.password ? 'login-input-invalid' : ''}`}><Lock size={19} aria-hidden="true"/><input ref={passwordInput} id={`${fieldPrefix}-password`} name={`${fieldPrefix}-password`} type={showPassword ? 'text' : 'password'} autoComplete={employeeLogin ? 'off' : `${autocompleteSection} current-password`} required disabled={isLoading} value={password} aria-invalid={!!clientErrors.password} aria-describedby={clientErrors.password ? 'password-error' : undefined} placeholder="Enter your password" onChange={e=>{setPassword(e.target.value);if(clientErrors.password)setClientErrors(prev=>({...prev,password:undefined}));}}/><button type="button" disabled={isLoading} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="login-password-toggle" onClick={()=>setShowPassword(v=>!v)}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div>{clientErrors.password&&<p id="password-error" className="login-field-error">{clientErrors.password}</p>}</div>
             <button type="submit" className="login-submit" disabled={isLoading}>{isLoading ? <><Loader2 size={19} className="login-spinner" aria-hidden="true"/><span>Signing in…</span></> : <><span>Log In to PharmaSafe</span><ArrowRight size={18} aria-hidden="true"/></>}</button>
             {isLoading&&<p role="status" className="login-progress">Connecting to your workspace. Please allow a moment for the service to respond.</p>}
           </form>

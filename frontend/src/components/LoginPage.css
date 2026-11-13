@@ -9,3 +9,9 @@
 /* Fit the actual header and form to the viewport; scroll only the access panel when necessary. */
 .login-page{height:100dvh;min-height:0;overflow:hidden}.login-story{min-height:0}.login-access{min-height:0;overflow-y:auto;overscroll-behavior:contain}.login-access-top,.login-footer{flex-shrink:0}.login-form-container{flex-shrink:0;padding-top:clamp(20px,4vh,46px);padding-bottom:clamp(20px,4vh,46px)}
 @media(max-width:760px){.login-page{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}.login-access{min-height:0}.login-form-container{padding:24px 0 30px}}
+
+/* Detect browser-inserted credentials without a visible animation. */
+.login-form[data-login-kind="employee"] input:-webkit-autofill {
+  animation: login-autofill-detected 1ms;
+}
+@keyframes login-autofill-detected { from { opacity: 1; } to { opacity: 1; } }
