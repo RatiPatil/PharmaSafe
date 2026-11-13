@@ -11,7 +11,7 @@ describe('Public user access',()=>{
  it('keeps sign in on its own route without account cards',()=>{window.history.replaceState(null,'','/#/login');render(<PublicAccess/>);expect(screen.getByText('Sign in screen')).toBeInTheDocument();expect(screen.queryByRole('button',{name:/Request access as/})).not.toBeInTheDocument();});
  it('offers supported roles without a public administrator registration',async()=>{render(<PublicAccess/>);expect(await screen.findByRole('button',{name:'Request access as Medical Reviewer'})).toBeInTheDocument();expect(screen.queryByRole('button',{name:/Administrator/})).not.toBeInTheDocument();expect(screen.queryByText('Sign in screen')).not.toBeInTheDocument();});
  it('binds the selected role to a server token, shows relevant fields and submits a real request',async()=>{
-  render(<PublicAccess/>);fireEvent.click(await screen.findByRole('button',{name:'Request access as Medical Reviewer'}));
+  render(<PublicAccess/>);await waitFor(()=>expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(2));fireEvent.click(screen.getByRole('button',{name:'Request access as Medical Reviewer'}));
   await screen.findByRole('heading',{name:'Medical Reviewer registration'});
   expect(screen.queryByLabelText('Training')).not.toBeInTheDocument();expect(screen.getByLabelText('Department').tagName).toBe('SELECT');expect(screen.getByLabelText('Medical Qualification').tagName).toBe('SELECT');
   const entries={'Full name':'Synthetic Reviewer','Employee ID':'EMP-1','Official email address':'reviewer@example.test','Mobile number':'+12345678901','Department':'Safety','Designation':'Physician','Organization':'Synthetic Org','Username':'reviewer','Password':'SyntheticPassword123!','Confirm password':'SyntheticPassword123!','Medical Qualification':'MD','Specialization':'Clinical pharmacology','Reason for access':'Assigned review work'};
@@ -29,4 +29,28 @@ describe('Public user access',()=>{
   window.history.replaceState(null,'','/#/forgot-password');render(<PublicAccess/>);fireEvent.change(screen.getByLabelText('Official email or username'),{target:{value:'unknown@example.test'}});fireEvent.click(screen.getByRole('button',{name:'Request administrator review'}));await waitFor(()=>expect(request).toHaveBeenCalledWith('/api/auth/forgot-password','POST',{identifier:'unknown@example.test'}));
  });
  it('shows registration API errors and permits retry',async()=>{render(<PublicAccess/>);await screen.findByRole('button',{name:'Request access as Medical Reviewer'});request.mockRejectedValueOnce(new Error('Service unavailable'));fireEvent.click(screen.getByRole('button',{name:'Request access as Medical Reviewer'}));expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable');expect(screen.getByRole('button',{name:'Request access as Medical Reviewer'})).toBeEnabled();});
+});
+
+describe('account catalogue availability',()=>{
+ it('renders all six public cards immediately while the service is pending',()=>{
+  request.mockImplementation(()=>new Promise(()=>{}));render(<PublicAccess/>);
+  expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(6);
+  expect(screen.queryByText(/Loading account types/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:/Administrator/})).not.toBeInTheDocument();
+ });
+ it('keeps cards visible on failure and retries the connection successfully',async()=>{
+  request.mockRejectedValueOnce(new Error('Offline'));render(<PublicAccess/>);
+  expect(await screen.findByRole('status')).toHaveTextContent('temporarily unavailable');
+  expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(6);
+  fireEvent.click(screen.getByRole('button',{name:'Retry connection'}));
+  await waitFor(()=>expect(screen.queryByText(/temporarily unavailable/)).not.toBeInTheDocument());
+  await waitFor(()=>expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(2));
+ });
+ it('does not open registration or invent a selection token when the service is down',async()=>{
+  request.mockRejectedValue(new Error('Offline'));render(<PublicAccess/>);
+  fireEvent.click(screen.getByRole('button',{name:'Request access as Medical Reviewer'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Offline');
+  expect(screen.queryByRole('heading',{name:'Medical Reviewer registration'})).not.toBeInTheDocument();
+  expect(request).not.toHaveBeenCalledWith('/api/auth/register',expect.anything(),expect.anything());
+ });
 });

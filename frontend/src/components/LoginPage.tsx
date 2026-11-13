@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loader2, RefreshCw, ArrowRight, Check, FileText } from 'lucide-react';
+import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loader2, RefreshCw, ArrowRight } from 'lucide-react';
 import './LoginPage.css';
 
 export const LoginPage: React.FC = () => {
@@ -51,21 +51,11 @@ export const LoginPage: React.FC = () => {
 
   return (
     <main className="login-page">
-      <section className="login-story" aria-label="PharmaSafe">
-        <div className="login-brand"><span className="login-brand-icon"><ShieldCheck aria-hidden="true" size={24}/></span><span>PharmaSafe<span className="login-brand-caption">SAFETY SUITE</span></span></div>
-        <div className="login-story-content">
-          <span className="login-kicker">CONNECTED CASE MANAGEMENT</span>
-          <h2>Clarity for every<br/>safety case.</h2>
-          <p>A focused workspace for your team to capture, review and manage safety information.</p>
-          <div className="login-workflow" aria-hidden="true">
-            <div className="login-workflow-heading"><span className="login-document-icon"><FileText size={21}/></span><div><strong>One case. A connected workflow.</strong><span>From intake to review and reporting</span></div><span className="login-workflow-dot"/></div>
-            <div className="login-paper-lines"><span/><span/><span/></div>
-            <div className="login-workflow-steps"><span><i><Check size={13}/></i>Capture</span><span><i><Check size={13}/></i>Review</span><span><i><ArrowRight size={13}/></i>Report</span></div>
-          </div>
-        </div>
-        <p className="login-story-footer">Pharmacovigilance case management</p>
-        <div className="login-orbit login-orbit-one" aria-hidden="true"/><div className="login-orbit login-orbit-two" aria-hidden="true"/>
-      </section>
+      <div className="login-panel">
+      <aside className="access-photo login-photo" aria-label="Connected clinical care">
+        <img src="/images/clinical-team.webp" alt="Healthcare professional using a digital device in a clinical setting" width="1200" height="800" fetchPriority="high"/>
+        <div className="access-photo-copy"><span><ShieldCheck size={17}/> PHARMASAFE SAFETY SUITE</span><h2>Connected care.<br/>Confident decisions.</h2><p>A clear view of the safety information that matters to your team.</p></div>
+      </aside>
       <section className="login-access" aria-labelledby="login-title">
         <div className="login-access-top"><span role={isInitialLoading?'status':undefined}>{isInitialLoading?<Loader2 size={14} className="login-spinner" aria-hidden="true"/>:<Lock size={14} aria-hidden="true"/>}{isInitialLoading?'Checking existing session…':'Authorized access'}</span></div>
         <div className="login-form-container">
@@ -84,6 +74,7 @@ export const LoginPage: React.FC = () => {
         </div>
         <footer className="login-footer"><span>PharmaSafe Safety Suite</span><span>For authorized users only</span></footer>
       </section>
+      </div>
     </main>
   );
 };

@@ -44,7 +44,9 @@ jobs:
         run: npm ci
 
       - name: Verify shared field validation rules
-        run: node ../scripts/verify-input-rules.mjs
+        run: |
+          node ../scripts/verify-input-rules.mjs
+          node ../scripts/verify-public-role-catalog.mjs
 
       - name: Run Frontend Tests (Vitest)
         run: npm test -- --run

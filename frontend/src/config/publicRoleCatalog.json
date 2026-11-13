@@ -1,0 +1,64 @@
+[
+  {
+    "role": "ROLE_AUDITOR",
+    "name": "Auditor / Viewer",
+    "fields": [
+      "auditOrganization",
+      "auditExperience",
+      "auditScope",
+      "certifications"
+    ]
+  },
+  {
+    "role": "ROLE_CASE_PROCESSOR",
+    "name": "Case Processor",
+    "fields": [
+      "processingDepartment",
+      "businessUnit",
+      "countryRegion",
+      "processingExperience",
+      "training"
+    ]
+  },
+  {
+    "role": "ROLE_MEDICAL_REVIEWER",
+    "name": "Medical Reviewer",
+    "fields": [
+      "medicalQualification",
+      "specialization",
+      "medicalRegistrationNumber",
+      "yearsExperience",
+      "reviewDepartment"
+    ]
+  },
+  {
+    "role": "ROLE_QUALITY_REVIEWER",
+    "name": "Quality Reviewer",
+    "fields": [
+      "qualityDepartment",
+      "qualityExperience",
+      "certifications",
+      "businessUnit"
+    ]
+  },
+  {
+    "role": "ROLE_REPORTING_SPECIALIST",
+    "name": "Reporting Specialist",
+    "fields": [
+      "reportingDepartment",
+      "countryRegion",
+      "reportingExperience",
+      "training"
+    ]
+  },
+  {
+    "role": "ROLE_SAFETY_MANAGER",
+    "name": "Safety Manager",
+    "fields": [
+      "managementDepartment",
+      "managementExperience",
+      "businessUnit",
+      "responsibilities"
+    ]
+  }
+]

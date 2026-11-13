@@ -164,3 +164,17 @@ Access worklists use six readable columns and a horizontally scrollable table wh
 The dashboard UI presents the existing `/api/workspace/overview` response in role-specific KPI cards, a selectable workflow doughnut chart, workflow-stage bars and seriousness/priority counts. Counts retain the existing role scope and labels. Highlighting a legend entry affects only the chart presentation. Seriousness and expedited priority are labelled as overlapping indicators; they are not added together. Empty scopes display zero and an empty-state explanation. No synthetic trend data is generated. The existing dashboard refresh and operational action handlers are reused.
 
 The shared theme includes local medical photography, navigation icons, consistent controls and subtle entry/bar transitions. Reduced-motion preferences disable the decorative transitions. Photography sources are recorded in `frontend/public/images/CREDITS.md`. The original presentation update preserved authentication, API behaviour, permissions, database schemas and case workflows. Subsequent role statistics and shared input checks are documented in [input-validation.md](input-validation.md).
+
+## Public access availability and photography
+
+Public role cards render from a bundled catalogue immediately, without waiting for
+backend startup. CI verifies the bundled roles, names and field lists against the
+server catalogue. A background refresh has a 20-second deadline, with a clear
+connection notice and retry after failure. Failure never hides the cards or leaves
+a permanent loading label. Selecting a card still requires a signed server token;
+registration and administrator approval checks are unchanged.
+
+Login and password recovery use locally hosted medical photographs with readable
+overlays and matching form panels. Narrow viewports use compact image banners;
+small screens retain accessible scrolling. Existing image attribution is in
+`frontend/public/images/CREDITS.md`.

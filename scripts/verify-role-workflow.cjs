@@ -37,8 +37,14 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   // because this isolated H2 harness has no PostgreSQL rate-limit table.
   const publicContext=await browser.newContext({viewport:{width:1440,height:1000}});
   const publicPage=await publicContext.newPage();
+  await publicPage.route('**/api/auth/access-roles',r=>r.abort());
   await publicPage.goto(origin+'/#/home');
   await publicPage.getByRole('heading',{name:'Find your place in the safety workflow.'}).waitFor();
+  await publicPage.getByText(/The access service is temporarily unavailable/).waitFor();
+  if(await publicPage.getByRole('button',{name:/Request access as/}).count()!==6)throw Error('Public cards must remain visible during backend failure');
+  await publicPage.unroute('**/api/auth/access-roles');await publicPage.getByRole('button',{name:'Retry connection',exact:true}).click();
+  await publicPage.getByText(/The access service is temporarily unavailable/).waitFor({state:'hidden'});
+  console.log('PASS immediate six-role catalogue during API failure and successful connection retry');
   if(await publicPage.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).count())throw Error('Login form must not appear on home');
   await publicPage.getByRole('button',{name:'Request access as Medical Reviewer',exact:true}).waitFor();
   fs.mkdirSync(path.join(qaDirectory,'screens'),{recursive:true});
@@ -58,6 +64,9 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    if(layout.overflow||layout.nested)throw Error('Registration must use one page scroll '+width);
    await publicPage.screenshot({path:path.join(qaDirectory,'screens',`registration-${width}.png`),fullPage:true});
   }
+  await publicPage.goto(origin+'/#/forgot-password');await publicPage.getByLabel('Official email or username').waitFor();
+  for(const width of [1440,768,390]){await publicPage.setViewportSize({width,height:900});if(await publicPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Recovery page overflow '+width);if(!await publicPage.locator('.recovery-photo img').evaluate(img=>img.complete&&img.naturalWidth>0))throw Error('Recovery image missing');await publicPage.screenshot({path:path.join(qaDirectory,'screens',`recovery-${width}.png`),fullPage:true});}
+  console.log('PASS photographic recovery page at desktop, tablet and mobile');
   await publicContext.close();console.log('PASS separate public home, role dropdowns and registration at desktop/tablet/mobile with one scroll surface');
 
   async function login(username,home){const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);const p=await context.newPage();diagnosticPage=p;p.on('pageerror',e=>failures.push(e.message));p.on('dialog',d=>d.accept());const heldSessions=[];let holdStartup=username==='ui-admin';const roleModules=[];p.on('request',r=>{if(/\/src\/components\/(RoleWorkspace|CaseEntryForm)\.tsx/.test(r.url()))roleModules.push(r.url());});
