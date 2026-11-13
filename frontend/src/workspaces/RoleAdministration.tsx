@@ -1,3 +1,4 @@
+import { RoleInsights, RoleOverviewPreview } from "./RoleInsights";
 import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
@@ -249,6 +250,9 @@ export function RoleAdministration({
   const slot = summary?.roles.find((r) => r.role === role);
   const selectTab = (next: Tab) => {
     setTab(next);
+    setFilters({});
+    setApplied({});
+    setQuery("");
     setPage(0);
     setError("");
     setNotice("");
@@ -585,7 +589,7 @@ export function RoleAdministration({
             Order
             <select
               aria-label="Order"
-              value={filters.direction || "desc"}
+              value={filters.direction || (tab === "users" ? "asc" : "desc")}
               onChange={(e) =>
                 setFilters((f) => ({ ...f, direction: e.target.value }))
               }
@@ -700,24 +704,66 @@ export function RoleAdministration({
       {metrics}
       {tab === "overview" && summary && (
         <>
-          <RoleCards
-            roles={summary.roles}
-            onOpen={(r) => {
-              selectRole(r);
-              selectTab("users");
+          {!role ? (
+            <RoleCards
+              roles={summary.roles}
+              onOpen={(r) => {
+                selectRole(r);
+                selectTab("overview");
+              }}
+            />
+          ) : (
+            <section className="ws-card insight-role-owner">
+              <div>
+                <p className="premium-kicker">ROLE OPERATIONS</p>
+                <h3>{roleName(role)} dashboard</h3>
+                <p>
+                  {slot?.administrator
+                    ? `Assigned Role Admin: ${employeeLabel(slot.administrator)}`
+                    : "Super Admin is managing this role until a Role Admin is assigned."}
+                </p>
+              </div>
+              <div className="ws-actions">
+                <button onClick={() => selectTab("users")}>
+                  Manage employees
+                </button>
+                <button
+                  onClick={() => {
+                    selectTab("registrations");
+                    setApplied({ status: "PENDING" });
+                    setFilters({ status: "PENDING" });
+                  }}
+                >
+                  Pending approvals
+                </button>
+              </div>
+            </section>
+          )}
+          <RoleInsights
+            role={role}
+            refresh={refresh}
+            people={{
+              Pending: summary.pending,
+              Approved: summary.approved,
+              Rejected: summary.rejected,
+              Suspended: summary.suspended,
             }}
           />
-          <section className="ws-card admin-identity-note">
-            <ShieldCheck size={21} />
-            <div>
-              <h3>Clear ownership for every employee</h3>
-              <p>
-                Use the full name, permanent staff code and unique username
-                together. Open an employee’s work to view their created,
-                assigned or reviewed case records.
-              </p>
-            </div>
-          </section>
+          {role && (
+            <RoleOverviewPreview
+              role={role}
+              reporting={role === "ROLE_REPORTING_SPECIALIST"}
+              refresh={refresh}
+              onEmployee={showWork}
+              onUsers={() => selectTab("users")}
+              onWork={() =>
+                selectTab(
+                  role === "ROLE_REPORTING_SPECIALIST" ? "report-work" : "work",
+                )
+              }
+              onRequests={() => selectTab("registrations")}
+            />
+          )}
         </>
       )}
       {filtersUI}
@@ -906,6 +952,13 @@ export function RoleAdministration({
             </button>
           )}
         </div>
+      )}
+      {workUser && (tab === "work" || tab === "report-work") && (
+        <RoleInsights
+          role={role}
+          userId={Number(workUser.userId)}
+          refresh={refresh}
+        />
       )}
       {!["overview", "assignments"].includes(tab) && (
         <>

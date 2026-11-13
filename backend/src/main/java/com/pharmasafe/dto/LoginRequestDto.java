@@ -5,35 +5,56 @@ import jakarta.validation.constraints.Size;
 
 public class LoginRequestDto {
 
-    @NotBlank(message = "Username is required")
-    @Size(max = 254, message = "Username or email cannot exceed 254 characters")
-    private String username;
+  @NotBlank(message = "Username is required")
+  @Size(max = 254, message = "Username or email cannot exceed 254 characters")
+  private String username;
 
-    @NotBlank(message = "Password is required")
-    @Size(max = 128, message = "Password cannot exceed 128 characters")
-    private String password;
+  @NotBlank(message = "Password is required")
+  @Size(max = 128, message = "Password cannot exceed 128 characters")
+  private String password;
 
-    public LoginRequestDto() {
-    }
+  @Size(max = 32)
+  private String applicationRole;
 
-    public LoginRequestDto(String username, String password) {
-        this.username = username;
-        this.password = password;
-    }
+  @jakarta.validation.constraints.Pattern(regexp = "USER|ROLE_ADMIN")
+  private String loginMode;
 
-    public String getUsername() {
-        return username;
-    }
+  public String getApplicationRole() {
+    return applicationRole;
+  }
 
-    public void setUsername(String username) {
-        this.username = username;
-    }
+  public void setApplicationRole(String value) {
+    applicationRole = value;
+  }
 
-    public String getPassword() {
-        return password;
-    }
+  public String getLoginMode() {
+    return loginMode;
+  }
 
-    public void setPassword(String password) {
-        this.password = password;
-    }
+  public void setLoginMode(String value) {
+    loginMode = value;
+  }
+
+  public LoginRequestDto() {}
+
+  public LoginRequestDto(String username, String password) {
+    this.username = username;
+    this.password = password;
+  }
+
+  public String getUsername() {
+    return username;
+  }
+
+  public void setUsername(String username) {
+    this.username = username;
+  }
+
+  public String getPassword() {
+    return password;
+  }
+
+  public void setPassword(String password) {
+    this.password = password;
+  }
 }

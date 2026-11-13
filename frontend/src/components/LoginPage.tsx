@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loader2, RefreshCw, ArrowRight } from 'lucide-react';
 import './LoginPage.css';
 
-export const LoginPage: React.FC = () => {
+export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;adminLogin?:boolean;registerHref?:string}> = ({applicationRole,roleName,adminLogin=false,registerHref}) => {
   const { login, error, clearError, isLoading, isConnectionError, isInitialLoading } = useAuth();
 
+  useEffect(()=>{if(applicationRole)clearError();},[applicationRole,adminLogin]);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +35,7 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    await login(username.trim(), password);
+    if(applicationRole)await login(username.trim(),password,{applicationRole,loginMode:adminLogin?'ROLE_ADMIN':'USER'});else await login(username.trim(),password);
   };
 
   const isLockedAccount = Boolean(error && error.toLowerCase().includes('lock'));
@@ -59,8 +60,8 @@ export const LoginPage: React.FC = () => {
       <section className="login-access" aria-labelledby="login-title">
         <div className="login-access-top"><span role={isInitialLoading?'status':undefined}>{isInitialLoading?<Loader2 size={14} className="login-spinner" aria-hidden="true"/>:<Lock size={14} aria-hidden="true"/>}{isInitialLoading?'Checking existing session…':'Authorized access'}</span></div>
         <div className="login-form-container">
-          <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">Sign in to PharmaSafe</h1><p>Access your approved safety workspace.</p></div>
-          <p className="login-recovery-links"><a href="#/home">Request access</a><a href="#/forgot-password">Forgot password?</a></p><form onSubmit={handleSubmit} className="login-form" noValidate aria-busy={isLoading}>
+          <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">{roleName?`${roleName}${adminLogin?' Admin':''} sign in`:'Sign in to PharmaSafe'}</h1><p>{roleName?`Use your approved ${adminLogin?'Role Admin':'employee'} account for this role.`:'Access your approved safety workspace.'}</p></div>
+          <p className="login-recovery-links"><a href={registerHref||"#/home"}>Request access</a><a href="#/forgot-password">Forgot password?</a></p><form onSubmit={handleSubmit} className="login-form" noValidate aria-busy={isLoading}>
             {error && <div role="alert" className={`login-alert ${isLockedAccount ? 'login-alert-warning' : isConnFailure ? 'login-alert-connection' : 'login-alert-error'}`}>
               {isLockedAccount ? <AlertTriangle size={19} aria-hidden="true"/> : <AlertCircle size={19} aria-hidden="true"/>}
               <div><strong>{isLockedAccount ? 'Account Locked' : isInactiveAccount ? 'Account Inactive' : isConnFailure ? 'Connection interrupted' : 'Authentication Failure'}</strong><p>{error}</p>{isConnFailure && <><button type="button" disabled={isLoading} onClick={handleSubmit} className="login-retry"><RefreshCw size={14} aria-hidden="true"/>Retry Authentication</button><p className="login-alert-hint">The service may take a little longer to start. Your entries have been kept.</p></>}</div>

@@ -620,7 +620,7 @@ public class AdministrationService {
     return roleSummary(role);
   }
 
-  private Specification<SafetyCase> workScope(String role, Long userId) {
+  Specification<SafetyCase> workScope(String role, Long userId) {
     return (root, q, cb) -> {
       var usersQuery = q.subquery(Long.class);
       var member = usersQuery.from(User.class);

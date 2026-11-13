@@ -129,6 +129,14 @@ public class AuthenticationService {
             }
         }
 
+        // A role portal restricts sign-in; it never grants the requested role.
+        if(request.getApplicationRole()!=null||request.getLoginMode()!=null){
+            String role=request.getApplicationRole(),mode=request.getLoginMode();
+            if(!AccessRoleCatalog.FIELDS.containsKey(role==null?"":role)||!java.util.Set.of("USER","ROLE_ADMIN").contains(mode==null?"":mode))throw new IllegalArgumentException("Choose a supported role and sign-in tab");
+            boolean allowed="USER".equals(mode)?role.equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())):com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())&&adminAssignments.findByAdministratorId(user.getId()).map(a->role.equals(a.applicationRole)).orElse(false);
+            if(!allowed){auditService.logEvent("LOGIN_PORTAL_DENIED",normalizedUsername,clientIp,userAgent,"DENIED","Account does not match the selected role portal");throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,"This account is not assigned to the selected role and login tab. Choose the matching role or use general sign in.");}
+        }
+
         // On successful authentication: reset failed attempt counter, auto-clear any residual locked status, and update last login timestamp
         user.setFailedLoginAttempts(0);
         if (user.isLocked()) {

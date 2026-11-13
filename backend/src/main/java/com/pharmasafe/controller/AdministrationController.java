@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/administration")
 @PreAuthorize("hasAnyRole('ADMIN','SCOPED_ADMIN')")
 public class AdministrationController {
+  @org.springframework.beans.factory.annotation.Autowired private AdministrationAnalytics analytics;
   private final AdministrationService admin;
   private final UserAccessService access;
 
@@ -41,6 +42,7 @@ public class AdministrationController {
   public record Release(
       @NotBlank @Size(max = 2000) String reason, @NotNull @PositiveOrZero Long expectedVersion) {}
 
+  @GetMapping("/analytics") public Map<String,Object> analytics(Authentication a,@RequestParam(defaultValue="") String role,@RequestParam(required=false) Long userId){return analytics.overview(a.getName(),role,userId);}
   @GetMapping("/overview")
   public Map<String, Object> overview(
       Authentication a, @RequestParam(defaultValue = "") String role) {

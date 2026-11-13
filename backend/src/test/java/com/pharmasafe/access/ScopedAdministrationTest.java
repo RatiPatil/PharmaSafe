@@ -168,6 +168,106 @@ class ScopedAdministrationTest {
   }
 
   @Test
+  void dedicatedLoginPortalsRestrictIdentityRatherThanGrantingRequestedRoles() throws Exception {
+    mvc.perform(
+            post("/api/auth/login")
+                .contentType("application/json")
+                .content(
+                    json.writeValueAsBytes(
+                        Map.of(
+                            "username",
+                            alice.getUsername(),
+                            "password",
+                            PW,
+                            "applicationRole",
+                            PROCESSOR,
+                            "loginMode",
+                            "USER"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.user.role").value(PROCESSOR));
+    for (var entry :
+        List.of(
+            new String[] {alice.getUsername(), MEDICAL, "USER"},
+            new String[] {alice.getUsername(), PROCESSOR, "ROLE_ADMIN"},
+            new String[] {ra.getUsername(), MEDICAL, "ROLE_ADMIN"},
+            new String[] {ra.getUsername(), PROCESSOR, "USER"},
+            new String[] {root.getUsername(), PROCESSOR, "ROLE_ADMIN"})) {
+      var result =
+          mvc.perform(
+                  post("/api/auth/login")
+                      .contentType("application/json")
+                      .content(
+                          json.writeValueAsBytes(
+                              Map.of(
+                                  "username",
+                                  entry[0],
+                                  "password",
+                                  PW,
+                                  "applicationRole",
+                                  entry[1],
+                                  "loginMode",
+                                  entry[2]))))
+              .andExpect(status().isForbidden())
+              .andReturn();
+      var session = result.getRequest().getSession(false);
+      assertTrue(session == null || session.getAttribute("SPRING_SECURITY_CONTEXT") == null);
+    }
+    mvc.perform(
+            post("/api/auth/login")
+                .contentType("application/json")
+                .content(
+                    json.writeValueAsBytes(
+                        Map.of(
+                            "username",
+                            ra.getUsername(),
+                            "password",
+                            PW,
+                            "applicationRole",
+                            PROCESSOR,
+                            "loginMode",
+                            "ROLE_ADMIN"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.user.managedRole").value(PROCESSOR));
+    assertEquals(PROCESSOR, users.findById(alice.getId()).orElseThrow().getRole());
+  }
+
+  @Test
+  void roleAndEmployeeAnalyticsUseTheSameDatabaseOwnershipAsTheWorkList() throws Exception {
+    workCase("ANALYTICS-P", alice);
+    workCase("ANALYTICS-M", medical);
+    activity.saveAndFlush(
+        new AuditEvent("CASE_UPDATED", alice.getUsername(), null, null, "SUCCESS", "Own activity"));
+    activity.saveAndFlush(
+        new AuditEvent(
+            "CASE_UPDATED", medical.getUsername(), null, null, "SUCCESS", "Foreign activity"));
+    mvc.perform(get("/api/administration/analytics").with(roleAdmin()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalCases").value(1))
+        .andExpect(jsonPath("$.totalActivity").value(1))
+        .andExpect(jsonPath("$.caseStates['Data Entry']").value(1));
+    mvc.perform(
+            get("/api/administration/analytics")
+                .param("userId", bob.getId().toString())
+                .with(roleAdmin()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalCases").value(0));
+    mvc.perform(
+            get("/api/administration/analytics")
+                .param("userId", medical.getId().toString())
+                .with(roleAdmin()))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/administration/analytics").param("role", MEDICAL).with(roleAdmin()))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/administration/analytics").with(superAdmin()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalCases").value(2));
+    mvc.perform(
+            get("/api/administration/analytics")
+                .with(user(alice.getUsername()).roles("CASE_PROCESSOR")))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
   void duplicateEmployeeNamesHaveStableDifferentStaffCodesAndUsernames() throws Exception {
     assertEquals(alice.getFullName(), bob.getFullName());
     assertNotEquals(alice.getStaffCode(), bob.getStaffCode());

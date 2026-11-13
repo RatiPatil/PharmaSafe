@@ -1050,6 +1050,24 @@
     },
     "admin.reason": {
       "max": 2000
+    },
+    "auth.applicationRole": {
+      "max": 32,
+      "enum": [
+        "ROLE_AUDITOR",
+        "ROLE_CASE_PROCESSOR",
+        "ROLE_MEDICAL_REVIEWER",
+        "ROLE_QUALITY_REVIEWER",
+        "ROLE_REPORTING_SPECIALIST",
+        "ROLE_SAFETY_MANAGER"
+      ]
+    },
+    "auth.loginMode": {
+      "max": 16,
+      "enum": [
+        "USER",
+        "ROLE_ADMIN"
+      ]
     }
   },
   "registrationChoices": {

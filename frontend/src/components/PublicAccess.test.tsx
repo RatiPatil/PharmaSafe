@@ -28,7 +28,7 @@ describe('Public user access',()=>{
  it('submits generic recovery requests',async()=>{
   window.history.replaceState(null,'','/#/forgot-password');render(<PublicAccess/>);fireEvent.change(screen.getByLabelText('Official email or username'),{target:{value:'unknown@example.test'}});fireEvent.click(screen.getByRole('button',{name:'Request administrator review'}));await waitFor(()=>expect(request).toHaveBeenCalledWith('/api/auth/forgot-password','POST',{identifier:'unknown@example.test'}));
  });
- it('shows registration API errors and permits retry',async()=>{render(<PublicAccess/>);await screen.findByRole('button',{name:'Request access as Medical Reviewer'});request.mockRejectedValueOnce(new Error('Service unavailable'));fireEvent.click(screen.getByRole('button',{name:'Request access as Medical Reviewer'}));expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable');expect(screen.getByRole('button',{name:'Request access as Medical Reviewer'})).toBeEnabled();});
+ it('shows registration API errors and permits retry',async()=>{render(<PublicAccess/>);await screen.findByRole('button',{name:'Request access as Medical Reviewer'});request.mockRejectedValueOnce(new Error('Service unavailable'));fireEvent.click(screen.getByRole('button',{name:'Request access as Medical Reviewer'}));expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable');expect(screen.getByRole('button',{name:'Retry registration'})).toBeEnabled();});
 });
 
 describe('account catalogue availability',()=>{
@@ -53,4 +53,10 @@ describe('account catalogue availability',()=>{
   expect(screen.queryByRole('heading',{name:'Medical Reviewer registration'})).not.toBeInTheDocument();
   expect(request).not.toHaveBeenCalledWith('/api/auth/register',expect.anything(),expect.anything());
  });
+});
+
+describe('dedicated role access pages',()=>{
+ it('opens the selected role login from the new registration card action',async()=>{render(<PublicAccess/>);const link=screen.getByRole('link',{name:'New registration for Medical Reviewer'});expect(link).toHaveAttribute('href','#/access/ROLE_MEDICAL_REVIEWER/user');});
+ it('shows only the selected role and its three access tabs',()=>{window.history.replaceState(null,'','/#/access/ROLE_MEDICAL_REVIEWER/admin');render(<PublicAccess/>);expect(screen.getByRole('heading',{name:'Medical Reviewer'})).toBeInTheDocument();expect(screen.getByRole('navigation',{name:'Role access tabs'})).toBeInTheDocument();expect(screen.getByRole('link',{name:'Role Admin login'})).toHaveAttribute('aria-current','page');expect(screen.queryByRole('heading',{name:'Case Processor'})).not.toBeInTheDocument();});
+ it('restores a role-specific registration page on direct navigation',async()=>{window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register');render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});expect(screen.queryByLabelText('Medical Qualification')).not.toBeInTheDocument();expect(screen.getByLabelText('Training')).toBeInTheDocument();});
 });

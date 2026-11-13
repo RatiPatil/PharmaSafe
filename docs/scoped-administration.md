@@ -2,8 +2,8 @@
 
 The existing administrator account is now presented as **Super Admin**. Its
 username, password hash, user ID, case relationships and existing dashboard layout
-are preserved. Role management and role cards are added to that workspace; public
-home and sign-in pages are unchanged in this phase.
+are preserved. Role management and role cards are added to that workspace; the existing general sign-in remains available. Dedicated public role access pages
+are described below.
 
 ## Authorities and boundaries
 
@@ -169,3 +169,45 @@ Employee activity is scoped using current role membership. Administrative decisi
 store the role at the time of the action, preserving assignment and decision history.
 This implementation does not add a Reporter workflow, configurable permission
 editor, public admin signup, invitation delivery system or Oracle certification.
+
+
+## Dedicated role access and dashboards
+
+Each public role card offers Sign in and New register actions opening
+`#/access/<application-role>/user`. The selected role's access page has three tabs:
+
+- `/user`: employee login for this application role.
+- `/admin`: login for the active Role Admin assigned to this application role.
+- `/register`: normal employee registration for this role, including its required
+  qualification fields and a fresh server-signed selection token. The registration
+  page also works after a direct navigation or reload.
+
+These are six dedicated role portals using the existing theme. There is no public
+Role Admin or Super Admin registration. General `#/login` remains available for
+Super Admin and existing bookmarks. Account status, CSRF, password reset, session
+verification and approval requirements are preserved.
+
+Role portal login requests carry optional `applicationRole` and `loginMode` intent.
+The server checks the password and compares that intent with the existing database
+identity and active assignment before creating a session. Intent restricts login;
+it never assigns a role. A correct password entered into the wrong role or account
+type tab is rejected without issuing a new authenticated session. Legacy login
+requests without these fields retain their existing behavior.
+
+Clicking any Super Admin role card now opens that role's dashboard with employee
+status, case workflow, report progress, case priorities and recorded activity
+charts, plus employee/work previews and management actions. The dedicated Role
+Admin uses the same dashboard component and backend ownership rules for its own
+role, without an application-role switcher. Employee work views add individually
+scoped charts keyed by immutable user ID, not by potentially duplicated names.
+Normal employee operational dashboards remain role-specific and keep their
+existing clinical permissions.
+
+`GET /api/administration/analytics?role=&userId=` returns read-only aggregates using
+the same supervisory case/report ownership as the work lists. Foreign role or
+employee IDs are rejected. Workflow/category counts come from all scoped records,
+not the current table page. Recorded activity includes sign-ins and is explicitly
+not a productivity score. Empty categories show empty states rather than sample
+numbers; no invented trends are displayed. Case contributions can overlap across
+roles when multiple teams worked on the same case. No additional migration is
+required for this read-only analytics and access-page update.
