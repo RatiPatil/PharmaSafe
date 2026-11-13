@@ -178,3 +178,7 @@ Login and password recovery use locally hosted medical photographs with readable
 overlays and matching form panels. Narrow viewports use compact image banners;
 small screens retain accessible scrolling. Existing image attribution is in
 `frontend/public/images/CREDITS.md`.
+
+Recovery screens reserve space for the header and footer and use compact spacing
+at shorter viewport heights. The browser regression suite checks eight viewport
+sizes for page overflow, nested vertical scrollers and clipped recovery controls.

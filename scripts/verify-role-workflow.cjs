@@ -66,6 +66,10 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   }
   await publicPage.goto(origin+'/#/forgot-password');await publicPage.getByLabel('Official email or username').waitFor();
   for(const width of [1440,768,390]){await publicPage.setViewportSize({width,height:900});if(await publicPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Recovery page overflow '+width);if(!await publicPage.locator('.recovery-photo img').evaluate(img=>img.complete&&img.naturalWidth>0))throw Error('Recovery image missing');await publicPage.screenshot({path:path.join(qaDirectory,'screens',`recovery-${width}.png`),fullPage:true});}
+  for(const [width,height]of [[1920,1080],[1440,900],[1366,768],[1280,720],[1024,640],[768,640],[390,700],[320,640]]){
+   await publicPage.setViewportSize({width,height});const fit=await publicPage.evaluate(()=>{const root=document.documentElement,submit=document.querySelector('.pa-recovery button[type=submit]').getBoundingClientRect(),footer=document.querySelector('.pa-footer').getBoundingClientRect();return {height:root.scrollHeight,viewport:innerHeight,scroll:root.scrollHeight>innerHeight+1,clipped:submit.bottom>innerHeight||footer.bottom>innerHeight+1,nested:[...document.querySelectorAll('.public-recovery *')].filter(e=>e.scrollHeight>e.clientHeight+2&&['auto','scroll'].includes(getComputedStyle(e).overflowY)).length};});if(fit.scroll||fit.clipped||fit.nested)throw Error('Recovery must fit without a scrollbar '+width+'x'+height+' '+JSON.stringify(fit));
+  }
+  console.log('PASS recovery fits eight desktop, tablet and mobile viewports without scrollbars or clipped controls');
   console.log('PASS photographic recovery page at desktop, tablet and mobile');
   await publicContext.close();console.log('PASS separate public home, role dropdowns and registration at desktop/tablet/mobile with one scroll surface');
 
