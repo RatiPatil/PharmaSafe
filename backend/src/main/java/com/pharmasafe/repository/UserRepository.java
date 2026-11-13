@@ -29,6 +29,7 @@ public interface UserRepository extends JpaRepository<User, Long>, org.springfra
     @Query("SELECT u FROM User u WHERE u.username = :username")
     Optional<User> findByUsernameForUpdate(@Param("username") String username);
     long countByEnabledTrue();
+    long countByRole(String role);
     long countByAccountStatus(String status);
     long countByLockedTrue();
     @Query("SELECT u.role, COUNT(u) FROM User u GROUP BY u.role ORDER BY u.role")

@@ -72,7 +72,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, com.pharmasafe.repository.UserRepository users) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, com.pharmasafe.repository.UserRepository users, com.pharmasafe.administration.AdministrativeAudit administrativeAudit) throws Exception {
         CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
         // Set to null to resolve token eagerly on every request
         requestHandler.setCsrfRequestAttributeName(null);
@@ -100,6 +100,7 @@ public class SecurityConfig {
             )
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                .accessDeniedHandler((request,response,error)->{var a=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();if(a!=null&&request.getRequestURI().startsWith("/api/admin"))administrativeAudit.denied(a.getName(),null,request.getRequestURI());response.setStatus(403);response.setContentType("application/json");response.getWriter().write("{\"message\":\"Access denied: insufficient permissions\"}");})
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
@@ -116,8 +117,10 @@ public class SecurityConfig {
                 ).permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/cases").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/cases/*").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
+                .requestMatchers("/api/administration/assignments/**", "/api/administration/eligible-administrators").hasRole("ADMIN")
+                .requestMatchers("/api/administration/**").hasAnyRole("ADMIN", "SCOPED_ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/auth/**").authenticated()
+                .requestMatchers("/api/auth/**", "/api/profile", "/api/profile/**").authenticated()
                 .anyRequest().hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER", "MEDICAL_REVIEWER",
                         "QUALITY_REVIEWER", "SAFETY_MANAGER", "REPORTING_SPECIALIST", "AUDITOR")
             );

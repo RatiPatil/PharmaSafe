@@ -16,6 +16,9 @@ import java.util.*;
 
 @Service
 public class UserAccessService {
+ @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.AdminScope adminScope;
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.AdministrativeAudit adminAudit;
  private final UserRepository users;
  private final RegistrationRequestRepository registrations;
  private final PasswordResetRequestRepository resets;
@@ -54,24 +57,31 @@ public class UserAccessService {
  private void audit(String action,String actor,User user,Long requestId,String reason){audit.logAccountEvent(action,actor,"userId="+user.getId()+"; requestId="+requestId+"; reason="+reason);}
  @Transactional
  public Map<String,Object> decideRegistration(Long id,String decision,String reason,String actor){
+  var candidate=registrations.findById(id).orElseThrow(()->new EntityNotFoundException("Request not found"));adminScope.mutationTarget(actor,candidate.user);
   var r=registrations.lockById(id).orElseThrow(()->new EntityNotFoundException("Request not found"));
-  var u=users.lockById(r.user.getId()).orElseThrow();
+  em.refresh(r);var u=users.lockById(r.user.getId()).orElseThrow();em.refresh(u);
+  adminScope.target(actor,u);
+  if(r.reviewedAt!=null)throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"This request has already been processed. Refresh the list.");
   if(!"PENDING".equals(u.getAccountStatus()))throw new IllegalArgumentException("Only pending requests can be approved or rejected");
   if(!Set.of("approve","reject").contains(decision))throw new IllegalArgumentException("Unsupported decision");
   String why=reason(reason);User a=admin(actor);r.reviewedBy=a;r.reviewedAt=Instant.now();r.decisionReason=why;
   u.setAccountStatus(decision.equals("approve")?"APPROVED":"REJECTED");u.setEnabled(decision.equals("approve"));
   if(decision.equals("approve")){u.setRole(r.requestedRole);u.setApprovedBy(a.getId());u.setApprovedAt(r.reviewedAt);}
+  adminAudit.record(a,r.requestedRole,u,r.id,"REGISTRATION_"+decision.toUpperCase(),"PENDING",u.getAccountStatus(),why,null);
   u.revokeSessions();audit(decision.equals("approve")?"REGISTRATION_APPROVED":"REGISTRATION_REJECTED",actor,u,r.id,why);
   return registrationView(r);
  }
  @Transactional
  public Map<String,Object> accountStatus(Long id,String action,String reason,String actor){
-  var u=users.lockById(id).orElseThrow(()->new EntityNotFoundException("User not found"));
-  if(u.getUsername().equals(actor)||"ROLE_ADMIN".equals(u.getRole()))throw new IllegalArgumentException("Administrator access must be managed through the existing controlled administrator process");
+  var candidate=users.findById(id).orElseThrow(()->new EntityNotFoundException("User not found"));adminScope.mutationTarget(actor,candidate);
+  var u=users.lockById(id).orElseThrow(()->new EntityNotFoundException("User not found"));em.refresh(u);
+  adminScope.target(actor,u);String previousStatus=u.getAccountStatus();
+  if(u.getUsername().equals(actor)||Set.of("ROLE_ADMIN","ROLE_SCOPED_ADMIN").contains(u.getRole()))throw new IllegalArgumentException("Administrator access must be managed through the existing controlled administrator process");
   String why=reason(reason);
   if(action.equals("suspend")&&u.isApproved()){u.setAccountStatus("SUSPENDED");u.setEnabled(false);}
   else if(action.equals("activate")&&"SUSPENDED".equals(u.getAccountStatus())){u.setAccountStatus("APPROVED");u.setEnabled(true);}
   else throw new IllegalArgumentException("Only approved accounts can be suspended and suspended accounts activated");
+  adminAudit.record(admin(actor),u.getRole(),u,null,"ACCOUNT_"+action.toUpperCase(),previousStatus,u.getAccountStatus(),why,null);
   u.revokeSessions();audit(action.equals("suspend")?"ACCOUNT_SUSPENDED":"ACCOUNT_ACTIVATED",actor,u,null,why);return userView(u);
  }
  @Transactional
@@ -86,8 +96,10 @@ public class UserAccessService {
  @Transactional
  public Map<String,Object> decideReset(Long id,String decision,String reason,String actor){
   var candidate=resets.findById(id).orElseThrow(()->new EntityNotFoundException("Reset request not found"));
-  var u=users.lockById(candidate.user.getId()).orElseThrow();
-  var r=resets.lockById(id).orElseThrow();
+  adminScope.mutationTarget(actor,candidate.user);
+  var u=users.lockById(candidate.user.getId()).orElseThrow();em.refresh(u);
+  var r=resets.lockById(id).orElseThrow();em.refresh(r);
+  adminScope.target(actor,u);
   if(!r.status.equals("PENDING"))throw new IllegalArgumentException("Only pending requests can be reviewed");
   if(!Set.of("approve","reject").contains(decision))throw new IllegalArgumentException("Unsupported decision");
   String why=reason(reason);
@@ -97,6 +109,7 @@ public class UserAccessService {
    r.tokenHash=hash(token);r.issuedAuthVersion=u.getAuthVersion();r.expiresAt=Instant.now().plusSeconds(1800);mail.sendReset(u.getEmail(),token);
   }
   r.status=decision.equals("approve")?"APPROVED":"REJECTED";r.reviewedBy=admin(actor);r.reviewedAt=Instant.now();r.decisionReason=why;
+  adminAudit.record(admin(actor),u.getRole(),u,r.id,"RESET_"+decision.toUpperCase(),"PENDING",r.status,why,null);
   audit(decision.equals("approve")?"PASSWORD_RESET_APPROVED":"PASSWORD_RESET_REJECTED",actor,u,r.id,why);return resetView(r);
  }
  public static String hash(String token){try{return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));}catch(NoSuchAlgorithmException e){throw new IllegalStateException("Hash unavailable");}}
@@ -104,7 +117,7 @@ public class UserAccessService {
  public void reset(String token,String password,String confirm){
   validatePassword(password);if(!password.equals(confirm))throw new IllegalArgumentException("Passwords do not match");
   var candidate=resets.findByTokenHash(hash(token)).orElseThrow(()->new IllegalArgumentException("Reset link is invalid or expired"));
-  var u=users.lockById(candidate.user.getId()).orElseThrow();var r=resets.lockById(candidate.id).orElseThrow();
+  var u=users.lockById(candidate.user.getId()).orElseThrow();em.refresh(u);var r=resets.lockById(candidate.id).orElseThrow();em.refresh(r);
   if(!"APPROVED".equals(r.status)||r.tokenHash==null||r.issuedAuthVersion==null||r.issuedAuthVersion!=u.getAuthVersion()||r.expiresAt==null||!r.expiresAt.isAfter(Instant.now())||!u.isApproved()||!u.isEnabled())throw new IllegalArgumentException("Reset link is invalid or expired");
   // Invalidate all other issued links when this password changes.
   u.setPasswordHash(encoder.encode(password));u.revokeSessions();u.setFailedLoginAttempts(0);u.setLocked(false);u.setLockedAt(null);
@@ -115,13 +128,13 @@ public class UserAccessService {
   audit("PASSWORD_CHANGED",u.getUsername(),u,r.id,"Single-use recovery completed; sessions revoked");
  }
  public static Map<String,Object> userView(User u){
-  Map<String,Object> m=new LinkedHashMap<>();m.put("userId",u.getId());m.put("createdAt",u.getCreatedAt());m.put("mobileNumber",u.getMobileNumber());m.put("designation",u.getDesignation());m.put("approvedBy",u.getApprovedBy());m.put("approvedAt",u.getApprovedAt());m.put("username",u.getUsername());m.put("fullName",u.getFullName());m.put("email",u.getEmail());m.put("employeeId",u.getEmployeeId());m.put("department",u.getDepartment());m.put("organization",u.getOrganization());m.put("role",u.getRole());m.put("accountStatus",u.getAccountStatus());m.put("enabled",u.isEnabled());return m;
+  Map<String,Object> m=new LinkedHashMap<>();m.put("staffCode",u.getStaffCode());m.put("userId",u.getId());m.put("createdAt",u.getCreatedAt());m.put("mobileNumber",u.getMobileNumber());m.put("designation",u.getDesignation());m.put("approvedBy",u.getApprovedBy());m.put("approvedAt",u.getApprovedAt());m.put("username",u.getUsername());m.put("fullName",u.getFullName());m.put("email",u.getEmail());m.put("employeeId",u.getEmployeeId());m.put("department",u.getDepartment());m.put("organization",u.getOrganization());m.put("role",u.getRole());m.put("accountStatus",u.getAccountStatus());m.put("enabled",u.isEnabled());return m;
  }
  public static Map<String,Object> registrationView(RegistrationRequest r){
   var m=userView(r.user);m.put("id",r.id);m.put("requestedRole",r.requestedRole);m.put("reason",r.reason);m.put("additionalInformation",r.additionalInformation);m.put("details",r.details);m.put("mobileNumber",r.user.getMobileNumber());m.put("designation",r.user.getDesignation());m.put("createdAt",r.createdAt);review(m,r.reviewedBy,r.reviewedAt,r.decisionReason);return m;
  }
  public static Map<String,Object> resetView(PasswordResetRequest r){var m=userView(r.user);m.put("id",r.id);m.put("status",r.status);m.put("createdAt",r.createdAt);m.put("expiresAt",r.expiresAt);review(m,r.reviewedBy,r.reviewedAt,r.decisionReason);return m;}
- private static void review(Map<String,Object> m,User reviewer,Instant at,String reason){m.put("reviewedBy",reviewer==null?null:reviewer.getId());m.put("reviewedAt",at);m.put("decisionReason",reason);}
+ private static void review(Map<String,Object> m,User reviewer,Instant at,String reason){m.put("reviewedBy",reviewer==null?null:reviewer.getId());m.put("reviewedByUsername",reviewer==null?null:reviewer.getUsername());m.put("reviewedByStaffCode",reviewer==null?null:reviewer.getStaffCode());m.put("reviewedAt",at);m.put("decisionReason",reason);}
  @Transactional(readOnly=true) public Map<String,Object> accountDetails(Long id){
   User u=users.findById(id).orElseThrow(()->new EntityNotFoundException("User not found"));
   return registrations.findByUserId(id).map(UserAccessService::registrationView).orElseGet(()->userView(u));
@@ -133,7 +146,7 @@ public class UserAccessService {
    var u=root.get("user");var p=new ArrayList<jakarta.persistence.criteria.Predicate>();
    if(!role.isBlank())p.add(cb.equal(root.get("requestedRole"),role));if(!status.isBlank())p.add(cb.equal(u.get("accountStatus"),status));
    if(!department.isBlank())p.add(cb.equal(cb.lower(u.get("department")),department.toLowerCase(Locale.ROOT)));if(!organization.isBlank())p.add(cb.equal(cb.lower(u.get("organization")),organization.toLowerCase(Locale.ROOT)));
-   if(!search.isBlank()){String term="%"+search.toLowerCase(Locale.ROOT).replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";p.add(cb.or(cb.like(cb.lower(u.get("fullName")),term,'\\'),cb.like(cb.lower(u.get("employeeId")),term,'\\'),cb.like(cb.lower(u.get("email")),term,'\\')));}
+   if(!search.isBlank()){String term="%"+search.toLowerCase(Locale.ROOT).replace("\\","\\\\").replace("%","\\%").replace("_","\\_")+"%";p.add(cb.or(search.matches("(?i)PS-[0-9]{1,18}")?cb.equal(u.get("id"),Long.parseLong(search.substring(3))):cb.disjunction(),cb.like(cb.lower(u.get("username")),term,'\\'),cb.like(cb.lower(u.get("staffCode")),term,'\\'),cb.like(cb.lower(u.get("fullName")),term,'\\'),cb.like(cb.lower(u.get("employeeId")),term,'\\'),cb.like(cb.lower(u.get("email")),term,'\\')));}
    if(from!=null)p.add(cb.greaterThanOrEqualTo(root.get("createdAt"),from.atStartOfDay(ZoneOffset.UTC).toInstant()));if(to!=null)p.add(cb.lessThan(root.get("createdAt"),to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()));
    return cb.and(p.toArray(new jakarta.persistence.criteria.Predicate[0]));
   };

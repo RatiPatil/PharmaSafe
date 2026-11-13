@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface SafetyReportRepository extends JpaRepository<SafetyReport, Long> {
+public interface SafetyReportRepository extends JpaRepository<SafetyReport, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<SafetyReport> {
 
     List<SafetyReport> findByRelatedCasesId(Long caseId);
     Optional<SafetyReport> findByReportId(String reportId);

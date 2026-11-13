@@ -22,6 +22,7 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.AdministrativeAudit administrativeAudit;
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<AuthResponseDto> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -41,7 +42,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<AuthResponseDto> handleAccessDenied(AccessDeniedException ex) {
+    public ResponseEntity<AuthResponseDto> handleAccessDenied(AccessDeniedException ex, jakarta.servlet.http.HttpServletRequest request) {
+        if(request.getRequestURI().startsWith("/api/admin")){var auth=org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();if(auth!=null)administrativeAudit.denied(auth.getName(),null,request.getRequestURI());}
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(AuthResponseDto.error("Access denied: insufficient permissions"));
     }

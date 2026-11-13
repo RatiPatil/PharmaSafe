@@ -1,10 +1,10 @@
 import { Activity, Globe2, Layers3, ShieldCheck, Users, CalendarDays, ClipboardCheck } from 'lucide-react';
 import type { Overview } from './model';
-import { canonicalRole } from './model';
+import { canonicalRole, roleName } from './model';
 const colours=['#5485ed','#9568e9','#28a995','#e9ab46','#dd7299','#6375bd'];
 function Distribution({title,values,description}:{title:string;values?:Record<string,number>;description:string}){
  const entries=Object.entries(values||{}).sort((a,b)=>b[1]-a[1]),max=Math.max(1,...entries.map(([,n])=>n));
- return <section className="ws-card role-stat-chart"><div className="role-stat-title"><h2>{title}</h2><Layers3 size={17}/></div><p>{description}</p>{entries.some(([,n])=>n>0)?<div className="role-stat-bars" role="img" aria-label={`${title}: ${entries.map(([key,n])=>`${key} ${n}`).join(', ')}`}>{entries.slice(0,6).map(([key,n],i)=><div key={key}><span title={key}>{key.replace(/^ROLE_/,'').replaceAll('_',' ')}</span><i><b style={{width:`${n/max*100}%`,background:colours[i%colours.length]}}/></i><strong>{n}</strong></div>)}</div>:<div className="role-stat-empty">No records in this category yet.</div>}{entries.length>6&&<small>Top six categories by count.</small>}</section>;
+ return <section className="ws-card role-stat-chart"><div className="role-stat-title"><h2>{title}</h2><Layers3 size={17}/></div><p>{description}</p>{entries.some(([,n])=>n>0)?<div className="role-stat-bars" role="img" aria-label={`${title}: ${entries.map(([key,n])=>`${key} ${n}`).join(', ')}`}>{entries.slice(0,6).map(([key,n],i)=><div key={key}><span title={key}>{key.startsWith('ROLE_')?roleName(key):key}</span><i><b style={{width:`${n/max*100}%`,background:colours[i%colours.length]}}/></i><strong>{n}</strong></div>)}</div>:<div className="role-stat-empty">No records in this category yet.</div>}{entries.length>6&&<small>Top six categories by count.</small>}</section>;
 }
 export function RoleStatistics({role,data}:{role:string;data:Overview}){
  const r=canonicalRole(role),admin=r==='ROLE_ADMIN',manager=r==='ROLE_SAFETY_MANAGER',reporting=r==='ROLE_REPORTING_SPECIALIST',auditor=r==='ROLE_AUDITOR',clinical=r==='ROLE_MEDICAL_REVIEWER',quality=r==='ROLE_QUALITY_REVIEWER';

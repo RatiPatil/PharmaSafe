@@ -1,3 +1,4 @@
+import { AdminRoleDirectory } from './RoleAdministration';
 import { RoleStatistics } from './RoleStatistics';
 import './RoleStatistics.css';
 import { Activity, Users, ClipboardList, Clock3, FileCheck2, ShieldCheck } from 'lucide-react';
@@ -50,5 +51,5 @@ export function WorkspaceHome(props:Props){
  else if(r==='ROLE_SAFETY_MANAGER') metrics=(<div className="ws-metrics"><Metric label="Accessible cases" value={data.totalCases}/><Metric label="Medical + quality review" value={(states['Medical Review']||0)+(states['Quality Review']||0)}/><Metric label="Team overdue actions" value={data.overdueActions} tone="warning"/><Metric label="Overdue report records" value={data.overdueReports} tone="warning"/></div>);
  else if(r==='ROLE_REPORTING_SPECIALIST') metrics=(<div className="ws-metrics"><Metric label="Approved / locked / closed cases" value={data.totalCases}/><Metric label="Report records" value={data.totalReports}/><Metric label="Overdue report records" value={data.overdueReports} tone="warning"/></div>);
  else if(r==='ROLE_AUDITOR') metrics=(<div className="ws-metrics"><Metric label="Case records" value={data.totalCases}/><Metric label="Audit records" value={data.auditEvents}/><Metric label="Report records" value={data.totalReports}/></div>);
- return <div className="premium-dashboard"><DashboardHero role={role} go={go}/>{metrics}<DashboardAnalytics data={data}/><RoleStatistics role={role} data={data}/><RoleHome {...props}/></div>;
+ return <div className="premium-dashboard"><DashboardHero role={role} go={go}/>{metrics}<DashboardAnalytics data={data}/><RoleStatistics role={role} data={data}/>{canonicalRole(role)==='ROLE_ADMIN'&&<AdminRoleDirectory onOpen={r=>{sessionStorage.setItem('pharmasafe-role-focus',r);go('administration');}}/>}<RoleHome {...props}/></div>;
 }

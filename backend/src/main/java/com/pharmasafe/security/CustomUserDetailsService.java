@@ -15,9 +15,11 @@ import java.util.Collections;
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final com.pharmasafe.administration.RoleAdminAssignmentRepository adminAssignments;
 
-    public CustomUserDetailsService(UserRepository userRepository) {
+    public CustomUserDetailsService(UserRepository userRepository,com.pharmasafe.administration.RoleAdminAssignmentRepository adminAssignments) {
         this.userRepository = userRepository;
+        this.adminAssignments=adminAssignments;
     }
 
     @Override
@@ -42,11 +44,11 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPasswordHash(),
-                user.isEnabled() && user.isApproved() && com.pharmasafe.security.WorkspaceAccess.ROLES.contains(user.getRole()),
+                user.isEnabled() && user.isApproved() && com.pharmasafe.administration.AdminScope.loginRole(user.getRole()) && (!com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())||adminAssignments.findByAdministratorId(user.getId()).isPresent()),
                 true, // accountNonExpired
                 true, // credentialsNonExpired
                 accountNonLocked,
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole()))
+                com.pharmasafe.administration.AdminScope.authorities(user.getRole())
         );
     }
 }

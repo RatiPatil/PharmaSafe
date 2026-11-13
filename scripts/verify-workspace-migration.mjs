@@ -21,7 +21,7 @@ for (const populated of [false, true]) {
    if(populated && file.startsWith('V8__')) await db.exec("INSERT INTO case_review_events(case_id,reviewer_username,from_state,to_state,outcome,comments) SELECT id,'legacy','Quality Review','Approved','APPROVED','Historical review retained' FROM cases WHERE case_number='PRESERVED-CASE'");
    await db.exec(readFileSync(join(directory,file),'utf8'));
   }
-  assert.equal((await db.query('SELECT count(*)::int AS n FROM workspace_roles WHERE assignable')).rows[0].n,7);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM workspace_roles WHERE assignable')).rows[0].n,6);
   if (populated) {
    assert.equal((await db.query('SELECT count(*)::int AS n FROM users')).rows[0].n,2);
    assert.equal((await db.query("SELECT p.patient_identifier,c.row_version FROM cases c JOIN case_patients p ON p.case_id=c.id WHERE c.case_number='PRESERVED-CASE'")).rows[0].patient_identifier,'SYNTHETIC-PATIENT');
@@ -74,6 +74,18 @@ for (const populated of [false, true]) {
   await db.exec("INSERT INTO password_reset_requests(user_id,status,created_at) SELECT id,'PENDING',CURRENT_TIMESTAMP FROM users WHERE username='pending-access'");
   await assert.rejects(db.exec("UPDATE password_reset_requests SET status='APPROVED'"),e=>e.code==='23514');
   await assert.rejects(db.exec("UPDATE password_reset_requests SET status='USED'"),e=>e.code==='23514');
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V12, seven roles, FK integrity${populated?', preserved users/case/patient links':''}`);
+
+  // Stable employee identity and immutable scoped administration evidence.
+  const staff=(await db.query("SELECT id::text,staff_code FROM users WHERE username='receipt-actor'")).rows[0];assert.equal(staff.staff_code,'PS-'+staff.id);
+  await assert.rejects(db.exec("UPDATE users SET staff_code='PS-forged' WHERE username='receipt-actor'"),e=>e.code==='428C9');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM role_admin_assignments')).rows[0].n,6);
+  await db.exec("INSERT INTO users(username,password_hash,role,email) VALUES ('scoped-admin','hash','ROLE_SCOPED_ADMIN','scoped@example.test'),('other-scoped-admin','hash','ROLE_SCOPED_ADMIN','other-scoped@example.test')");
+  await db.exec("UPDATE role_admin_assignments SET administrator_id=(SELECT id FROM users WHERE username='scoped-admin'),assigned_by=(SELECT id FROM users WHERE username='receipt-actor'),assigned_at=CURRENT_TIMESTAMP WHERE application_role='ROLE_CASE_PROCESSOR'");
+  await assert.rejects(db.exec("UPDATE role_admin_assignments SET administrator_id=(SELECT id FROM users WHERE username='scoped-admin'),assigned_by=(SELECT id FROM users WHERE username='receipt-actor'),assigned_at=CURRENT_TIMESTAMP WHERE application_role='ROLE_MEDICAL_REVIEWER'"),e=>e.code==='23505');
+  await assert.rejects(db.exec("UPDATE role_admin_assignments SET administrator_id=(SELECT id FROM users WHERE username='receipt-actor'),assigned_by=(SELECT id FROM users WHERE username='receipt-actor'),assigned_at=CURRENT_TIMESTAMP WHERE application_role='ROLE_MEDICAL_REVIEWER'"),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE users SET role='ROLE_ADMIN' WHERE username='scoped-admin'"),e=>e.code==='23514');
+  await db.exec("INSERT INTO administrative_events(actor_id,actor_username,actor_level,managed_role,target_user_id,action,reason,outcome,created_at) SELECT id,username,'SUPER_ADMIN','ROLE_CASE_PROCESSOR',(SELECT id FROM users WHERE username='scoped-admin'),'ROLE_ADMIN_ASSIGNED','Synthetic assignment','SUCCESS',CURRENT_TIMESTAMP FROM users WHERE username='receipt-actor'");
+  await assert.rejects(db.exec("UPDATE administrative_events SET reason='Changed'"),e=>e.code==='23514');await assert.rejects(db.exec('DELETE FROM administrative_events'),e=>e.code==='23514');
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V13, six public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }

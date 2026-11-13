@@ -6,6 +6,11 @@ import java.time.Instant;
 public class UserResponseDto {
 
     private Long id;
+    private String managedRole;
+    public String getManagedRole(){return managedRole;}
+    public void setManagedRole(String value){managedRole=value;}
+    public String getStaffCode(){return id==null?null:"PS-"+id;}
+    public String getAdministrativeLevel(){return "ROLE_ADMIN".equals(role)?"SUPER_ADMIN":"ROLE_SCOPED_ADMIN".equals(role)?"ROLE_ADMIN":"USER";}
     private String username;
     private String fullName;
     private String department;

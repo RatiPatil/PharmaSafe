@@ -13,6 +13,8 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(name="staff_code",insertable=false,updatable=false,length=32) private String staffCode;
+    public String getStaffCode(){return id==null?null:"PS-"+id;}
 
     @Column(name = "auth_version", nullable = false)
     private long authVersion;

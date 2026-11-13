@@ -121,6 +121,7 @@ public class AdminController {
         String adminUsername = authentication != null ? authentication.getName() : "admin";
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + id));
+        if("ROLE_SCOPED_ADMIN".equals(user.getRole()))throw new IllegalArgumentException("Manage Role Admin accounts through Role management");
 
         if (request.containsKey("fullName")) {
             user.setFullName(request.get("fullName"));
@@ -154,6 +155,7 @@ public class AdminController {
         String adminUsername = authentication != null ? authentication.getName() : "admin";
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + id));
+        if("ROLE_SCOPED_ADMIN".equals(user.getRole()))throw new IllegalArgumentException("Manage Role Admin accounts through Role management");
 
         if ("admin".equalsIgnoreCase(user.getUsername()) || user.getUsername().equalsIgnoreCase(adminUsername)) {
             throw new IllegalArgumentException("Cannot deactivate primary system administrator account");

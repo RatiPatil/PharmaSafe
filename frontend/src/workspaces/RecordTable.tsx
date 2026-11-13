@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { Row, Section } from './model';
 import { text,date,dateTime,roleName } from './model';
 const columns: Partial<Record<Section, [string,string][]>> = {
- users:[['username','Username'],['fullName','Full name'],['role','Workspace'],['enabled','Account'],['lastSuccessfulLoginAt','Last login']],
+ users:[['staffCode','Staff code'],['username','Username'],['fullName','Full name'],['role','Workspace'],['enabled','Account'],['lastSuccessfulLoginAt','Last login']],
  audit:[['createdAt','Recorded'],['eventType','Event'],['username','Actor'],['status','Result'],['details','Details']],
  reports:[['reportId','Report'],['product','Product'],['reportType','Type'],['authority','Authority'],['dueDate','Due'],['status','Status']],
  tasks:[['caseNumber','Case'],['description','Action'],['assignedUsername','Assignee'],['dueAt','Due'],['status','Status']],

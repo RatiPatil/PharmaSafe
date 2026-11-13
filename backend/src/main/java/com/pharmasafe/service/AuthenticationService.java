@@ -100,7 +100,7 @@ public class AuthenticationService {
             throw new LockedException("Account is locked due to consecutive failed login attempts. Please contact an administrator.");
         }
 
-        if (!user.isEnabled() || !user.isApproved() || !com.pharmasafe.security.WorkspaceAccess.ROLES.contains(user.getRole())) {
+        if (!user.isEnabled() || !user.isApproved() || !com.pharmasafe.administration.AdminScope.loginRole(user.getRole()) || (com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole()) && adminAssignments.findByAdministratorId(user.getId()).isEmpty())) {
             auditService.logEvent("LOGIN_FAILED", normalizedUsername, clientIp, userAgent, "FAILURE", "Account is disabled");
             throw new DisabledException("Account is inactive. Please contact an administrator.");
         }
@@ -145,7 +145,7 @@ public class AuthenticationService {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 user.getUsername(),
                 null,
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole()))
+                com.pharmasafe.administration.AdminScope.authorities(user.getRole())
         );
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
@@ -156,7 +156,7 @@ public class AuthenticationService {
         httpRequest.getSession(true).setAttribute("PHARMASAFE_AUTH_VERSION", user.getAuthVersion());
         securityContextRepository.saveContext(context, httpRequest, httpResponse);
 
-        return UserResponseDto.fromEntity(user);
+        return response(user);
     }
 
     public void logout(HttpServletRequest request, HttpServletResponse response) {
@@ -175,6 +175,8 @@ public class AuthenticationService {
         }
     }
 
+    @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.RoleAdminAssignmentRepository adminAssignments;
+    private UserResponseDto response(User user){var dto=UserResponseDto.fromEntity(user);if(adminAssignments!=null&&com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole()))adminAssignments.findByAdministratorId(user.getId()).ifPresent(a->dto.setManagedRole(a.applicationRole));return dto;}
     @Transactional(readOnly = true)
     public UserResponseDto getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -184,7 +186,7 @@ public class AuthenticationService {
 
         String username = auth.getName().trim().toLowerCase();
         return userRepository.findByUsername(username)
-                .map(UserResponseDto::fromEntity)
+                .map(this::response)
                 .orElse(null);
     }
 

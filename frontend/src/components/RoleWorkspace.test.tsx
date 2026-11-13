@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 describe('role workspaces', () => {
  it.each([
- ['ROLE_ADMIN','Administration','Users & access'],
+ ['ROLE_ADMIN','Super Admin','Users & access'],
  ['ROLE_CASE_PROCESSOR','Case processing','Create case'],
  ['ROLE_MEDICAL_REVIEWER','Medical review','Contact logs'],
  ['ROLE_QUALITY_REVIEWER','Quality review','Action items'],

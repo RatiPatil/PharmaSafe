@@ -130,7 +130,7 @@ export async function apiRequest<T>(path: string, method = 'GET', body?: unknown
   if (method !== 'GET' && body !== undefined) {
     const errors=validateInputPayload(path,body);
     const values=body as Record<string,unknown>;
-    const newPassword=path==='/api/auth/register'||path==='/api/auth/reset-password'||path==='/api/admin/users'&&method==='POST'?values.password:path.endsWith('/reset-password')?values.newPassword:undefined;
+    const newPassword=path==='/api/auth/register'||path==='/api/auth/reset-password'||(path==='/api/admin/users'||path.startsWith('/api/administration/assignments/')&&!path.endsWith('/release'))&&method==='POST'?values.password:path.endsWith('/reset-password')?values.newPassword:undefined;
     if(typeof newPassword==='string'){const error=passwordPolicy(newPassword);if(error)errors.password=error;}
     if(Object.keys(errors).length)throw new ApiError(Object.values(errors)[0],400);
   }

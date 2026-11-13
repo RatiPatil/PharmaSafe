@@ -978,6 +978,12 @@
     "contactAt": {
       "instant": true,
       "max": 40
+    },
+    "expectedVersion": {
+      "number": true,
+      "min": 0,
+      "max": 9007199254740991,
+      "scale": 0
     }
   },
   "overrides": {
@@ -1037,6 +1043,13 @@
     },
     "auth.username": {
       "max": 254
+    },
+    "admin.email": {
+      "max": 254,
+      "email": true
+    },
+    "admin.reason": {
+      "max": 2000
     }
   },
   "registrationChoices": {

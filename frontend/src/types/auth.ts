@@ -1,5 +1,8 @@
 export interface User {
   id: number;
+  staffCode?:string;
+  administrativeLevel?:string;
+  managedRole?:string|null;
   username: string;
   fullName?: string | null;
   department?: string | null;

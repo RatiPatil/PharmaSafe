@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface AuditEventRepository extends JpaRepository<AuditEvent, Long> {
+public interface AuditEventRepository extends JpaRepository<AuditEvent, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<AuditEvent> {
 
     List<AuditEvent> findTop50ByOrderByCreatedAtDesc();
 
