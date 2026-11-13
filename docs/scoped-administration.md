@@ -211,3 +211,24 @@ not a productivity score. Empty categories show empty states rather than sample
 numbers; no invented trends are displayed. Case contributions can overlap across
 roles when multiple teams worked on the same case. No additional migration is
 required for this read-only analytics and access-page update.
+
+## Suggested Role Admin usernames and private password autofill
+
+Dedicated Admin tabs suggest `pv.processor.admin`, `pv.medical.admin`,
+`pv.quality.admin`, `pv.manager.admin`, `pv.reporting.admin` and
+`pv.auditor.admin` for their corresponding roles. These are editable suggestions,
+not account creation or authority grants. Existing administrators can enter their
+assigned username. Switching role or account type clears entered credentials.
+
+Passwords are never bundled with the frontend or saved in application browser
+storage. The login fields use standard `username` and `current-password`
+autocomplete attributes. An authorized operator can save credentials in a browser
+password manager; autofill behavior remains controlled by that browser.
+
+The separately delivered initial six-account SQL/PDF/password-manager CSV are
+private setup artifacts, not repository files or deployment migrations. Accounts
+remain inactive until the database owner runs the setup SQL in Supabase. It stores
+BCrypt hashes, records administrative assignment events, preserves occupied role
+assignments and existing usernames, and rolls back on a conflict. Initial accounts
+have no invented email addresses; configure official addresses before email
+recovery. Never commit the PDF or plaintext password-manager CSV.

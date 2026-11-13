@@ -2,15 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loader2, RefreshCw, ArrowRight } from 'lucide-react';
 import './LoginPage.css';
+import { ROLE_ADMIN_USERNAMES } from './roleAdminAccounts';
 
 export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;adminLogin?:boolean;registerHref?:string}> = ({applicationRole,roleName,adminLogin=false,registerHref}) => {
   const { login, error, clearError, isLoading, isConnectionError, isInitialLoading } = useAuth();
 
   useEffect(()=>{if(applicationRole)clearError();},[applicationRole,adminLogin]);
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(adminLogin && applicationRole ? ROLE_ADMIN_USERNAMES[applicationRole] || '' : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [clientErrors, setClientErrors] = useState<{ username?: string; password?: string }>({});
+
+  useEffect(() => {
+    setUsername(adminLogin && applicationRole ? ROLE_ADMIN_USERNAMES[applicationRole] || '' : '');
+    setPassword('');
+    setShowPassword(false);
+    setClientErrors({});
+  }, [applicationRole, adminLogin]);
 
   const validate = (): boolean => {
     const errors: { username?: string; password?: string } = {};
