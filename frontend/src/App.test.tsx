@@ -32,7 +32,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
     render(<App/>);fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'fast-admin'}});fireEvent.change(screen.getByLabelText(/^Password/i),{target:{value:'SyntheticPassword123!'}});fireEvent.click(screen.getByRole('button',{name:/Log In to PharmaSafe/i}));
     await waitFor(()=>expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument());
     await act(async()=>{finishInitial({ok:false,status:401});await Promise.resolve();});
-    expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Welcome back.'})).not.toBeInTheDocument();
+    expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Sign in to PharmaSafe'})).not.toBeInTheDocument();
   });
 
   it('shows a recoverable login screen when session restoration cannot reach the server', async () => {
@@ -61,7 +61,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Welcome back.' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Sign in to PharmaSafe' })).toBeInTheDocument();
     });
 
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
@@ -296,7 +296,7 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
 
     // Verify return to login page
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Welcome back.' })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Sign in to PharmaSafe' })).toBeInTheDocument();
     });
   });
 

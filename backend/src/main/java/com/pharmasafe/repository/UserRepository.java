@@ -29,6 +29,10 @@ public interface UserRepository extends JpaRepository<User, Long>, org.springfra
     @Query("SELECT u FROM User u WHERE u.username = :username")
     Optional<User> findByUsernameForUpdate(@Param("username") String username);
     long countByEnabledTrue();
+    long countByAccountStatus(String status);
+    long countByLockedTrue();
+    @Query("SELECT u.role, COUNT(u) FROM User u GROUP BY u.role ORDER BY u.role")
+    java.util.List<Object[]> roleDistribution();
     @org.springframework.data.jpa.repository.Query("SELECT u.username, COUNT(c) FROM SafetyCase c LEFT JOIN c.assignedToUser u WHERE c.workflowState NOT IN ('Closed', 'Submitted') GROUP BY u.username ORDER BY COUNT(c) DESC")
     java.util.List<Object[]> caseWorkload();
     org.springframework.data.domain.Page<User> findByUsernameContainingIgnoreCaseOrFullNameContainingIgnoreCase(

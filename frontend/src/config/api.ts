@@ -1,3 +1,4 @@
+import { validateInputPayload, passwordPolicy } from './inputValidation';
 /**
  * PharmaSafe Centralized API and CSRF Configuration
  * Supports decoupled frontend/backend hosting (e.g. Render Static Site + Render Web Service)
@@ -126,6 +127,13 @@ export class ApiError extends Error {
 }
 /** JSON requests share session expiry handling. Failed writes are never automatically replayed. */
 export async function apiRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
+  if (method !== 'GET' && body !== undefined) {
+    const errors=validateInputPayload(path,body);
+    const values=body as Record<string,unknown>;
+    const newPassword=path==='/api/auth/register'||path==='/api/auth/reset-password'||path==='/api/admin/users'&&method==='POST'?values.password:path.endsWith('/reset-password')?values.newPassword:undefined;
+    if(typeof newPassword==='string'){const error=passwordPolicy(newPassword);if(error)errors.password=error;}
+    if(Object.keys(errors).length)throw new ApiError(Object.values(errors)[0],400);
+  }
   if (method !== 'GET') {
     const token = await refreshCsrfToken();
     if (!token) throw new ApiError('Could not verify request security. Refresh and try again.', 403);
@@ -145,7 +153,7 @@ export async function apiRequest<T>(path: string, method = 'GET', body?: unknown
       throw new ApiError('Your session expired. Sign in again to continue.', 401);
     }
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new ApiError(data?.message || (response.status === 403 ? 'You do not have permission for this action.' : `Request failed (${response.status}).`), response.status);
+    if (!response.ok) throw new ApiError((data?.errors ? Object.values(data.errors).join("; ") : data?.message) || (response.status === 403 ? 'You do not have permission for this action.' : `Request failed (${response.status}).`), response.status);
     if (data === null && response.status !== 204) throw new ApiError('The server returned an invalid response. Refresh and try again.', 502);
     return data as T;
   } catch (error) {

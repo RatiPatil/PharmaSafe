@@ -2,6 +2,9 @@ export type Section = 'access' | 'overview' | 'cases' | 'new' | 'contacts' | 'ta
 export type Row = Record<string, unknown>;
 export type Page<T> = { content: T[]; totalElements: number; totalPages: number };
 export type Overview = {
+  fatalCases?:number;lockedCases?:number;unassignedCases?:number;assessedCases?:number;narrativeCases?:number;receivedLast7Days?:number;staleOpenCases?:number;
+  pendingResetRequests?:number;lockedAccounts?:number;submittedReports?:number;pendingReports?:number;
+  accountStatusDistribution?:Record<string,number>;roleDistribution?:Record<string,number>;priorityDistribution?:Record<string,number>;countryDistribution?:Record<string,number>;reportTypeDistribution?:Record<string,number>;receiptActivity?:Record<string,number>;
   totalCases: number; seriousCases: number; expeditedCases: number; states: Record<string, number>;
   totalUsers?: number; enabledUsers?: number; auditEvents?: number; recentAudit?: Row[];
   workload?: Record<string, number>; totalReports?: number; overdueReports?: number;
@@ -18,7 +21,7 @@ export const profiles: Record<string, { title: string; home: string; queue: stri
 };
 Object.values(profiles).forEach(profile => { if(!profile.sections.includes('reports')) profile.sections.push('reports'); profile.sections.push('profile'); });
 export const canonicalRole = (role: string) => role === 'ROLE_USER' ? 'ROLE_CASE_PROCESSOR' : role;
-export const labels: Record<Section, string> = { access: 'User access management', overview: 'Overview', cases: 'Case queue', profile: 'My profile', new: 'Create case', contacts: 'Contact logs', tasks: 'Action items', reports: 'Safety reports', users: 'Users & access', audit: 'Audit history' };
+export const labels: Record<Section, string> = { access: 'User access management', overview: 'Dashboard', cases: 'Case queue', profile: 'My profile', new: 'Create case', contacts: 'Contact logs', tasks: 'Action items', reports: 'Safety reports', users: 'Users & access', audit: 'Audit history' };
 export const text = (v: unknown) => v == null || v === '' ? '—' : String(v);
 export const date = (v: unknown) => {
  if (!v) return '—';

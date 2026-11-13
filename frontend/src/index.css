@@ -237,3 +237,4 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
+input[data-validation-touched=true]:invalid,textarea[data-validation-touched=true]:invalid{border-color:#cf7380!important;box-shadow:0 0 0 2px #cf738015}input[aria-invalid=true],textarea[aria-invalid=true]{border-color:#cf7380}

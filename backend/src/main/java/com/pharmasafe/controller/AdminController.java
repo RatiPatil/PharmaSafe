@@ -88,13 +88,14 @@ public class AdminController {
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("Username is required");
         }
-        if (password == null || password.trim().length() < 6) {
-            throw new IllegalArgumentException("Password must be at least 6 characters");
+        if (password == null || password.length() < 12) {
+            throw new IllegalArgumentException("Password must be at least 12 characters");
         }
         if (userRepository.findByUsername(username.trim().toLowerCase()).isPresent()) {
             throw new IllegalArgumentException("Username already exists: " + username);
         }
 
+        com.pharmasafe.service.UserAccessService.validatePassword(password);
         String assignedRole = com.pharmasafe.security.WorkspaceAccess.normalizeRole(
                 role == null ? "ROLE_CASE_PROCESSOR" : role);
 
@@ -180,10 +181,11 @@ public class AdminController {
                 .orElseThrow(() -> new EntityNotFoundException("User not found with ID: " + id));
 
         String newPassword = body.get("newPassword");
-        if (newPassword == null || newPassword.trim().length() < 6) {
-            throw new IllegalArgumentException("New password must be at least 6 characters");
+        if (newPassword == null || newPassword.length() < 12) {
+            throw new IllegalArgumentException("New password must be at least 12 characters");
         }
 
+        com.pharmasafe.service.UserAccessService.validatePassword(newPassword);
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.revokeSessions();
         user.setLocked(false);

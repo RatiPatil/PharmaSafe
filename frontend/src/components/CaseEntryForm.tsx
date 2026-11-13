@@ -626,7 +626,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   Country of Incident <span className="text-[#DC2626]">*</span>
                 </label>
                 <select
-                  value={formData.countryCode}
+                  data-validation-field="countryCode" value={formData.countryCode}
                   onChange={(e) => setFormData({ ...formData, countryCode: e.target.value })}
                   className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
@@ -649,7 +649,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   Report Type <span className="text-[#DC2626]">*</span>
                 </label>
                 <select
-                  value={formData.reportType}
+                  data-validation-field="reportType" value={formData.reportType}
                   onChange={(e) => setFormData({ ...formData, reportType: e.target.value })}
                   className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
@@ -666,7 +666,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               <div>
                 <label className="font-semibold text-[#172B4D] block mb-1.5">Priority</label>
                 <select
-                  value={formData.priority}
+                  data-validation-field="priority" value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                   className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
@@ -682,7 +682,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 </label>
                 <input
                   type="date"
-                  value={formData.initialReceiptDate}
+                  data-validation-field="initialReceiptDate" value={formData.initialReceiptDate}
                   onChange={(e) => setFormData({ ...formData, initialReceiptDate: e.target.value })}
                   className={`w-full px-3 py-2 border rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 ${
                     fieldErrors.initialReceiptDate ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
@@ -699,7 +699,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 </label>
                 <input
                   type="date"
-                  value={formData.latestReceivedDate}
+                  data-validation-field="latestReceivedDate" value={formData.latestReceivedDate}
                   onChange={(e) => setFormData({ ...formData, latestReceivedDate: e.target.value })}
                   className={`w-full px-3 py-2 border rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 ${
                     fieldErrors.latestReceivedDate ? 'border-[#DC2626] bg-[#FEF2F2]/30' : 'border-[#DCE4EE]'
@@ -713,7 +713,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               <div>
                 <label className="font-semibold text-[#172B4D] block mb-1.5">Workflow State</label>
                 <select
-                  value={formData.workflowState}
+                  data-validation-field="workflowState" value={formData.workflowState}
                   disabled
                   className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20"
                 >
@@ -744,7 +744,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 <input
                   type="text"
                   placeholder="e.g. J.D. or PT-4091"
-                  value={formData.patient.patientIdentifier || ''}
+                  data-validation-field="patientIdentifier" value={formData.patient.patientIdentifier || ''}
                   onChange={(e) => setFormData({
                     ...formData,
                     patient: { ...formData.patient, patientIdentifier: e.target.value }
@@ -756,7 +756,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               <div>
                 <label className="font-semibold text-[#172B4D] block mb-1.5">Gender</label>
                 <select
-                  value={formData.patient.gender || 'Unknown'}
+                  data-validation-field="gender" value={formData.patient.gender || 'Unknown'}
                   onChange={(e) => setFormData({
                     ...formData,
                     patient: { ...formData.patient, gender: e.target.value }
@@ -777,7 +777,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     type="number"
                     step="0.1"
                     placeholder="45"
-                    value={formData.patient.ageValue ?? ''}
+                    data-validation-field="ageValue" value={formData.patient.ageValue ?? ''}
                     onChange={(e) => setFormData({
                       ...formData,
                       patient: { ...formData.patient, ageValue: e.target.value ? parseFloat(e.target.value) : undefined }
@@ -785,7 +785,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     className="w-1/2 px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] focus:outline-none focus:border-[#2563EB]"
                   />
                   <select
-                    value={formData.patient.ageUnit || 'Years'}
+                    data-validation-field="ageUnit" value={formData.patient.ageUnit || 'Years'}
                     onChange={(e) => setFormData({
                       ...formData,
                       patient: { ...formData.patient, ageUnit: e.target.value }
@@ -805,7 +805,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                 <label className="font-semibold text-[#172B4D] block mb-1.5">Date of Birth</label>
                 <input
                   type="date"
-                  value={formData.patient.dateOfBirth || ''}
+                  data-validation-field="dateOfBirth" value={formData.patient.dateOfBirth || ''}
                   onChange={(e) => setFormData({
                     ...formData,
                     patient: { ...formData.patient, dateOfBirth: e.target.value }
@@ -820,7 +820,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   type="number"
                   step="0.1"
                   placeholder="70.5"
-                  value={formData.patient.weightKg ?? ''}
+                  data-validation-field="weightKg" value={formData.patient.weightKg ?? ''}
                   onChange={(e) => setFormData({
                     ...formData,
                     patient: { ...formData.patient, weightKg: e.target.value ? parseFloat(e.target.value) : undefined }
@@ -835,7 +835,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   type="number"
                   step="0.1"
                   placeholder="175"
-                  value={formData.patient.heightCm ?? ''}
+                  data-validation-field="heightCm" value={formData.patient.heightCm ?? ''}
                   onChange={(e) => setFormData({
                     ...formData,
                     patient: { ...formData.patient, heightCm: e.target.value ? parseFloat(e.target.value) : undefined }
@@ -1265,7 +1265,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     <input
                       type="text"
                       placeholder="e.g. Acute severe angioedema with respiratory distress"
-                      value={ev.eventVerbatim}
+                      data-validation-field="eventVerbatim" value={ev.eventVerbatim}
                       onChange={(e) => {
                         const updated = [...formData.events];
                         updated[idx].eventVerbatim = e.target.value;
@@ -1286,7 +1286,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       type="text"
                       list={`meddra-terms-${idx}`}
                       placeholder="Search sample MedDRA PT"
-                      value={ev.meddraPt || ''}
+                      data-validation-field="meddraPt" value={ev.meddraPt || ''}
                       onChange={async (e) => {
                         const value = e.target.value;
                         const updated = [...formData.events];
@@ -1324,7 +1324,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   <div>
                     <label className="font-semibold text-[#172B4D] block mb-1.5">Outcome</label>
                     <select
-                      value={ev.outcome}
+                      data-validation-field="outcome" value={ev.outcome}
                       onChange={(e) => {
                         const updated = [...formData.events];
                         updated[idx].outcome = e.target.value;
@@ -1351,7 +1351,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     </label>
                     <input
                       type="date"
-                      value={ev.onsetDate}
+                      data-validation-field="onsetDate" value={ev.onsetDate}
                       onChange={(e) => {
                         const updated = [...formData.events];
                         updated[idx].onsetDate = e.target.value;
@@ -1370,7 +1370,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                     <label className="font-semibold text-[#172B4D] block mb-1.5">Stop / Resolution Date</label>
                     <input
                       type="date"
-                      value={ev.stopDate || ''}
+                      data-validation-field="stopDate" value={ev.stopDate || ''}
                       onChange={(e) => {
                         const updated = [...formData.events];
                         updated[idx].stopDate = e.target.value;
@@ -1526,7 +1526,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       <input
                         type="text"
                         placeholder="e.g. Type 2 Diabetes Mellitus"
-                        value={mh.conditionName}
+                        data-validation-field="conditionName" value={mh.conditionName}
                         onChange={(e) => {
                           const updated = [...formData.medicalHistoryList];
                           updated[idx].conditionName = e.target.value;
@@ -1540,7 +1540,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                       <label className="font-semibold text-[#172B4D] block mb-1.5">Start Date</label>
                       <input
                         type="date"
-                        value={mh.startDate || ''}
+                        data-validation-field="startDate" value={mh.startDate || ''}
                         onChange={(e) => {
                           const updated = [...formData.medicalHistoryList];
                           updated[idx].startDate = e.target.value;
@@ -1586,7 +1586,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               <textarea
                 rows={5}
                 placeholder="Enter complete clinical case narrative describing timeline of drug exposure, onset of symptoms, treatment administered, and outcome..."
-                value={formData.narrative}
+                data-validation-field="narrative" value={formData.narrative}
                 onChange={(e) => setFormData({ ...formData, narrative: e.target.value })}
                 className="w-full px-3.5 py-2.5 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
               />
@@ -1599,7 +1599,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               <textarea
                 rows={3}
                 placeholder="Internal pharmacovigilance safety evaluation notes..."
-                value={formData.companyComments}
+                data-validation-field="companyComments" value={formData.companyComments}
                 onChange={(e) => setFormData({ ...formData, companyComments: e.target.value })}
                 className="w-full px-3.5 py-2.5 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB]"
               />
@@ -1622,7 +1622,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
               {formData.references.map((ref, idx) => (
                 <div key={idx} className="flex items-center space-x-3 mb-2.5 p-3 bg-[#F8FAFD] border border-[#DCE4EE] rounded-lg">
                   <select
-                    value={ref.referenceType}
+                    data-validation-field="referenceType" value={ref.referenceType}
                     onChange={(e) => {
                       const updated = [...formData.references];
                       updated[idx].referenceType = e.target.value;
@@ -1638,7 +1638,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   <input
                     type="text"
                     placeholder="Reference Identifier (e.g. PMID-384912)"
-                    value={ref.referenceId}
+                    data-validation-field="referenceId" value={ref.referenceId}
                     onChange={(e) => {
                       const updated = [...formData.references];
                       updated[idx].referenceId = e.target.value;

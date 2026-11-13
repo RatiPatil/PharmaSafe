@@ -12,6 +12,7 @@ import java.util.*;
 @RequestMapping("/api/workspace")
 @PreAuthorize("isAuthenticated()")
 public class WorkspaceController {
+    @org.springframework.beans.factory.annotation.Autowired private PasswordResetRequestRepository resetRequests;
     private final WorkspaceQueueService queue;
     private final UserRepository users;
     private final AuditEventRepository audit;
@@ -34,6 +35,9 @@ public class WorkspaceController {
         if ("ROLE_ADMIN".equals(role)) {
             data.put("totalUsers", users.count());
             data.put("enabledUsers", users.countByEnabledTrue());
+            Map<String,Long> accountStates=new LinkedHashMap<>();for(String state:List.of("PENDING","APPROVED","REJECTED","SUSPENDED"))accountStates.put(state,users.countByAccountStatus(state));
+            data.put("accountStatusDistribution",accountStates);data.put("pendingResetRequests",resetRequests.countByStatus("PENDING"));data.put("lockedAccounts",users.countByLockedTrue());
+            Map<String,Long> roles=new LinkedHashMap<>();for(Object[] row:users.roleDistribution())roles.put(row[0].toString(),((Number)row[1]).longValue());data.put("roleDistribution",roles);
         }
         if (Set.of("ROLE_ADMIN", "ROLE_AUDITOR").contains(role)) {
             data.put("auditEvents", audit.count());
@@ -41,6 +45,8 @@ public class WorkspaceController {
         }
         if (Set.of("ROLE_ADMIN", "ROLE_SAFETY_MANAGER", "ROLE_REPORTING_SPECIALIST", "ROLE_AUDITOR").contains(role)) {
             data.put("totalReports", reports.count());
+            data.put("submittedReports",reports.countByStatus("Submitted"));
+            data.put("pendingReports",reports.count()-reports.countByStatus("Submitted"));
             data.put("overdueReports", reports.countByStatusNotAndDueDateBefore("Submitted", java.time.LocalDate.now()));
             data.put("upcomingReports", reports.findByStatusNotOrderByDueDateAscIdAsc("Submitted", PageRequest.of(0,6)).map(SafetyReportDto::fromEntity).getContent());
         }

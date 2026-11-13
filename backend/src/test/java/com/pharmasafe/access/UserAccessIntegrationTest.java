@@ -23,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test")
 @org.springframework.test.annotation.DirtiesContext(classMode=org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_CLASS)
 class UserAccessIntegrationTest {
+ @Autowired com.pharmasafe.validation.InputRules inputRules;
  @Autowired MockMvc mvc;@Autowired ObjectMapper json;@Autowired UserRepository users;
  @Autowired RegistrationRequestRepository registrations;@Autowired PasswordResetRequestRepository resets;
  @Autowired UserAccessService access;@Autowired AccessRoleCatalog catalog;@Autowired PasswordEncoder encoder;
@@ -30,7 +31,7 @@ class UserAccessIntegrationTest {
  static final String PASSWORD="SyntheticAccess123!";
  String admin;
  @BeforeEach void admin(){admin="access-admin-"+UUID.randomUUID().toString().substring(0,8);users.saveAndFlush(new User(admin,encoder.encode(PASSWORD),"ROLE_ADMIN"));}
- Map<String,Object> body(String role){String name="access-"+UUID.randomUUID().toString().substring(0,8);Map<String,String> details=new HashMap<>();AccessRoleCatalog.FIELDS.get(role).forEach(f->details.put(f,"Synthetic qualification"));return new HashMap<>(Map.ofEntries(Map.entry("selectionToken",catalog.issue(role)),Map.entry("fullName","Synthetic User"),Map.entry("employeeId",name),Map.entry("email",name+"@example.test"),Map.entry("mobileNumber","+12345678901"),Map.entry("department","Safety"),Map.entry("designation","Specialist"),Map.entry("organization","Synthetic Org"),Map.entry("username",name),Map.entry("password",PASSWORD),Map.entry("confirmPassword",PASSWORD),Map.entry("reason","Synthetic access for assigned role"),Map.entry("details",details)));}
+ Map<String,Object> body(String role){String name="access-"+UUID.randomUUID().toString().substring(0,8);Map<String,String> details=new HashMap<>();AccessRoleCatalog.FIELDS.get(role).forEach(f->{var choices=inputRules.registrationChoices().path(f);details.put(f,choices.isArray()?choices.get(0).asText():"REG-123");});return new HashMap<>(Map.ofEntries(Map.entry("selectionToken",catalog.issue(role)),Map.entry("fullName","Synthetic User"),Map.entry("employeeId",name),Map.entry("email",name+"@example.test"),Map.entry("mobileNumber","+12345678901"),Map.entry("department","Safety"),Map.entry("designation","Specialist"),Map.entry("organization","Synthetic Org"),Map.entry("username",name),Map.entry("password",PASSWORD),Map.entry("confirmPassword",PASSWORD),Map.entry("reason","Synthetic access for assigned role"),Map.entry("details",details)));}
  JsonNode register(Map<String,Object> body)throws Exception{return json.readTree(mvc.perform(post("/api/auth/register").with(csrf()).contentType("application/json").content(json.writeValueAsBytes(body))).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());}
  ResultActions login(String name,String password)throws Exception{return mvc.perform(post("/api/auth/login").contentType("application/json").content(json.writeValueAsBytes(Map.of("username",name,"password",password))));}
  @Test void allSixRolesRequireApprovalAndKeepOriginalRole()throws Exception{
@@ -101,13 +102,13 @@ class UserAccessIntegrationTest {
  }
  @Test void accountDetailsIncludeRegistrationAndLegacyDatesWithoutCredentials()throws Exception{
   var b=body("ROLE_MEDICAL_REVIEWER");register(b);var u=users.findByUsername((String)b.get("username")).orElseThrow();
-  mvc.perform(get("/api/admin/access-users/"+u.getId()).with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.details.medicalQualification").value("Synthetic qualification")).andExpect(jsonPath("$.reason").value(b.get("reason"))).andExpect(jsonPath("$.createdAt").isNotEmpty()).andExpect(jsonPath("$.passwordHash").doesNotExist());
+  mvc.perform(get("/api/admin/access-users/"+u.getId()).with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.details.medicalQualification").value("MBBS")).andExpect(jsonPath("$.reason").value(b.get("reason"))).andExpect(jsonPath("$.createdAt").isNotEmpty()).andExpect(jsonPath("$.passwordHash").doesNotExist());
   var legacy=users.findByUsername(admin).orElseThrow();mvc.perform(get("/api/admin/access-users/"+legacy.getId()).with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.createdAt").isNotEmpty()).andExpect(jsonPath("$.role").value("ROLE_ADMIN")).andExpect(jsonPath("$.passwordHash").doesNotExist());
   mvc.perform(get("/api/admin/access-users/"+u.getId()).with(user("processor").roles("CASE_PROCESSOR"))).andExpect(status().isForbidden());
   mvc.perform(get("/api/admin/access-users/99999999").with(user(admin).roles("ADMIN"))).andExpect(status().isNotFound());
  }
  @Test void adminFiltersSortAndCompleteDetailsArePersisted()throws Exception{
   var b=body("ROLE_SAFETY_MANAGER");long id=register(b).get("requestId").asLong();
-  mvc.perform(get("/api/admin/registration-requests").param("role","ROLE_SAFETY_MANAGER").param("status","PENDING").param("search",(String)b.get("email")).param("sort","fullName").param("direction","asc").with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].id").value(id)).andExpect(jsonPath("$.content[0].details.managementDepartment").value("Synthetic qualification")).andExpect(jsonPath("$.content[0].passwordHash").doesNotExist());
+  mvc.perform(get("/api/admin/registration-requests").param("role","ROLE_SAFETY_MANAGER").param("status","PENDING").param("search",(String)b.get("email")).param("sort","fullName").param("direction","asc").with(user(admin).roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].id").value(id)).andExpect(jsonPath("$.content[0].details.managementDepartment").value("Drug Safety / Pharmacovigilance")).andExpect(jsonPath("$.content[0].passwordHash").doesNotExist());
  }
 }

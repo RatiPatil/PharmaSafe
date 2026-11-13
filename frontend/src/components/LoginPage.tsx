@@ -16,9 +16,12 @@ export const LoginPage: React.FC = () => {
     if (!username.trim()) {
       errors.username = 'Username is required';
     }
+    if (username.trim().length>254) errors.username='Maximum 254 characters.';
+    if (username.includes('@')&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username.trim())) errors.username='Enter a valid official email address.';
     if (!password) {
       errors.password = 'Password is required';
     }
+    if(new TextEncoder().encode(password).length>72)errors.password='Maximum 72 UTF-8 bytes.';
     setClientErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -66,7 +69,7 @@ export const LoginPage: React.FC = () => {
       <section className="login-access" aria-labelledby="login-title">
         <div className="login-access-top"><span role={isInitialLoading?'status':undefined}>{isInitialLoading?<Loader2 size={14} className="login-spinner" aria-hidden="true"/>:<Lock size={14} aria-hidden="true"/>}{isInitialLoading?'Checking existing session…':'Authorized access'}</span></div>
         <div className="login-form-container">
-          <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">Welcome back.</h1><p>Sign in to your PharmaSafe workspace.</p></div>
+          <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">Sign in to PharmaSafe</h1><p>Access your approved safety workspace.</p></div>
           <p className="login-recovery-links"><a href="#/home">Request access</a><a href="#/forgot-password">Forgot password?</a></p><form onSubmit={handleSubmit} className="login-form" noValidate aria-busy={isLoading}>
             {error && <div role="alert" className={`login-alert ${isLockedAccount ? 'login-alert-warning' : isConnFailure ? 'login-alert-connection' : 'login-alert-error'}`}>
               {isLockedAccount ? <AlertTriangle size={19} aria-hidden="true"/> : <AlertCircle size={19} aria-hidden="true"/>}
@@ -77,7 +80,7 @@ export const LoginPage: React.FC = () => {
             <button type="submit" className="login-submit" disabled={isLoading}>{isLoading ? <><Loader2 size={19} className="login-spinner" aria-hidden="true"/><span>Signing in…</span></> : <><span>Log In to PharmaSafe</span><ArrowRight size={18} aria-hidden="true"/></>}</button>
             {isLoading&&<p role="status" className="login-progress">Connecting to your workspace. Please allow a moment for the service to respond.</p>}
           </form>
-          <div className="login-help"><ShieldCheck size={17} aria-hidden="true"/><p>Use the account provided by your administrator.<br/>Your role determines your workspace.</p></div>
+          <div className="login-help"><ShieldCheck size={17} aria-hidden="true"/><p>Access is available after administrator approval.</p></div>
         </div>
         <footer className="login-footer"><span>PharmaSafe Safety Suite</span><span>For authorized users only</span></footer>
       </section>

@@ -7,6 +7,7 @@ import java.util.*;
 public interface PasswordResetRequestRepository extends JpaRepository<PasswordResetRequest,Long>, JpaSpecificationExecutor<PasswordResetRequest> {
     @Lock(LockModeType.PESSIMISTIC_WRITE) @Query("select r from PasswordResetRequest r where r.id=:id")
     Optional<PasswordResetRequest> lockById(@Param("id") Long id);
+    long countByStatus(String status);
     Optional<PasswordResetRequest> findByTokenHash(String tokenHash);
     long countByUserIdAndCreatedAtAfter(Long userId, java.time.Instant after);
 }

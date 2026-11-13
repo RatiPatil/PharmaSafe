@@ -59,6 +59,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(com.pharmasafe.validation.InputValidationException.class)
+    public ResponseEntity<Map<String,Object>> handleInputRules(com.pharmasafe.validation.InputValidationException ex) {
+        return ResponseEntity.badRequest().body(Map.of("success",false,"message",ex.getMessage(),"errors",ex.getErrors()));
+    }
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<AuthResponseDto> handleInvalidParameter(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest().body(AuthResponseDto.error("Invalid format for "+ex.getName()));
+    }
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<AuthResponseDto> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

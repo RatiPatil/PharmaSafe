@@ -12,6 +12,7 @@ import java.util.*;
 
 @Service
 public class WorkspaceQueueService {
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     private final SafetyCaseRepository cases;
     public WorkspaceQueueService(SafetyCaseRepository cases) { this.cases = cases; }
     @Transactional(readOnly = true)
@@ -59,7 +60,29 @@ public class WorkspaceQueueService {
             states.put(state, cases.count(scope.and((r,q,c) -> c.equal(r.get("workflowState"), state))));
         }
         result.put("states", states);
+        var today=java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+        result.put("fatalCases",cases.count(scope.and((r,q,c)->c.isTrue(r.get("fatal")))));
+        result.put("lockedCases",cases.count(scope.and((r,q,c)->c.isTrue(r.get("locked")))));
+        result.put("unassignedCases",cases.count(scope.and((r,q,c)->c.isNull(r.get("assignedToUser")))));
+        result.put("assessedCases",cases.count(scope.and((r,q,c)->c.isNotEmpty(r.get("assessments")))));
+        result.put("narrativeCases",cases.count(scope.and((r,q,c)->c.and(c.isNotNull(r.get("narrative")),c.greaterThan(c.length(c.trim(r.get("narrative"))),0)))));
+        result.put("receivedLast7Days",cases.count(scope.and((r,q,c)->c.between(r.get("latestReceivedDate"),today.minusDays(6),today))));
+        result.put("staleOpenCases",cases.count(scope.and((r,q,c)->c.and(c.lessThanOrEqualTo(r.get("latestReceivedDate"),today.minusDays(14)),c.not(r.get("workflowState").in("Closed","Submitted"))))));
+        result.put("priorityDistribution",distribution(scope,"priority"));
+        result.put("countryDistribution",distribution(scope,"countryCode"));
+        result.put("reportTypeDistribution",distribution(scope,"reportType"));
+        var cb=entityManager.getCriteriaBuilder();var query=cb.createTupleQuery();var root=query.from(SafetyCase.class);
+        query.multiselect(root.get("latestReceivedDate"),cb.countDistinct(root)).where(cb.and(scope.toPredicate(root,query,cb),cb.between(root.get("latestReceivedDate"),today.minusDays(13),today))).groupBy(root.get("latestReceivedDate"));
+        Map<String,Long> receipts=new LinkedHashMap<>();for(int i=13;i>=0;i--)receipts.put(today.minusDays(i).toString(),0L);
+        for(var row:entityManager.createQuery(query).getResultList())receipts.put(row.get(0).toString(),((Number)row.get(1)).longValue());
+        result.put("receiptActivity",receipts);
+
         return result;
     }
 
+    private Map<String,Long> distribution(Specification<SafetyCase> scope,String attribute){
+        var cb=entityManager.getCriteriaBuilder();var query=cb.createTupleQuery();var root=query.from(SafetyCase.class);
+        query.multiselect(root.get(attribute),cb.countDistinct(root)).where(scope.toPredicate(root,query,cb)).groupBy(root.get(attribute)).orderBy(cb.desc(cb.countDistinct(root)),cb.asc(root.get(attribute)));
+        Map<String,Long> values=new LinkedHashMap<>();for(var row:entityManager.createQuery(query).getResultList())values.put(row.get(0)==null?"Not recorded":row.get(0).toString(),((Number)row.get(1)).longValue());return values;
+    }
 }

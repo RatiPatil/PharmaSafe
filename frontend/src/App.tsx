@@ -1,3 +1,4 @@
+import { ValidatedFields } from './components/ValidatedFields';
 import React, { Component, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PublicAccess } from './components/PublicAccess';
@@ -15,5 +16,5 @@ const AppContent:React.FC=()=>{
  // content is still rendered only after the server verifies the current account.
  return isAuthenticated?<WorkspaceLoadBoundary><Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-[#F4F7FB]"><p role="status" className="text-sm text-[#52657A]">Opening your workspace…</p></main>}><RoleWorkspace/></Suspense></WorkspaceLoadBoundary>:<PublicAccess/>;
 };
-export const App:React.FC=()=> <AuthProvider><AppContent/></AuthProvider>;
+export const App:React.FC=()=> <AuthProvider><ValidatedFields/><AppContent/></AuthProvider>;
 export default App;

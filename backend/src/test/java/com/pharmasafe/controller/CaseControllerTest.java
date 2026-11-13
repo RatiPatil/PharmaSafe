@@ -207,7 +207,7 @@ public class CaseControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("Latest received date cannot be before initial receipt date")));
+                .andExpect(jsonPath("$.errors.latestReceivedDate").exists());
     }
 
     @Test
