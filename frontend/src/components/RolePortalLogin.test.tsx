@@ -38,7 +38,7 @@ it.each(['input','animation','submit'])('clears browser-inserted admin credentia
     fireEvent(username,event);
   }
   expect(username).toHaveValue('');expect(password).toHaveValue('');
-  expect(screen.getByText('Use the Role Admin login tab for this account.')).toBeVisible();
+  expect(screen.queryByText('Use the Role Admin login tab for this account.')).not.toBeInTheDocument();
   expect(auth.login).not.toHaveBeenCalled();
 });
 it('keeps saved admin credentials usable in the Admin tab', async () => {
@@ -46,6 +46,20 @@ it('keeps saved admin credentials usable in the Admin tab', async () => {
   fireEvent.change(screen.getByLabelText('Password',{exact:true}),{target:{value:'SavedAdminPassword123!'}});
   fireEvent.click(screen.getByRole('button',{name:'Log In to PharmaSafe'}));
   await waitFor(()=>expect(auth.login).toHaveBeenCalledWith('pv.auditor.admin','SavedAdminPassword123!',{applicationRole:'ROLE_AUDITOR',loginMode:'ROLE_ADMIN'}));
+});
+it('silently clears a delayed admin password and still permits a subsequent employee login', async () => {
+  render(<LoginPage applicationRole="ROLE_AUDITOR" />);
+  const username=screen.getByLabelText('Username or official email') as HTMLInputElement;
+  const password=screen.getByLabelText('Password',{exact:true}) as HTMLInputElement;
+  username.value='pv.auditor.admin';fireEvent.input(username);
+  password.value='DelayedSavedAdminPassword123!';fireEvent.input(password);
+  expect(username).toHaveValue('');expect(password).toHaveValue('');
+  expect(username).toHaveAttribute('aria-invalid','false');
+  expect(screen.queryByText('Use the Role Admin login tab for this account.')).not.toBeInTheDocument();
+  fireEvent.change(username,{target:{value:'approved.auditor'}});
+  fireEvent.change(password,{target:{value:'EmployeePassword123!'}});
+  fireEvent.click(screen.getByRole('button',{name:'Log In to PharmaSafe'}));
+  await waitFor(()=>expect(auth.login).toHaveBeenCalledWith('approved.auditor','EmployeePassword123!',{applicationRole:'ROLE_AUDITOR',loginMode:'USER'}));
 });
 it.each(Object.entries(ROLE_ADMIN_USERNAMES))('suggests the admin username for %s without exposing a password', (applicationRole, username) => {
   render(<LoginPage applicationRole={applicationRole} adminLogin />);

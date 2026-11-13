@@ -56,7 +56,7 @@ describe('account catalogue availability',()=>{
 });
 
 describe('dedicated role access pages',()=>{
- it('opens the selected role login from the new registration card action',async()=>{render(<PublicAccess/>);const link=screen.getByRole('link',{name:'New registration for Medical Reviewer'});expect(link).toHaveAttribute('href','#/access/ROLE_MEDICAL_REVIEWER/user');});
+ it('opens the selected role registration directly from the home card',async()=>{render(<PublicAccess/>);const link=screen.getByRole('link',{name:'New registration for Medical Reviewer'});expect(link).toHaveAttribute('href','#/access/ROLE_MEDICAL_REVIEWER/register');fireEvent.click(link);await screen.findByRole('heading',{name:'Medical Reviewer registration'});expect(screen.queryByText('Sign in screen')).not.toBeInTheDocument();});
  it('shows only the selected role and its three access tabs',()=>{window.history.replaceState(null,'','/#/access/ROLE_MEDICAL_REVIEWER/admin');render(<PublicAccess/>);expect(screen.getByRole('heading',{name:'Medical Reviewer'})).toBeInTheDocument();expect(screen.getByRole('navigation',{name:'Role access tabs'})).toBeInTheDocument();expect(screen.getByRole('link',{name:'Role Admin login'})).toHaveAttribute('aria-current','page');expect(screen.queryByRole('heading',{name:'Case Processor'})).not.toBeInTheDocument();});
  it('restores a role-specific registration page on direct navigation',async()=>{window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register');render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});expect(screen.queryByLabelText('Medical Qualification')).not.toBeInTheDocument();expect(screen.getByLabelText('Training')).toBeInTheDocument();});
 });

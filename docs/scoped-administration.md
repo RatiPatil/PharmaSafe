@@ -173,8 +173,9 @@ editor, public admin signup, invitation delivery system or Oracle certification.
 
 ## Dedicated role access and dashboards
 
-Each public role card offers Sign in and New register actions opening
-`#/access/<application-role>/user`. The selected role's access page has three tabs:
+Each public role card offers Sign in opening
+`#/access/<application-role>/user` and New register opening
+`#/access/<application-role>/register` directly. The selected role's access page has three tabs:
 
 - `/user`: employee login for this application role.
 - `/admin`: login for the active Role Admin assigned to this application role.
@@ -228,7 +229,13 @@ role forms request `autocomplete="off"` and do not autofocus. Admin forms have
 distinct role-specific form/field identities and autocomplete sections. Because
 browsers may ignore `off` on login forms, employee forms also clear the six known
 Role Admin usernames and their passwords if inserted through input, focus,
-browser-autofill animation or submission. The backend's account-type/role checks
+browser-autofill animation or submission. Clearing is silent and also handles a
+password inserted after its rejected administrator username. Entering an employee
+username enables normal employee password entry. Role login cards have a stable
+desktop height, reserve the same title space, and avoid entry animation and portal
+autofocus so changing roles does not resize/reposition the form or photo. Small
+viewports retain a single natural page scroll, and inputs use at least 16px text.
+The backend's account-type/role checks
 remain authoritative; autocomplete hints do not grant access.
 
 The separately delivered initial six-account SQL/PDF/password-manager CSV are

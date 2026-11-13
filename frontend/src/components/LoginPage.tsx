@@ -14,6 +14,7 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
   const [clientErrors, setClientErrors] = useState<{ username?: string; password?: string }>({});
   const usernameInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
+  const rejectedAdminAutofill = useRef(false);
   const employeeLogin = Boolean(applicationRole && !adminLogin);
   const loginKind = employeeLogin ? 'employee' : adminLogin ? 'role-admin' : 'general';
   const fieldPrefix = `pharmasafe-${(applicationRole || 'general').toLowerCase().replaceAll('_', '-')}-${loginKind}`;
@@ -23,17 +24,23 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
   // credentials into an employee form, including DOM-only password-manager fills.
   const clearAdminAutofill = (): boolean => {
     const enteredUsername = usernameInput.current?.value.trim().toLowerCase() || '';
-    if (!employeeLogin || !Object.values(ROLE_ADMIN_USERNAMES).includes(enteredUsername)) return false;
+    if (!employeeLogin) return false;
+    const knownAdmin = Object.values(ROLE_ADMIN_USERNAMES).includes(enteredUsername);
+    if (enteredUsername && !knownAdmin) rejectedAdminAutofill.current = false;
+    const delayedAdminPassword = rejectedAdminAutofill.current && !enteredUsername && Boolean(passwordInput.current?.value);
+    if (!knownAdmin && !delayedAdminPassword) return false;
+    rejectedAdminAutofill.current = true;
     if (usernameInput.current) usernameInput.current.value = '';
     if (passwordInput.current) passwordInput.current.value = '';
     setUsername('');
     setPassword('');
     setShowPassword(false);
-    setClientErrors({username: 'Use the Role Admin login tab for this account.'});
+    setClientErrors({});
     return true;
   };
 
   useEffect(() => {
+    rejectedAdminAutofill.current = false;
     setUsername(adminLogin && applicationRole ? ROLE_ADMIN_USERNAMES[applicationRole] || '' : '');
     setPassword('');
     setShowPassword(false);
@@ -105,7 +112,7 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
               {isLockedAccount ? <AlertTriangle size={19} aria-hidden="true"/> : <AlertCircle size={19} aria-hidden="true"/>}
               <div><strong>{isLockedAccount ? 'Account Locked' : isInactiveAccount ? 'Account Inactive' : isConnFailure ? 'Connection interrupted' : 'Authentication Failure'}</strong><p>{error}</p>{isConnFailure && <><button type="button" disabled={isLoading} onClick={handleSubmit} className="login-retry"><RefreshCw size={14} aria-hidden="true"/>Retry Authentication</button><p className="login-alert-hint">The service may take a little longer to start. Your entries have been kept.</p></>}</div>
             </div>}
-            <div className="login-field"><label htmlFor={`${fieldPrefix}-username`}>Username or official email</label><div className={`login-input-wrap ${clientErrors.username ? 'login-input-invalid' : ''}`}><User size={19} aria-hidden="true"/><input ref={usernameInput} id={`${fieldPrefix}-username`} name={`${fieldPrefix}-username`} type="text" autoComplete={employeeLogin ? 'off' : `${autocompleteSection} username`} autoCapitalize="none" spellCheck={false} autoFocus={!employeeLogin} required disabled={isLoading} value={username} aria-invalid={!!clientErrors.username} aria-describedby={clientErrors.username ? 'username-error' : undefined} placeholder="Enter your username" onChange={e=>{setUsername(e.target.value);if(clientErrors.username)setClientErrors(prev=>({...prev,username:undefined}));}}/></div>{clientErrors.username&&<p id="username-error" className="login-field-error">{clientErrors.username}</p>}</div>
+            <div className="login-field"><label htmlFor={`${fieldPrefix}-username`}>Username or official email</label><div className={`login-input-wrap ${clientErrors.username ? 'login-input-invalid' : ''}`}><User size={19} aria-hidden="true"/><input ref={usernameInput} id={`${fieldPrefix}-username`} name={`${fieldPrefix}-username`} type="text" autoComplete={employeeLogin ? 'off' : `${autocompleteSection} username`} autoCapitalize="none" spellCheck={false} autoFocus={!applicationRole} required disabled={isLoading} value={username} aria-invalid={!!clientErrors.username} aria-describedby={clientErrors.username ? 'username-error' : undefined} placeholder="Enter your username" onChange={e=>{setUsername(e.target.value);if(clientErrors.username)setClientErrors(prev=>({...prev,username:undefined}));}}/></div>{clientErrors.username&&<p id="username-error" className="login-field-error">{clientErrors.username}</p>}</div>
             <div className="login-field"><label htmlFor={`${fieldPrefix}-password`}>Password</label><div className={`login-input-wrap ${clientErrors.password ? 'login-input-invalid' : ''}`}><Lock size={19} aria-hidden="true"/><input ref={passwordInput} id={`${fieldPrefix}-password`} name={`${fieldPrefix}-password`} type={showPassword ? 'text' : 'password'} autoComplete={employeeLogin ? 'off' : `${autocompleteSection} current-password`} required disabled={isLoading} value={password} aria-invalid={!!clientErrors.password} aria-describedby={clientErrors.password ? 'password-error' : undefined} placeholder="Enter your password" onChange={e=>{setPassword(e.target.value);if(clientErrors.password)setClientErrors(prev=>({...prev,password:undefined}));}}/><button type="button" disabled={isLoading} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword} className="login-password-toggle" onClick={()=>setShowPassword(v=>!v)}>{showPassword ? <EyeOff size={19}/> : <Eye size={19}/>}</button></div>{clientErrors.password&&<p id="password-error" className="login-field-error">{clientErrors.password}</p>}</div>
             <button type="submit" className="login-submit" disabled={isLoading}>{isLoading ? <><Loader2 size={19} className="login-spinner" aria-hidden="true"/><span>Signing in…</span></> : <><span>Log In to PharmaSafe</span><ArrowRight size={18} aria-hidden="true"/></>}</button>
             {isLoading&&<p role="status" className="login-progress">Connecting to your workspace. Please allow a moment for the service to respond.</p>}

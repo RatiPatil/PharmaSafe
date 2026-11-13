@@ -61,12 +61,13 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    }
    await publicPage.goto(origin+'/#/access/'+account.role+'/register');await publicPage.getByRole('heading',{name:account.name+' registration',exact:true}).waitFor();if(await publicPage.getByRole('navigation',{name:'Role access tabs'}).count()!==1)throw Error('Missing dedicated access tabs');
   }
+  await require('./qa/verify-role-login-layout.cjs')(publicPage,origin,publicRoles);
   await publicPage.goto(origin+'/#/access/ROLE_AUDITOR/admin');await publicPage.getByRole('heading',{name:'Auditor / Viewer Admin sign in',exact:true}).waitFor();
   const suggestedAdmin=await publicPage.getByLabel('Username or official email',{exact:true}).inputValue();
   if(suggestedAdmin!=='pv.auditor.admin')throw Error('Missing dedicated admin username suggestion');
   await publicPage.goto(origin+'/#/access/ROLE_AUDITOR/user');await publicPage.getByRole('heading',{name:'Auditor / Viewer sign in',exact:true}).waitFor();
   await publicPage.evaluate(savedUsername=>{const u=document.querySelector('input[id$="-username"]'),p=document.querySelector('input[id$="-password"]');if(u.autocomplete!=='off'||p.autocomplete!=='off')throw Error('Employee autofill must be disabled');u.value=savedUsername;p.value='SyntheticSavedAdminPassword123!';p.dispatchEvent(new Event('input',{bubbles:true}));},suggestedAdmin);
-  await publicPage.getByText('Use the Role Admin login tab for this account.',{exact:true}).waitFor();
+  if(await publicPage.getByText('Use the Role Admin login tab for this account.',{exact:true}).count())throw Error('Automatic credential clearing must not display a warning');
   if(await publicPage.getByLabel('Username or official email',{exact:true}).inputValue()||await publicPage.getByLabel('Password',{exact:true}).inputValue())throw Error('Saved admin credentials leaked into employee form');
   console.log('PASS separate administrator autofill metadata and browser-inserted credential clearing on employee login');
   await publicPage.setViewportSize({width:1440,height:1000});await publicPage.goto(origin+'/#/home');console.log('PASS all six dedicated role portals: user login, role-admin login, reloadable registration and responsive forms');
