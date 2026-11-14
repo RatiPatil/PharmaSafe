@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 public class SafetyReportDto {
 
     private Long id;
+    private long rowVersion;
+    public long getRowVersion(){return rowVersion;}
     private String reportId;
     private String reportType;
     private String product;
@@ -44,6 +46,7 @@ public class SafetyReportDto {
         }
         SafetyReportDto dto = new SafetyReportDto();
         dto.setId(report.getId());
+        dto.rowVersion=report.getRowVersion();
         dto.setReportId(report.getReportId());
         dto.setReportType(report.getReportType());
         dto.setProduct(report.getProduct());

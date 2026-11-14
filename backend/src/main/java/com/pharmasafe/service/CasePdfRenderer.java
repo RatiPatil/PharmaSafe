@@ -29,18 +29,18 @@ public class CasePdfRenderer {
   }
   byte[] render(byte[] json)throws IOException {
    var control=source.path("documentControl");
-   doc.getDocumentInformation().setTitle("PharmaSafe Safety Suite - "+control.path("caseNumber").asText());
+   doc.getDocumentInformation().setTitle("PharmaSafe Safety Suite - "+control.path("reportId").asText(control.path("caseNumber").asText()));
    doc.getDocumentInformation().setAuthor(control.path("generatedBy").asText());
    newPage();
    var fields=source.fields();while(fields.hasNext()){var field=fields.next();section(label(field.getKey()));walk(field.getValue(),"");}
    section("Reading this document");row("Source preservation","All stored fields in the selected document are listed, including empty values. Attachments are metadata only; original uploaded files are not embedded.");
    row("Character handling","Unsupported font characters appear as [U+XXXX]. The original UTF-8 snapshot is embedded as source-data.json; no source text is discarded.");
-   row("Use","Internal case record. This PDF is not a regulatory submission, electronic signature, or evidence of regulatory validation.");
+   row("Use","Internal safety record. This PDF is not a regulatory submission, electronic signature, or evidence of regulatory validation.");
    stream.close();stream=null;
    int total=doc.getNumberOfPages();
    for(int i=0;i<total;i++)try(var footer=new PDPageContentStream(doc,doc.getPage(i),PDPageContentStream.AppendMode.APPEND,true,true)){
     footer.setStrokingColor(new Color(218,227,236));footer.moveTo(left,43);footer.lineTo(left+width,43);footer.stroke();
-    text(footer,"CONFIDENTIAL - Internal case record",left,29,8,new Color(88,109,130));
+    text(footer,"CONFIDENTIAL - Internal safety record",left,29,8,new Color(88,109,130));
     text(footer,control.path("generatedAtUtc").asText(),left+205,29,7,new Color(88,109,130));
     text(footer,"Page "+(i+1)+" of "+total,left+width-65,29,8,new Color(88,109,130));
    }
@@ -54,9 +54,10 @@ public class CasePdfRenderer {
    if(stream!=null)stream.close();PDPage page=new PDPage(PDRectangle.A4);doc.addPage(page);stream=new PDPageContentStream(doc,page);
    stream.setNonStrokingColor(new Color(15,42,67));stream.addRect(0,754,595.28f,88);stream.fill();
    text(stream,"PharmaSafe Safety Suite",left,811,16,Color.WHITE);
-   var control=source.path("documentControl");String kind=control.path("documentKind").asText().equals("MEDICAL_SUMMARY")?"MEDICAL SUMMARY":"COMPLETE CASE FORM";
+   var control=source.path("documentControl");String kind=switch(control.path("documentKind").asText()){case "REPORT_RECORD"->"SAFETY REPORT RECORD";case "MEDICAL_SUMMARY"->"MEDICAL SUMMARY";default->"COMPLETE CASE FORM";};
+   if(control.path("syntheticRecord").asBoolean())kind="SYNTHETIC TRAINING | "+kind;
    text(stream,kind+" | "+(control.path("finalDocument").asBoolean()?"FINAL RECORD":"WORKING COPY"),left,789,10,new Color(194,216,238));
-   text(stream,safe(control.path("caseNumber").asText()),left,771,9,Color.WHITE);
+   text(stream,safe(control.path("reportId").asText(control.path("caseNumber").asText())),left,771,9,Color.WHITE);
    y=733;if(section!=null)sectionHeader(true);
   }
   void section(String name)throws IOException {section=name;alternate=false;if(y<bottom+90)newPage();else sectionHeader(false);}

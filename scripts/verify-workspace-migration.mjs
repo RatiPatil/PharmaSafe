@@ -86,6 +86,25 @@ for (const populated of [false, true]) {
   await assert.rejects(db.exec("UPDATE users SET role='ROLE_ADMIN' WHERE username='scoped-admin'"),e=>e.code==='23514');
   await db.exec("INSERT INTO administrative_events(actor_id,actor_username,actor_level,managed_role,target_user_id,action,reason,outcome,created_at) SELECT id,username,'SUPER_ADMIN','ROLE_CASE_PROCESSOR',(SELECT id FROM users WHERE username='scoped-admin'),'ROLE_ADMIN_ASSIGNED','Synthetic assignment','SUCCESS',CURRENT_TIMESTAMP FROM users WHERE username='receipt-actor'");
   await assert.rejects(db.exec("UPDATE administrative_events SET reason='Changed'"),e=>e.code==='23514');await assert.rejects(db.exec('DELETE FROM administrative_events'),e=>e.code==='23514');
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V13, six public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
+  // V14 report evidence must be immutable and V15 seeds only three labelled intake records.
+  await db.exec(readFileSync(join(directory,'V15__three_labelled_synthetic_intake_cases.sql'),'utf8'));
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM cases WHERE synthetic_record')).rows[0].n,3);
+  await db.exec(readFileSync(join(directory,'V15__three_labelled_synthetic_intake_cases.sql'),'utf8'));
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM cases WHERE synthetic_record')).rows[0].n,3);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM cases WHERE synthetic_record AND workflow_state <> 'Data Entry'")).rows[0].n,0);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM case_patients p JOIN cases c ON c.id=p.case_id WHERE c.synthetic_record')).rows[0].n,3);
+  await assert.rejects(db.exec("UPDATE cases SET synthetic_record=FALSE WHERE synthetic_record"),e=>e.code==='23514');
+  await assert.rejects(db.exec("INSERT INTO safety_reports(report_id,report_type,product,due_date,total_cases,serious_cases) VALUES('INVALID-COUNTS','PSUR','Synthetic',CURRENT_DATE,1,2)"),e=>e.code==='23514');
+  await assert.rejects(db.exec("INSERT INTO safety_reports(report_id,report_type,product,due_date,period_start,period_end) VALUES('INVALID-PERIOD','PSUR','Synthetic',CURRENT_DATE,DATE '2026-11-10',DATE '2026-11-01')"),e=>e.code==='23514');
+  await db.exec("INSERT INTO safety_reports(report_id,report_type,product,due_date) VALUES('EVIDENCE-TEST','PSUR','Synthetic',CURRENT_DATE)");
+  await db.exec(`INSERT INTO report_document_exports(id,report_id,source_report_version,generated_by_user_id,generated_by_username,generated_at,snapshot_json,pdf_bytes,pdf_sha256,file_name) SELECT 'report-pdf',r.id,0,u.id,u.username,CURRENT_TIMESTAMP,'{}'::jsonb,decode('25504446','hex'),repeat('a',64),'report.pdf' FROM safety_reports r CROSS JOIN users u WHERE r.report_id='EVIDENCE-TEST' AND u.username='receipt-actor';
+  INSERT INTO report_acknowledgements(report_id,outcome,reference,received_at,message,reason,recorded_by_user_id,recorded_by_username,recorded_at,source_report_version) SELECT r.id,'ACCEPTED','ACK-TEST',CURRENT_TIMESTAMP,'Synthetic','Test evidence',u.id,u.username,CURRENT_TIMESTAMP,0 FROM safety_reports r CROSS JOIN users u WHERE r.report_id='EVIDENCE-TEST' AND u.username='receipt-actor';`);
+  await db.exec("INSERT INTO safety_report_cases(report_id,case_id) SELECT r.id,c.id FROM safety_reports r CROSS JOIN cases c WHERE r.report_id='EVIDENCE-TEST' AND c.case_number='RECEIPT-A'");
+  await assert.rejects(db.exec("INSERT INTO safety_report_cases(report_id,case_id) SELECT r.id,c.id FROM safety_reports r CROSS JOIN cases c WHERE r.report_id='EVIDENCE-TEST' AND c.case_number='DEMO-PS-001'"),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE report_document_exports SET file_name='changed.pdf'"),e=>e.code==='23514');
+  await assert.rejects(db.exec('DELETE FROM report_document_exports'),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE report_acknowledgements SET outcome='REJECTED'"),e=>e.code==='23514');
+  await assert.rejects(db.exec('DELETE FROM report_acknowledgements'),e=>e.code==='23514');
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V15, six public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }

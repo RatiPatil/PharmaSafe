@@ -1,4 +1,5 @@
 export interface SafetyCaseSummary {
+  syntheticRecord?: boolean;
   id: number;
   caseNumber: string;
   countryCode: string;
@@ -121,6 +122,7 @@ export interface AttachmentData {
 }
 
 export interface SafetyCaseDetails {
+  syntheticRecord?: boolean;
   rowVersion?: number;
   locked?: boolean;
   lockedByUsername?: string;

@@ -21,6 +21,8 @@ public class CaseResponseDto {
     public String getClosedByUsername() { return closedByUsername; }
     public void setClosedByUsername(String value) { closedByUsername=value; }
     private Long id;
+    private boolean syntheticRecord;
+    public boolean isSyntheticRecord(){return syntheticRecord;}
     private String caseNumber;
     private String countryCode;
     private String reportType;
@@ -57,6 +59,7 @@ public class CaseResponseDto {
     public static CaseResponseDto fromEntity(SafetyCase c) {
         CaseResponseDto dto = new CaseResponseDto();
         dto.setId(c.getId());
+        dto.syntheticRecord=c.isSyntheticRecord();
         dto.setClosedAt(c.getClosedAt());
         dto.setClosedByUsername(c.getClosedByUser()==null?null:c.getClosedByUser().getUsername());
         dto.setRowVersion(c.getRowVersion());

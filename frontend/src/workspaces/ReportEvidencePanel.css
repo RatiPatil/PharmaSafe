@@ -1,0 +1,113 @@
+.report-evidence {
+  scroll-margin-top: 24px;
+}
+.report-evidence h3 {
+  font-size: 16px;
+  margin: 24px 0 12px;
+  color: #193c58;
+}
+.report-evidence-eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #527b95;
+}
+.report-evidence-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0;
+}
+.report-evidence-stats > div {
+  padding: 18px;
+  border: 1px solid #dce7f3;
+  border-radius: 12px;
+  background: #eef5fd;
+}
+.report-evidence-stats > div:nth-child(2) {
+  background: #f3edfc;
+}
+.report-evidence-stats > div:nth-child(3) {
+  background: #fff0f2;
+}
+.report-evidence-stats > div:nth-child(4) {
+  background: #eaf7f1;
+}
+.report-evidence-stats span {
+  display: block;
+  color: #536b81;
+  font-size: 12px;
+}
+.report-evidence-stats strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 24px;
+  color: #193c58;
+}
+.report-evidence-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.report-evidence-facts dt {
+  font-size: 12px;
+  color: #667c90;
+}
+.report-evidence-facts dd {
+  margin: 4px 0 0;
+}
+.report-evidence-documents,
+.report-evidence-receipts {
+  list-style: none;
+  padding: 0;
+}
+.report-evidence-documents li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid #e0e7ef;
+}
+.report-evidence-documents small {
+  overflow-wrap: anywhere;
+  color: #607b91;
+}
+.report-evidence-receipts li {
+  padding: 18px 0;
+  border-top: 1px solid #e0e7ef;
+}
+.report-evidence-receipts strong {
+  margin-left: 12px;
+}
+.report-evidence-copy {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.report-evidence .ws-form {
+  margin-top: 20px;
+}
+.report-evidence textarea {
+  min-height: 90px;
+}
+.report-evidence p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #5b7289;
+}
+@media (max-width: 700px) {
+  .report-evidence-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .report-evidence-facts {
+    grid-template-columns: 1fr;
+  }
+  .report-evidence-documents li {
+    align-items: start;
+    flex-direction: column;
+  }
+  .report-evidence-stats strong {
+    font-size: 20px;
+  }
+}
+
+.report-evidence .ws-form > h3 { grid-column: 1 / -1; margin-top: 0; }

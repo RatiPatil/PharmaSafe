@@ -19,6 +19,8 @@ public class SafetyReport {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Version @Column(name="row_version",nullable=false) private long rowVersion;
+    public long getRowVersion(){return rowVersion;}
 
     @Column(name = "report_id", nullable = false, unique = true, length = 64)
     private String reportId;

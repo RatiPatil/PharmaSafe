@@ -9,6 +9,8 @@ import java.util.Comparator;
 public class CaseSummaryDto {
 
     private Long id;
+    private boolean syntheticRecord;
+    public boolean isSyntheticRecord(){return syntheticRecord;}
     private String caseNumber;
     private String countryCode;
     private String reportType;
@@ -33,6 +35,7 @@ public class CaseSummaryDto {
     public static CaseSummaryDto fromEntity(SafetyCase c) {
         CaseSummaryDto dto = new CaseSummaryDto();
         dto.setId(c.getId());
+        dto.syntheticRecord=c.isSyntheticRecord();
         dto.setCaseNumber(c.getCaseNumber());
         dto.setCountryCode(c.getCountryCode());
         dto.setReportType(c.getReportType());

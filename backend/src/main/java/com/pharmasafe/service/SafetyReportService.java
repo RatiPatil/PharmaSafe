@@ -48,13 +48,14 @@ public class SafetyReportService {
 
     @Transactional(readOnly = true)
     public SafetyReportDto getReportById(Long id) {
-        SafetyReport report = safetyReportRepository.findById(id)
+        SafetyReport report = safetyReportRepository.findLockedById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety report not found with ID: " + id));
         return SafetyReportDto.fromEntity(report);
     }
 
     @Transactional
     public SafetyReportDto createReport(SafetyReportDto request, String username) {
+        validateReport(request);
         User user = null;
         if (username != null) {
             user = userRepository.findByUsername(username.trim().toLowerCase()).orElse(null);
@@ -111,6 +112,7 @@ public class SafetyReportService {
                     if (c.isFatal()) fatal++;
                 }
             }
+            if (linkedCases.stream().anyMatch(SafetyCase::isSyntheticRecord) && linkedCases.stream().anyMatch(c -> !c.isSyntheticRecord())) throw new IllegalArgumentException("Keep synthetic and real cases in separate report records");
             report.setRelatedCases(linkedCases);
             report.setTotalCases(total);
             report.setSeriousCases(serious);
@@ -121,7 +123,7 @@ public class SafetyReportService {
             report.setFatalCases(request.getFatalCases());
         }
 
-        SafetyReport saved = safetyReportRepository.save(report);
+        SafetyReport saved = safetyReportRepository.saveAndFlush(report);
 
         auditService.logEvent("REPORT_CREATED", username, null, null, "SUCCESS",
                 "Safety report " + saved.getReportId() + " (" + saved.getReportType() + ") created for " + saved.getProduct());
@@ -131,7 +133,7 @@ public class SafetyReportService {
 
     @Transactional
     public SafetyReportDto updateReport(Long id, SafetyReportDto request, String username) {
-        SafetyReport report = safetyReportRepository.findById(id)
+        SafetyReport report = safetyReportRepository.findLockedById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety report not found with ID: " + id));
 
         if ("Submitted".equals(report.getStatus())) throw new IllegalStateException("Submitted report records cannot be edited");
@@ -139,12 +141,16 @@ public class SafetyReportService {
         if (request.getProduct() != null) report.setProduct(request.getProduct());
         if (request.getAuthority() != null) report.setAuthority(request.getAuthority());
         if (request.getDueDate() != null) report.setDueDate(request.getDueDate());
+        if(request.getPeriodStart()!=null)report.setPeriodStart(request.getPeriodStart());
+        if(request.getPeriodEnd()!=null)report.setPeriodEnd(request.getPeriodEnd());
+        if(request.getDataLockPoint()!=null)report.setDataLockPoint(request.getDataLockPoint());
         if (request.getSummary() != null) report.setSummary(request.getSummary());
         if (request.getConclusions() != null) report.setConclusions(request.getConclusions());
         if (request.getRecommendations() != null) report.setRecommendations(request.getRecommendations());
         if (request.getStatus() != null) report.setStatus(request.getStatus());
 
-        SafetyReport saved = safetyReportRepository.save(report);
+        validateStoredReport(report);
+        SafetyReport saved = safetyReportRepository.saveAndFlush(report);
 
         auditService.logEvent("REPORT_UPDATED", username, null, null, "SUCCESS",
                 "Safety report " + saved.getReportId() + " updated by " + username);
@@ -154,18 +160,29 @@ public class SafetyReportService {
 
     @Transactional
     public SafetyReportDto submitReport(Long id, String username) {
-        SafetyReport report = safetyReportRepository.findById(id)
+        SafetyReport report = safetyReportRepository.findLockedById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Safety report not found with ID: " + id));
 
+        if ("Submitted".equals(report.getStatus())) return SafetyReportDto.fromEntity(report);
+        if (report.getRelatedCases().stream().anyMatch(SafetyCase::isSyntheticRecord)) throw new IllegalArgumentException("Synthetic training cases cannot be recorded as regulatory submissions");
+        validateStoredReport(report);
         report.setStatus("Submitted");
         report.setSubmittedDate(Instant.now());
-        SafetyReport saved = safetyReportRepository.save(report);
+        SafetyReport saved = safetyReportRepository.saveAndFlush(report);
 
         auditService.logEvent("REPORT_SUBMITTED", username, null, null, "SUCCESS",
-                "Safety report " + saved.getReportId() + " successfully submitted to " + saved.getAuthority() + " by " + username);
+                "Safety report " + saved.getReportId() + " submission manually recorded for " + saved.getAuthority() + " by " + username + "; no external transmission performed");
 
         return SafetyReportDto.fromEntity(saved);
     }
+
+    private static void periods(LocalDate start,LocalDate end,LocalDate lock){
+        if(start!=null&&end!=null&&end.isBefore(start))throw new IllegalArgumentException("Period end must be on or after period start");
+        if(lock!=null&&end!=null&&lock.isBefore(end))throw new IllegalArgumentException("Data lock point must be on or after period end");
+    }
+    private static void counts(int total,int serious,int fatal){if(total<0||serious<0||fatal<0||fatal>serious||serious>total)throw new IllegalArgumentException("Report counts must satisfy 0 <= fatal <= serious <= total");}
+    private static void validateReport(SafetyReportDto r){periods(r.getPeriodStart(),r.getPeriodEnd(),r.getDataLockPoint());counts(r.getTotalCases(),r.getSeriousCases(),r.getFatalCases());}
+    private static void validateStoredReport(SafetyReport r){periods(r.getPeriodStart(),r.getPeriodEnd(),r.getDataLockPoint());counts(r.getTotalCases(),r.getSeriousCases(),r.getFatalCases());}
 
     @Transactional(readOnly = true)
     public Map<String, Object> getExpeditedSummary() {

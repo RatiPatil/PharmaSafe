@@ -1,5 +1,6 @@
 # PharmaSafe — Database Architecture & Relational Schema Design
 **System:** PharmaSafe Educational Pharmacovigilance Case Management System  
+**Current additions:** V14–V15 report evidence and synthetic intake data are documented in [REPORT-EVIDENCE.md](REPORT-EVIDENCE.md). Earlier schema sections below describe the historical baseline.
 **Baseline Reference:** Oracle Argus Safety 7.0.3  
 **Database Engine:** PostgreSQL 18.4  
 **Target Database:** `pharmasafe_db`  
@@ -17,7 +18,7 @@ PharmaSafe is an educational pharmacovigilance (PV) case management application 
 2. **Pessimistic Locking & Concurrency Control**: Cases under review or data entry must support pessimistic locking (`case_locks`) to prevent dual-editor race conditions.
 3. **Strict Normalization with Referential Integrity**: Foreign keys enforce referential integrity across patients, reporters, suspect products, and adverse events.
 4. **Preservation of Existing Migrations**: Existing Flyway migrations (`V1__init_schema.sql` and `V2__auth_and_audit.sql`) remain completely untouched. All new schema additions will be introduced in subsequent Flyway versioned migrations (`V3`, `V4`, etc.).
-5. **No Synthetic / Mock Data in Production Tables**: Empty states must truthfully reflect empty database tables until real cases are processed.
+5. **Truthful statistics**: Empty states reflect stored records. The owner explicitly requested a small sample dataset: V15 seeds only three permanently labelled synthetic intake cases, with no approvals or regulator submissions. See [REPORT-EVIDENCE.md](REPORT-EVIDENCE.md).
 
 ---
 

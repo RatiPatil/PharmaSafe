@@ -121,6 +121,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/administration/**").hasAnyRole("ADMIN", "SCOPED_ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/auth/**", "/api/profile", "/api/profile/**").authenticated()
+                .requestMatchers("/api/reports/*/evidence", "/api/reports/*/documents", "/api/reports/*/documents/*/pdf", "/api/reports/*/acknowledgements").hasAnyRole("ADMIN", "SAFETY_MANAGER", "REPORTING_SPECIALIST", "AUDITOR", "SCOPED_ADMIN")
                 .anyRequest().hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER", "MEDICAL_REVIEWER",
                         "QUALITY_REVIEWER", "SAFETY_MANAGER", "REPORTING_SPECIALIST", "AUDITOR")
             );

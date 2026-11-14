@@ -1,3 +1,4 @@
+import { ReportEvidencePanel } from "./ReportEvidencePanel";
 import { RoleInsights, RoleOverviewPreview } from "./RoleInsights";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -221,11 +222,13 @@ export function RoleAdministration({
   const [summary, setSummary] = useState<Summary | null>(null),
     [data, setData] = useState<Page<Row>>(empty),
     [eligible, setEligible] = useState<Row[]>([]);
+  const [evidenceReport, setEvidenceReport] = useState<number | null>(null);
   const [page, setPage] = useState(0),
     [query, setQuery] = useState(""),
     [filters, setFilters] = useState<Record<string, string>>({}),
     [applied, setApplied] = useState<Record<string, string>>({}),
     [workUser, setWorkUser] = useState<Row | null>(null);
+  useEffect(() => setEvidenceReport(null), [role, tab, workUser?.userId]);
   const [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
@@ -643,6 +646,14 @@ export function RoleAdministration({
       data-testid={superAdmin ? "super-admin-management" : "role-admin-home"}
     >
       {header}
+      {tab === "report-work" && evidenceReport !== null && (
+        <ReportEvidencePanel
+          key={evidenceReport}
+          reportId={evidenceReport}
+          writer={superAdmin}
+          onClose={() => setEvidenceReport(null)}
+        />
+      )}
       {superAdmin && (
         <div className="admin-role-selector">
           <label>
@@ -982,6 +993,7 @@ export function RoleAdministration({
                           "Created by",
                           "Due",
                           "Submitted",
+                          "Evidence",
                         ]
                       : tab === "work"
                         ? [
@@ -1035,6 +1047,13 @@ export function RoleAdministration({
                           </td>
                           <td>{text(row.dueDate)}</td>
                           <td>{dateTime(row.submittedDate)}</td>
+                          <td>
+                            <button
+                              onClick={() => setEvidenceReport(Number(row.id))}
+                            >
+                              Report details & PDF
+                            </button>
+                          </td>
                         </>
                       ) : tab === "work" ? (
                         <>

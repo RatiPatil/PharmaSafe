@@ -18,6 +18,9 @@ public class SafetyCase {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(name="synthetic_record",nullable=false,updatable=false) private boolean syntheticRecord;
+    public boolean isSyntheticRecord(){return syntheticRecord;}
+    public void setSyntheticRecord(boolean value){syntheticRecord=value;}
     @Column(name="closed_at") private Instant closedAt;
     @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="closed_by_user_id") private User closedByUser;
     public Instant getClosedAt() { return closedAt; }
