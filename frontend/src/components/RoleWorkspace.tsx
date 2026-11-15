@@ -95,7 +95,7 @@ function ApplicationWorkspace() {
   useEffect(() => {
     const onHash = () => {
       const url = window.location.hash;
-      if(url.startsWith('#/processing-teams')){if(!confirmLeave())window.history.pushState(null,'',lastRoute.current);return;}
+      if(url.startsWith('#/processing-teams')||url.split('?')[0]==='#/access/ROLE_CASE_PROCESSOR/register'){if(!confirmLeave())window.history.pushState(null,'',lastRoute.current);return;}
       if (url === lastRoute.current && profile?.sections.includes(route())) return;
       if (!confirmLeave()) { window.history.pushState(null, '', lastRoute.current); return; }
       const next = route();

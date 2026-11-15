@@ -1088,6 +1088,7 @@ export function ProcessingTeamWorkspace() {
                                 />
                               </i>
                             </div>
+                            <p className="cp-muted">Team Lead ID for employee registration: <strong>{t.teamCode}</strong></p>
                             <label>
                               Employee registration link
                               <input
@@ -1114,6 +1115,7 @@ export function ProcessingTeamWorkspace() {
                               >
                                 Copy registration link
                               </button>
+                              <a className="cp-inline-link" href={link} target="_blank" rel="noopener noreferrer">Open employee registration</a>
                               <button
                                 onClick={() => {
                                   chooseTeam(String(t.id));

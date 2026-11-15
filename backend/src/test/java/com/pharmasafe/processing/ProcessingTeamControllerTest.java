@@ -292,6 +292,16 @@ class ProcessingTeamControllerTest {
         .andExpect(jsonPath("$.remainingSeats").value(10))
         .andExpect(jsonPath("$.leadName").value("Synthetic Team Lead"))
         .andExpect(jsonPath("$.employees").doesNotExist());
+    mvc.perform(get("/api/processing-teams/invitations/code/" + t.code()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.registrationKey").value(t.registrationKey))
+        .andExpect(jsonPath("$.teamCode").value(t.code()));
+    mvc.perform(get("/api/processing-teams/invitations/code/CP-TL-999999"))
+        .andExpect(status().isNotFound());
+    t.registrationOpen = false;
+    teams.saveAndFlush(t);
+    mvc.perform(get("/api/processing-teams/invitations/code/" + t.code()))
+        .andExpect(status().isNotFound());
     mvc.perform(get("/api/cases").with(as(lead(t)))).andExpect(status().isForbidden());
     mvc.perform(get("/api/administration/users").with(as(lead(t))))
         .andExpect(status().isForbidden());

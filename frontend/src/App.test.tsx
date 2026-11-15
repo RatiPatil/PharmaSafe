@@ -342,3 +342,9 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
  });
 
 });
+
+it('opens an employee invitation even when a department administrator is already signed in',async()=>{
+ window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register?team=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+ vi.stubGlobal('fetch',vi.fn(async(url:string)=>({ok:true,json:async()=>url.includes('/api/auth/me')?{id:99,username:'signed-in-admin',role:'ROLE_ADMIN',enabled:true,locked:false,createdAt:new Date().toISOString()}:url.includes('/access-roles')?[{role:'ROLE_CASE_PROCESSOR',name:'Case Processor',fields:['training']}]:url.includes('/invitations/')?{teamCode:'CP-TL-001',name:'Intake Team',leadName:'Lead One',remainingSeats:4}:url.includes('/csrf')?{token:'synthetic-csrf'}:{selectionToken:'synthetic-role-selection'}})));
+ render(<App/>);await screen.findByText('Intake Team · CP-TL-001');expect(screen.getByRole('heading',{name:'Case Processor registration'})).toBeVisible();expect(screen.queryByRole('navigation',{name:'Role access tabs'})).not.toBeInTheDocument();expect(screen.queryByTestId('admin-home')).not.toBeInTheDocument();
+});

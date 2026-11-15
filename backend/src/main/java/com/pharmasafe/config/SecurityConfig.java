@@ -117,7 +117,7 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/csrf"
                 ).permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.GET,"/api/processing-teams/invitations/*").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET,"/api/processing-teams/invitations/*", "/api/processing-teams/invitations/code/*").permitAll()
                 .requestMatchers("/api/processing-teams/**").hasAnyRole("ADMIN","SCOPED_ADMIN","CASE_TEAM_LEAD","CASE_PROCESSOR","USER")
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/cases").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/cases/*").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")

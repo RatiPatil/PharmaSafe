@@ -240,6 +240,25 @@ public class ProcessingTeamService {
         Math.max(0, t.maxMembers - occupied));
   }
 
+  public Map<String, Object> invitationByCode(String code) {
+    String normalized = code.trim().toUpperCase(Locale.ROOT);
+    if (!normalized.matches("CP-TL-[0-9]{3,18}"))
+      throw new IllegalArgumentException("Enter the Team Lead ID, for example CP-TL-001");
+    ProcessingTeam team;
+    try {
+      team =
+          teams
+              .findById(Long.parseLong(normalized.substring(6)))
+              .filter(t -> t.code().equals(normalized))
+              .orElseThrow(() -> new EntityNotFoundException("Team Lead ID not found"));
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("Invalid Team Lead ID");
+    }
+    var result = new LinkedHashMap<String, Object>(invitation(team.registrationKey));
+    result.put("registrationKey", team.registrationKey);
+    return result;
+  }
+
   @Transactional
   public Map<String, Object> createTeam(CreateTeam d, String username) {
     User actor = access.actor(username);

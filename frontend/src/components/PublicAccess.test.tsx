@@ -64,8 +64,29 @@ describe('dedicated role access pages',()=>{
 it('team registration links retain their team context and show the receiving Lead',async()=>{
  window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register?team=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
  request.mockImplementation(async(path)=>path==='/api/auth/access-roles'?roles:path.startsWith('/api/processing-teams/invitations/')?{teamCode:'CP-TL-001',name:'Intake Team',leadName:'Team Lead One',remainingSeats:7}:{selectionToken:'server-signed-role'});
- render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});expect(screen.getByText('Intake Team · CP-TL-001')).toBeVisible();expect(screen.getByText(/Team Lead: Team Lead One/)).toBeVisible();expect(screen.getByRole('link',{name:'Team Lead login'})).toHaveAttribute('href','#/access/ROLE_CASE_PROCESSOR/team-lead?team=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+ render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});expect(screen.getByText('Intake Team · CP-TL-001')).toBeVisible();expect(screen.getByText(/Team Lead: Team Lead One/)).toBeVisible();expect(screen.queryByRole('navigation',{name:'Role access tabs'})).not.toBeInTheDocument();expect(screen.queryByLabelText('Team Lead ID')).not.toBeInTheDocument();
 });
 it('closed or invalid team links do not silently fall back to generic signup',async()=>{
  window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register?team=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');request.mockImplementation(async(path)=>{if(path.startsWith('/api/processing-teams/invitations/'))throw Error('Team registration is closed');return path==='/api/auth/access-roles'?roles:{selectionToken:'server-signed-role'};});render(<PublicAccess/>);expect(await screen.findByRole('alert')).toHaveTextContent('Team registration is closed');expect(screen.queryByRole('button',{name:'Submit access request'})).not.toBeInTheDocument();
+});
+
+it('verifies a Team Lead ID before routing an employee registration',async()=>{
+ window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register');
+ request.mockImplementation(async(path)=>path==='/api/auth/access-roles'?roles:path.includes('/invitations/code/')?{teamCode:'CP-TL-001',name:'Intake Team',leadName:'Lead One',remainingSeats:5,registrationKey:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'}:path==='/api/auth/role-selection'?{selectionToken:'server-signed-role'}:{message:'Request submitted'});
+ render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});
+ expect(screen.getByRole('button',{name:'Submit access request'})).toBeDisabled();
+ fireEvent.change(screen.getByLabelText('Team Lead ID'),{target:{value:'CP-TL-001'}});fireEvent.click(screen.getByRole('button',{name:'Verify Team Lead'}));
+ await screen.findByText('Selected: CP-TL-001 · Intake Team · Team Lead: Lead One');
+ const entries={'Full name':'Synthetic Processor','Employee ID':'EMP-NEW','Official email address':'new@example.test','Mobile number':'+15551234567','Organization':'Synthetic Org','Username':'new.processor','Password':'SyntheticPassword123!','Confirm password':'SyntheticPassword123!','Reason for access':'Team source processing'};
+ for(const select of document.querySelectorAll<HTMLSelectElement>('.pa-registration select'))fireEvent.change(select,{target:{value:select.options[1].value}});
+ for(const [name,value]of Object.entries(entries))fireEvent.change(screen.getByLabelText(name),{target:{value}});
+ fireEvent.click(screen.getByRole('button',{name:'Submit access request'}));await screen.findByRole('heading',{name:'Request submitted'});
+ expect(request).toHaveBeenCalledWith('/api/auth/register','POST',expect.objectContaining({teamRegistrationKey:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'}));
+});
+it('clears the selected team when its ID is edited and does not accept a closed team',async()=>{
+ window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register');
+ request.mockImplementation(async(path)=>path==='/api/auth/access-roles'?roles:path.includes('/invitations/code/')?{teamCode:'CP-TL-001',name:'Intake Team',leadName:'Lead One',remainingSeats:5,registrationKey:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'}:{selectionToken:'server-signed-role'});
+ render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});fireEvent.change(screen.getByLabelText('Team Lead ID'),{target:{value:'CP-TL-001'}});fireEvent.click(screen.getByRole('button',{name:'Verify Team Lead'}));await screen.findByText(/Selected: CP-TL-001/);
+ fireEvent.change(screen.getByLabelText('Team Lead ID'),{target:{value:'CP-TL-002'}});expect(screen.getByRole('button',{name:'Submit access request'})).toBeDisabled();
+ request.mockRejectedValueOnce(new Error('This team registration link is unavailable'));fireEvent.click(screen.getByRole('button',{name:'Verify Team Lead'}));expect(await screen.findByRole('alert')).toHaveTextContent('unavailable');expect(screen.getByRole('button',{name:'Submit access request'})).toBeDisabled();
 });

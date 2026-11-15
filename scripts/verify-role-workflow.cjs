@@ -61,7 +61,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    for(const mode of ['user','admin']){await publicPage.goto(origin+'/#/access/'+account.role+'/'+mode);await publicPage.getByRole('heading',{name:account.name+(mode==='admin'?' Admin':'')+' sign in',exact:true}).waitFor();
     for(const [width,height] of [[1440,900],[1024,640],[390,900]]){await publicPage.setViewportSize({width,height});const fit=await publicPage.evaluate(()=>({horizontal:document.documentElement.scrollWidth>innerWidth,overlap:document.querySelector('.login-submit').getBoundingClientRect().top<=document.querySelector('input[id$="-password"]').getBoundingClientRect().bottom}));if(fit.horizontal||fit.overlap)throw Error('Role portal layout '+account.role+' '+mode+' '+width);}
    }
-   await publicPage.goto(origin+'/#/access/'+account.role+'/register');await publicPage.getByRole('heading',{name:account.name+' registration',exact:true}).waitFor();if(await publicPage.getByRole('navigation',{name:'Role access tabs'}).count()!==1)throw Error('Missing dedicated access tabs');
+   await publicPage.goto(origin+'/#/access/'+account.role+'/register');await publicPage.getByRole('heading',{name:account.name+' registration',exact:true}).waitFor();if(await publicPage.getByRole('navigation',{name:'Role access tabs'}).count()!==(account.role==='ROLE_CASE_PROCESSOR'?0:1))throw Error('Missing dedicated access tabs');
   }
   await require('./qa/verify-role-login-layout.cjs')(publicPage,origin,publicRoles);
   await publicPage.goto(origin+'/#/access/ROLE_AUDITOR/admin');await publicPage.getByRole('heading',{name:'Auditor / Viewer Admin sign in',exact:true}).waitFor();

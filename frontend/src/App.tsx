@@ -18,7 +18,8 @@ const AppContent:React.FC=()=>{
  const processing=user?.role==='ROLE_CASE_TEAM_LEAD'||route.startsWith('#/processing-teams')||(!route.startsWith('#/workspace')&&(!!user?.processingTeamId));
  // Render immediately while session restoration runs in the background. Protected
  // content is still rendered only after the server verifies the current account.
- return isAuthenticated?<WorkspaceLoadBoundary><Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-[#F4F7FB]"><p role="status" className="text-sm text-[#52657A]">Opening your workspace…</p></main>}>{processing?<ProcessingTeamWorkspace/>:<RoleWorkspace/>}</Suspense></WorkspaceLoadBoundary>:<PublicAccess/>;
+ const employeeRegistration=route.split('?')[0]==='#/access/ROLE_CASE_PROCESSOR/register';
+ return isAuthenticated&&!employeeRegistration?<WorkspaceLoadBoundary><Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-[#F4F7FB]"><p role="status" className="text-sm text-[#52657A]">Opening your workspace…</p></main>}>{processing?<ProcessingTeamWorkspace/>:<RoleWorkspace/>}</Suspense></WorkspaceLoadBoundary>:<PublicAccess/>;
 };
 export const App:React.FC=()=> <AuthProvider><ValidatedFields/><AppContent/></AuthProvider>;
 export default App;

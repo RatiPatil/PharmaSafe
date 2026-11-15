@@ -22,6 +22,11 @@ public class ProcessingTeamController {
     return service.invitation(key);
   }
 
+  @GetMapping("/invitations/code/{code}")
+  public Map<String, Object> invitationByCode(@PathVariable String code) {
+    return service.invitationByCode(code);
+  }
+
   @GetMapping("/overview")
   public Map<String, Object> overview(
       @RequestParam(required = false) Long teamId, Authentication a) {
