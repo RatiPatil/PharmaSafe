@@ -33,6 +33,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   server=await createServer({root:root+'/frontend',envDir:false,define:{'import.meta.env.VITE_API_URL':JSON.stringify('')},server:{host:'127.0.0.1',port:frontendPort,strictPort:true,proxy:{'/api':{target:`http://127.0.0.1:${backendPort}`,changeOrigin:true}}}});await server.listen();
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const failures=[];const contexts=[];
+  const publicRoles=JSON.parse(fs.readFileSync(root+'/frontend/src/config/publicRoleCatalog.json','utf8'));
   // Public page layout checks use the real role catalog. Selection alone is stubbed
   // because this isolated H2 harness has no PostgreSQL rate-limit table.
   if(process.env.PROCESSING_ONLY!=='1'){
@@ -54,7 +55,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    if(await publicPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Public home horizontal overflow '+width);
    await publicPage.screenshot({path:path.join(qaDirectory,'screens',`home-${width}.png`),fullPage:true});
   }
-  const publicRoles=JSON.parse(fs.readFileSync(root+'/frontend/src/config/publicRoleCatalog.json','utf8'));
+
   for(const account of publicRoles){
    await publicPage.goto(origin+'/#/access/'+account.role+'/user');await publicPage.getByRole('heading',{name:account.name+' sign in',exact:true}).waitFor();
    for(const mode of ['user','admin']){await publicPage.goto(origin+'/#/access/'+account.role+'/'+mode);await publicPage.getByRole('heading',{name:account.name+(mode==='admin'?' Admin':'')+' sign in',exact:true}).waitFor();
