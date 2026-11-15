@@ -23,7 +23,7 @@ public class UserAccessController {
  @GetMapping("/api/auth/access-roles") public List<Map<String,Object>> roles(){return catalog.roles();}
  @PostMapping("/api/auth/role-selection") public Map<String,String> select(@Valid @RequestBody RoleSelection body,HttpServletRequest request){limit(request,"selection",60);return Map.of("selectionToken",catalog.issue(body.role()));}
  @PostMapping("/api/auth/register") @ResponseStatus(HttpStatus.CREATED)
- public Map<String,Object> register(@Valid @RequestBody AccessRegistrationDto body,HttpServletRequest request){limit(request,"register",10);return access.register(body);}
+ public Map<String,Object> register(@Valid @RequestBody AccessRegistrationDto body,HttpServletRequest request){if(body.teamRegistrationKey()!=null){limit(request,"team-register-global",200);limit(request,"team-register-"+UserAccessService.hash(body.teamRegistrationKey()).substring(0,16),20);}else limit(request,"register",10);return access.register(body);}
  @PostMapping("/api/auth/forgot-password") public Map<String,String> forgot(@Valid @RequestBody Identifier body,HttpServletRequest request){limit(request,"forgot",10);access.forgot(body.identifier());return Map.of("message","If an eligible account exists, your request will be reviewed by an administrator.");}
  @PostMapping("/api/auth/reset-password") public Map<String,String> reset(@Valid @RequestBody Reset body,HttpServletRequest request){limit(request,"reset",20);access.reset(body.token(),body.password(),body.confirmPassword());return Map.of("message","Password changed. Sign in with your new password.");}
  @GetMapping("/api/admin/registration-requests") @PreAuthorize("hasRole('ADMIN')")

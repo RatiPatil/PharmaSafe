@@ -28,6 +28,7 @@ import java.util.Optional;
 
 @Service
 public class AuthenticationService {
+    @org.springframework.beans.factory.annotation.Autowired(required=false) private com.pharmasafe.processing.ProcessingMemberRepository processingMembers;
 
     private static final Logger log = LoggerFactory.getLogger(AuthenticationService.class);
     private static final int MAX_FAILED_ATTEMPTS = 3;
@@ -132,8 +133,8 @@ public class AuthenticationService {
         // A role portal restricts sign-in; it never grants the requested role.
         if(request.getApplicationRole()!=null||request.getLoginMode()!=null){
             String role=request.getApplicationRole(),mode=request.getLoginMode();
-            if(!AccessRoleCatalog.FIELDS.containsKey(role==null?"":role)||!java.util.Set.of("USER","ROLE_ADMIN").contains(mode==null?"":mode))throw new IllegalArgumentException("Choose a supported role and sign-in tab");
-            boolean allowed="USER".equals(mode)?role.equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())):com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())&&adminAssignments.findByAdministratorId(user.getId()).map(a->role.equals(a.applicationRole)).orElse(false);
+            if(!AccessRoleCatalog.FIELDS.containsKey(role==null?"":role)||!java.util.Set.of("USER","ROLE_ADMIN","TEAM_LEAD").contains(mode==null?"":mode))throw new IllegalArgumentException("Choose a supported role and sign-in tab");
+            boolean allowed="TEAM_LEAD".equals(mode)?"ROLE_CASE_PROCESSOR".equals(role)&&"ROLE_CASE_TEAM_LEAD".equals(user.getRole()):"USER".equals(mode)?role.equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())):com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())&&adminAssignments.findByAdministratorId(user.getId()).map(a->role.equals(a.applicationRole)).orElse(false);
             if(!allowed){auditService.logEvent("LOGIN_PORTAL_DENIED",normalizedUsername,clientIp,userAgent,"DENIED","Account does not match the selected role portal");throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,"This account is not assigned to the selected role and login tab. Choose the matching role or use general sign in.");}
         }
 
@@ -184,7 +185,7 @@ public class AuthenticationService {
     }
 
     @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.RoleAdminAssignmentRepository adminAssignments;
-    private UserResponseDto response(User user){var dto=UserResponseDto.fromEntity(user);if(adminAssignments!=null&&com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole()))adminAssignments.findByAdministratorId(user.getId()).ifPresent(a->dto.setManagedRole(a.applicationRole));return dto;}
+    private UserResponseDto response(User user){var dto=UserResponseDto.fromEntity(user);if(processingMembers!=null&&"ROLE_CASE_PROCESSOR".equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())))processingMembers.findByUserId(user.getId()).stream().filter(m->"ACTIVE".equals(m.status)).findFirst().ifPresent(m->dto.setProcessingTeamId(m.team.id));if("ROLE_CASE_TEAM_LEAD".equals(user.getRole()))dto.setManagedRole("ROLE_CASE_PROCESSOR");if(adminAssignments!=null&&com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole()))adminAssignments.findByAdministratorId(user.getId()).ifPresent(a->dto.setManagedRole(a.applicationRole));return dto;}
     @Transactional(readOnly = true)
     public UserResponseDto getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

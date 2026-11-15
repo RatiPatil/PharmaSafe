@@ -4,6 +4,10 @@ PharmaSafe is an educational pharmacovigilance case-management application inspi
 
 The current user-access workflow, V12 schema, SMTP configuration and automatic
 Render deployment instructions are documented in [User access management](docs/user-access-management.md).
+The V16 Case Processing hierarchy adds department Admin → Team Lead → employee
+workspaces, team registration links, staff-ID task allocation and preserved PDF
+responses. Setup, usage, permissions and schema are in
+[Case Processing teams](docs/CASE-PROCESSING-TEAMS.md).
 Older stage descriptions below are retained as project history.
 
 ---

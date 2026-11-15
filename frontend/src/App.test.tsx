@@ -30,7 +30,9 @@ describe('PharmaSafe Frontend - Stage 2 Authentication', () => {
       return Promise.resolve({ok:true,json:async()=>({content:[],totalElements:0,totalPages:0})});
     }));
     render(<App/>);fireEvent.change(screen.getByLabelText(/Username/i),{target:{value:'fast-admin'}});fireEvent.change(screen.getByLabelText(/^Password/i),{target:{value:'SyntheticPassword123!'}});fireEvent.click(screen.getByRole('button',{name:/Log In to PharmaSafe/i}));
-    await waitFor(()=>expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument());
+    // Allow the protected lazy workspace chunk to compile in the test runner;
+    // the unresolved CSRF/startup requests must still not block sign-in.
+    await waitFor(()=>expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument(),{timeout:4000});
     await act(async()=>{finishInitial({ok:false,status:401});await Promise.resolve();});
     expect(screen.getByRole('navigation', {name:/navigation/i})).toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Sign in to PharmaSafe'})).not.toBeInTheDocument();
   });

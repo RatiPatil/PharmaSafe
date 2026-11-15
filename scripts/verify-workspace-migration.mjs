@@ -105,6 +105,8 @@ for (const populated of [false, true]) {
   await assert.rejects(db.exec('DELETE FROM report_document_exports'),e=>e.code==='23514');
   await assert.rejects(db.exec("UPDATE report_acknowledgements SET outcome='REJECTED'"),e=>e.code==='23514');
   await assert.rejects(db.exec('DELETE FROM report_acknowledgements'),e=>e.code==='23514');
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V15, six public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V16, six public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }
+
+await import('./verify-processing-team-schema.mjs');

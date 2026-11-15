@@ -15,5 +15,6 @@ public record AccessRegistrationDto(
  @NotBlank @Size(max=72) String confirmPassword,
  @NotBlank @Size(max=2000) String reason,
  @Size(max=2000) String additionalInformation,
- @NotNull @Size(max=12) Map<String,String> details
+ @NotNull @Size(max=12) Map<String,String> details,
+ @Size(max=36) @Pattern(regexp="[0-9a-fA-F-]{36}") String teamRegistrationKey
 ) {}

@@ -19,6 +19,8 @@ public class UserAccessService {
  @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
  @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.AdminScope adminScope;
  @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.AdministrativeAudit adminAudit;
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.processing.ProcessingTeamRepository processingTeams;
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.processing.ProcessingMemberRepository processingMembers;
  private final UserRepository users;
  private final RegistrationRequestRepository registrations;
  private final PasswordResetRequestRepository resets;
@@ -44,11 +46,20 @@ public class UserAccessService {
   String username=d.username().trim().toLowerCase(Locale.ROOT),email=d.email().trim().toLowerCase(Locale.ROOT),employee=d.employeeId().trim().toLowerCase(Locale.ROOT);
   if(users.existsByUsername(username)||users.existsByEmailIgnoreCase(email)||users.existsByEmployeeIdIgnoreCase(employee))
    throw new IllegalArgumentException("Username, email or employee ID is already registered. Contact your administrator.");
+  com.pharmasafe.processing.ProcessingTeam processingTeam=null;
+  if(d.teamRegistrationKey()!=null){
+   if(!role.equals("ROLE_CASE_PROCESSOR"))throw new IllegalArgumentException("Team registration is only available for Case Processing employees");
+   var invited=processingTeams.findByRegistrationKey(d.teamRegistrationKey()).orElseThrow(()->new IllegalArgumentException("Team registration link is invalid"));
+   processingTeam=processingTeams.lockById(invited.id).orElseThrow();
+   if(!processingTeam.active||!processingTeam.registrationOpen||!processingTeam.lead.isEnabled()||!processingTeam.lead.isApproved()||processingTeam.lead.isLocked())throw new IllegalArgumentException("Team registration is closed");
+   if(processingMembers.countByTeamIdAndStatusIn(processingTeam.id,List.of("PENDING","ACTIVE"))>=processingTeam.maxMembers)throw new IllegalArgumentException("This team has no remaining employee seats");
+  }
   var u=new User(username,encoder.encode(d.password()),role);u.setEnabled(false);u.setAccountStatus("PENDING");
   u.setFullName(d.fullName().trim());u.setEmail(email);u.setEmployeeId(employee);u.setMobileNumber(d.mobileNumber().trim());
   u.setDepartment(d.department().trim());u.setDesignation(d.designation().trim());u.setOrganization(d.organization().trim());
   users.saveAndFlush(u);
-  var r=new RegistrationRequest();r.user=u;r.requestedRole=role;r.reason=d.reason().trim();r.additionalInformation=d.additionalInformation();r.details.putAll(d.details());registrations.saveAndFlush(r);
+  var r=new RegistrationRequest();r.processingTeam=processingTeam;r.user=u;r.requestedRole=role;r.reason=d.reason().trim();r.additionalInformation=d.additionalInformation();r.details.putAll(d.details());registrations.saveAndFlush(r);
+  if(processingTeam!=null){var member=new com.pharmasafe.processing.ProcessingMember();member.team=processingTeam;member.user=u;member.status="PENDING";member.joinedAt=Instant.now();processingMembers.saveAndFlush(member);}
   audit.logAccountEvent("REGISTRATION_SUBMITTED",username,"userId="+u.getId()+"; requestId="+r.id+"; requestedRole="+role);
   return Map.of("requestId",r.id,"status","PENDING","message","Request received. An administrator must approve your account before you can sign in.");
  }
@@ -57,17 +68,20 @@ public class UserAccessService {
  private void audit(String action,String actor,User user,Long requestId,String reason){audit.logAccountEvent(action,actor,"userId="+user.getId()+"; requestId="+requestId+"; reason="+reason);}
  @Transactional
  public Map<String,Object> decideRegistration(Long id,String decision,String reason,String actor){
-  var candidate=registrations.findById(id).orElseThrow(()->new EntityNotFoundException("Request not found"));adminScope.mutationTarget(actor,candidate.user);
+  var candidate=registrations.findById(id).orElseThrow(()->new EntityNotFoundException("Request not found"));if(candidate.processingTeam!=null)processingTeams.lockById(candidate.processingTeam.id).orElseThrow();adminScope.mutationTarget(actor,candidate.user);
   var r=registrations.lockById(id).orElseThrow(()->new EntityNotFoundException("Request not found"));
   em.refresh(r);var u=users.lockById(r.user.getId()).orElseThrow();em.refresh(u);
   adminScope.target(actor,u);
   if(r.reviewedAt!=null)throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,"This request has already been processed. Refresh the list.");
+  if(decision.equals("approve")&&r.processingTeam!=null&&!r.processingTeam.active)throw new IllegalArgumentException("Activate the team before approving its employees");
   if(!"PENDING".equals(u.getAccountStatus()))throw new IllegalArgumentException("Only pending requests can be approved or rejected");
   if(!Set.of("approve","reject").contains(decision))throw new IllegalArgumentException("Unsupported decision");
   String why=reason(reason);User a=admin(actor);r.reviewedBy=a;r.reviewedAt=Instant.now();r.decisionReason=why;
   u.setAccountStatus(decision.equals("approve")?"APPROVED":"REJECTED");u.setEnabled(decision.equals("approve"));
   if(decision.equals("approve")){u.setRole(r.requestedRole);u.setApprovedBy(a.getId());u.setApprovedAt(r.reviewedAt);}
   adminAudit.record(a,r.requestedRole,u,r.id,"REGISTRATION_"+decision.toUpperCase(),"PENDING",u.getAccountStatus(),why,null);
+  users.saveAndFlush(u);
+  if(r.processingTeam!=null){var member=processingMembers.findByTeamIdAndUserId(r.processingTeam.id,u.getId()).orElseThrow();member.status=decision.equals("approve")?"ACTIVE":"REJECTED";processingMembers.saveAndFlush(member);}
   u.revokeSessions();audit(decision.equals("approve")?"REGISTRATION_APPROVED":"REGISTRATION_REJECTED",actor,u,r.id,why);
   return registrationView(r);
  }
@@ -131,7 +145,7 @@ public class UserAccessService {
   Map<String,Object> m=new LinkedHashMap<>();m.put("staffCode",u.getStaffCode());m.put("userId",u.getId());m.put("createdAt",u.getCreatedAt());m.put("mobileNumber",u.getMobileNumber());m.put("designation",u.getDesignation());m.put("approvedBy",u.getApprovedBy());m.put("approvedAt",u.getApprovedAt());m.put("username",u.getUsername());m.put("fullName",u.getFullName());m.put("email",u.getEmail());m.put("employeeId",u.getEmployeeId());m.put("department",u.getDepartment());m.put("organization",u.getOrganization());m.put("role",u.getRole());m.put("accountStatus",u.getAccountStatus());m.put("enabled",u.isEnabled());return m;
  }
  public static Map<String,Object> registrationView(RegistrationRequest r){
-  var m=userView(r.user);m.put("id",r.id);m.put("requestedRole",r.requestedRole);m.put("reason",r.reason);m.put("additionalInformation",r.additionalInformation);m.put("details",r.details);m.put("mobileNumber",r.user.getMobileNumber());m.put("designation",r.user.getDesignation());m.put("createdAt",r.createdAt);review(m,r.reviewedBy,r.reviewedAt,r.decisionReason);return m;
+  var m=userView(r.user);m.put("teamId",r.processingTeam==null?null:r.processingTeam.id);m.put("teamCode",r.processingTeam==null?null:r.processingTeam.code());m.put("id",r.id);m.put("requestedRole",r.requestedRole);m.put("reason",r.reason);m.put("additionalInformation",r.additionalInformation);m.put("details",r.details);m.put("mobileNumber",r.user.getMobileNumber());m.put("designation",r.user.getDesignation());m.put("createdAt",r.createdAt);review(m,r.reviewedBy,r.reviewedAt,r.decisionReason);return m;
  }
  public static Map<String,Object> resetView(PasswordResetRequest r){var m=userView(r.user);m.put("id",r.id);m.put("status",r.status);m.put("createdAt",r.createdAt);m.put("expiresAt",r.expiresAt);review(m,r.reviewedBy,r.reviewedAt,r.decisionReason);return m;}
  private static void review(Map<String,Object> m,User reviewer,Instant at,String reason){m.put("reviewedBy",reviewer==null?null:reviewer.getId());m.put("reviewedByUsername",reviewer==null?null:reviewer.getUsername());m.put("reviewedByStaffCode",reviewer==null?null:reviewer.getStaffCode());m.put("reviewedAt",at);m.put("decisionReason",reason);}

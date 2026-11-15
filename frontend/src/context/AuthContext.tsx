@@ -6,7 +6,7 @@ import { getApiUrl, getCsrfToken, refreshCsrfToken, setCsrfToken, fetchWithTimeo
 interface AuthContextType {
  user: User | null; isAuthenticated: boolean; isLoading: boolean; isInitialLoading: boolean;
  error: string | null; isConnectionError: boolean;
- login: (username:string,password:string,intent?:{applicationRole:string;loginMode:'USER'|'ROLE_ADMIN'})=>Promise<boolean>;
+ login: (username:string,password:string,intent?:{applicationRole:string;loginMode:'USER'|'ROLE_ADMIN'|'TEAM_LEAD'})=>Promise<boolean>;
  logout: ()=>Promise<void>; clearError: ()=>void; retryAuth: ()=>Promise<void>;
 }
 const AuthContext=createContext<AuthContextType|undefined>(undefined);
@@ -44,7 +44,7 @@ export const AuthProvider:React.FC<{children:ReactNode}>=({children})=>{
   const expire=()=>{cancelActive();setUser(null);setCsrfToken(null);setIsLoading(false);setIsInitialLoading(false);setError('Your session expired or your account access changed. Sign in again to continue.');setIsConnectionError(false);};
   window.addEventListener(SESSION_EXPIRED_EVENT,expire);return ()=>window.removeEventListener(SESSION_EXPIRED_EVENT,expire);
  },[cancelActive]);
- const login=async(username:string,password:string,intent?:{applicationRole:string;loginMode:'USER'|'ROLE_ADMIN'}):Promise<boolean>=>{
+ const login=async(username:string,password:string,intent?:{applicationRole:string;loginMode:'USER'|'ROLE_ADMIN'|'TEAM_LEAD'}):Promise<boolean>=>{
   cancelActive();const current=generation.current;const controller=new AbortController();active.current=controller;
   setIsInitialLoading(false);setIsLoading(true);setError(null);setIsConnectionError(false);
   const stillCurrent=()=>current===generation.current&&!controller.signal.aborted;

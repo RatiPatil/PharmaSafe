@@ -16,7 +16,7 @@ public class LoginRequestDto {
   @Size(max = 32)
   private String applicationRole;
 
-  @jakarta.validation.constraints.Pattern(regexp = "USER|ROLE_ADMIN")
+  @jakarta.validation.constraints.Pattern(regexp = "USER|ROLE_ADMIN|TEAM_LEAD")
   private String loginMode;
 
   public String getApplicationRole() {

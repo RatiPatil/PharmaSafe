@@ -74,8 +74,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, com.pharmasafe.repository.UserRepository users, com.pharmasafe.administration.AdministrativeAudit administrativeAudit) throws Exception {
         CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-        // Set to null to resolve token eagerly on every request
-        requestHandler.setCsrfRequestAttributeName(null);
+        // Resolve tokens only when a mutation or /auth/csrf needs one. Eager
+        // token creation on concurrent anonymous GETs races their Set-Cookie
+        // responses and can invalidate the first registration POST.
+        requestHandler.setCsrfRequestAttributeName("_csrf");
 
         CookieCsrfTokenRepository csrfTokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
         csrfTokenRepository.setCookieCustomizer(builder -> {
@@ -115,6 +117,8 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/csrf"
                 ).permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET,"/api/processing-teams/invitations/*").permitAll()
+                .requestMatchers("/api/processing-teams/**").hasAnyRole("ADMIN","SCOPED_ADMIN","CASE_TEAM_LEAD","CASE_PROCESSOR","USER")
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/cases").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/cases/*").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
                 .requestMatchers("/api/administration/assignments/**", "/api/administration/eligible-administrators").hasRole("ADMIN")

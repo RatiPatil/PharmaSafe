@@ -60,3 +60,12 @@ describe('dedicated role access pages',()=>{
  it('shows only the selected role and its three access tabs',()=>{window.history.replaceState(null,'','/#/access/ROLE_MEDICAL_REVIEWER/admin');render(<PublicAccess/>);expect(screen.getByRole('heading',{name:'Medical Reviewer'})).toBeInTheDocument();expect(screen.getByRole('navigation',{name:'Role access tabs'})).toBeInTheDocument();expect(screen.getByRole('link',{name:'Role Admin login'})).toHaveAttribute('aria-current','page');expect(screen.queryByRole('heading',{name:'Case Processor'})).not.toBeInTheDocument();});
  it('restores a role-specific registration page on direct navigation',async()=>{window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register');render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});expect(screen.queryByLabelText('Medical Qualification')).not.toBeInTheDocument();expect(screen.getByLabelText('Training')).toBeInTheDocument();});
 });
+
+it('team registration links retain their team context and show the receiving Lead',async()=>{
+ window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register?team=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+ request.mockImplementation(async(path)=>path==='/api/auth/access-roles'?roles:path.startsWith('/api/processing-teams/invitations/')?{teamCode:'CP-TL-001',name:'Intake Team',leadName:'Team Lead One',remainingSeats:7}:{selectionToken:'server-signed-role'});
+ render(<PublicAccess/>);await screen.findByRole('heading',{name:'Case Processor registration'});expect(screen.getByText('Intake Team · CP-TL-001')).toBeVisible();expect(screen.getByText(/Team Lead: Team Lead One/)).toBeVisible();expect(screen.getByRole('link',{name:'Team Lead login'})).toHaveAttribute('href','#/access/ROLE_CASE_PROCESSOR/team-lead?team=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+});
+it('closed or invalid team links do not silently fall back to generic signup',async()=>{
+ window.history.replaceState(null,'','/#/access/ROLE_CASE_PROCESSOR/register?team=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');request.mockImplementation(async(path)=>{if(path.startsWith('/api/processing-teams/invitations/'))throw Error('Team registration is closed');return path==='/api/auth/access-roles'?roles:{selectionToken:'server-signed-role'};});render(<PublicAccess/>);expect(await screen.findByRole('alert')).toHaveTextContent('Team registration is closed');expect(screen.queryByRole('button',{name:'Submit access request'})).not.toBeInTheDocument();
+});

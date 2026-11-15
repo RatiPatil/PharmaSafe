@@ -34,7 +34,7 @@ public class AdministrativeAudit {
     AdministrativeEvent e = new AdministrativeEvent();
     e.actorId = actor.getId();
     e.actorUsername = actor.getUsername();
-    e.actorLevel = AdminScope.isSuper(actor) ? "SUPER_ADMIN" : "ROLE_ADMIN";
+    e.actorLevel = "ROLE_CASE_TEAM_LEAD".equals(actor.getRole())?"TEAM_LEAD":AdminScope.isSuper(actor) ? "SUPER_ADMIN" : "ROLE_ADMIN";
     e.managedRole = AdminScope.canonical(role);
     e.targetUserId = target == null ? null : target.getId();
     e.targetUsername = target == null ? null : target.getUsername();

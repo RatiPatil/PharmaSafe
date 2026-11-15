@@ -2,6 +2,7 @@ export interface User {
   id: number;
   staffCode?:string;
   administrativeLevel?:string;
+  processingTeamId?:number|null;
   managedRole?:string|null;
   username: string;
   fullName?: string | null;

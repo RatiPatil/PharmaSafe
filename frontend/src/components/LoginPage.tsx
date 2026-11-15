@@ -4,10 +4,10 @@ import { ShieldCheck, Lock, User, Eye, EyeOff, AlertCircle, AlertTriangle, Loade
 import './LoginPage.css';
 import { ROLE_ADMIN_USERNAMES } from './roleAdminAccounts';
 
-export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;adminLogin?:boolean;registerHref?:string}> = ({applicationRole,roleName,adminLogin=false,registerHref}) => {
+export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;adminLogin?:boolean;teamLeadLogin?:boolean;registerHref?:string}> = ({applicationRole,roleName,adminLogin=false,teamLeadLogin=false,registerHref}) => {
   const { login, error, clearError, isLoading, isConnectionError, isInitialLoading } = useAuth();
 
-  useEffect(()=>{if(applicationRole)clearError();},[applicationRole,adminLogin]);
+  useEffect(()=>{if(applicationRole)clearError();},[applicationRole,adminLogin,teamLeadLogin]);
   const [username, setUsername] = useState(adminLogin && applicationRole ? ROLE_ADMIN_USERNAMES[applicationRole] || '' : '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,8 +15,8 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
   const usernameInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
   const rejectedAdminAutofill = useRef(false);
-  const employeeLogin = Boolean(applicationRole && !adminLogin);
-  const loginKind = employeeLogin ? 'employee' : adminLogin ? 'role-admin' : 'general';
+  const employeeLogin = Boolean(applicationRole && !adminLogin && !teamLeadLogin);
+  const loginKind = employeeLogin ? 'employee' : teamLeadLogin ? 'team-lead' : adminLogin ? 'role-admin' : 'general';
   const fieldPrefix = `pharmasafe-${(applicationRole || 'general').toLowerCase().replaceAll('_', '-')}-${loginKind}`;
   const autocompleteSection = `section-${fieldPrefix}`;
 
@@ -45,7 +45,7 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
     setPassword('');
     setShowPassword(false);
     setClientErrors({});
-  }, [applicationRole, adminLogin]);
+  }, [applicationRole, adminLogin, teamLeadLogin]);
 
   useEffect(() => {
     const form = usernameInput.current?.form;
@@ -81,7 +81,7 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
       return;
     }
 
-    if(applicationRole)await login(username.trim(),password,{applicationRole,loginMode:adminLogin?'ROLE_ADMIN':'USER'});else await login(username.trim(),password);
+    if(applicationRole)await login(username.trim(),password,{applicationRole,loginMode:teamLeadLogin?'TEAM_LEAD':adminLogin?'ROLE_ADMIN':'USER'});else await login(username.trim(),password);
   };
 
   const isLockedAccount = Boolean(error && error.toLowerCase().includes('lock'));
@@ -106,7 +106,7 @@ export const LoginPage: React.FC<{applicationRole?:string;roleName?:string;admin
       <section className="login-access" aria-labelledby="login-title">
         <div className="login-access-top"><span role={isInitialLoading?'status':undefined}>{isInitialLoading?<Loader2 size={14} className="login-spinner" aria-hidden="true"/>:<Lock size={14} aria-hidden="true"/>}{isInitialLoading?'Checking existing session…':'Authorized access'}</span></div>
         <div className="login-form-container">
-          <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">{roleName?`${roleName}${adminLogin?' Admin':''} sign in`:'Sign in to PharmaSafe'}</h1><p>{roleName?`Use your approved ${adminLogin?'Role Admin':'employee'} account for this role.`:'Access your approved safety workspace.'}</p></div>
+          <div className="login-heading"><span className="login-heading-icon"><Lock size={22} aria-hidden="true"/></span><p className="login-eyebrow">YOUR SAFETY WORKSPACE</p><h1 id="login-title">{roleName?`${roleName}${teamLeadLogin?' Team Lead':adminLogin?' Admin':''} sign in`:'Sign in to PharmaSafe'}</h1><p>{roleName?`Use your approved ${teamLeadLogin?'Team Lead':adminLogin?'Role Admin':'employee'} account for this role.`:'Access your approved safety workspace.'}</p></div>
           <p className="login-recovery-links"><a href={registerHref||"#/home"}>Request access</a><a href="#/forgot-password">Forgot password?</a></p><form id={`${fieldPrefix}-form`} name={`${fieldPrefix}-form`} data-login-kind={loginKind} autoComplete={employeeLogin ? 'off' : 'on'} onInputCapture={clearAdminAutofill} onChangeCapture={clearAdminAutofill} onFocusCapture={clearAdminAutofill} onSubmit={handleSubmit} className="login-form" noValidate aria-busy={isLoading}>
             {error && <div role="alert" className={`login-alert ${isLockedAccount ? 'login-alert-warning' : isConnFailure ? 'login-alert-connection' : 'login-alert-error'}`}>
               {isLockedAccount ? <AlertTriangle size={19} aria-hidden="true"/> : <AlertCircle size={19} aria-hidden="true"/>}

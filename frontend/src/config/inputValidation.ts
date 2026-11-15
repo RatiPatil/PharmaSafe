@@ -2,7 +2,7 @@ import config from './inputRules.json';
 type Rule={date?:boolean;instant?:boolean;max?:number;min?:number;scale?:number;number?:boolean;pattern?:string;email?:boolean;phone?:boolean;enum?:string[]};
 const fields=config.fields as Record<string,Rule>,overrides=config.overrides as Record<string,Rule>;
 export type FieldErrors=Record<string,string>;
-export function inputContext(path:string){return path==='/api/auth/register'?'registration':path.startsWith('/api/admin')?'admin':path.startsWith('/api/reports')?'report':path.startsWith('/api/auth')?'auth':path.startsWith('/api/profile')?'profile':'case';}
+export function inputContext(path:string){return path.startsWith('/api/processing-teams')?'processing':path==='/api/auth/register'?'registration':path.startsWith('/api/admin')?'admin':path.startsWith('/api/reports')?'report':path.startsWith('/api/auth')?'auth':path.startsWith('/api/profile')?'profile':'case';}
 export function fieldRule(field:string,path='',context='case'):Rule{return overrides[`${context}.${path||field}`]||(context==='registration'&&path.startsWith('details.')?overrides['registration.details.*']:undefined)||fields[field]||{};}
 export function fieldError(field:string,value:unknown,path=field,context='case'):string|null{
  if(value==null||value==='')return null;const rule=fieldRule(field,path.replace(/\[\d+\]/g,'[]'),context);

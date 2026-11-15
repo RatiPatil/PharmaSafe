@@ -111,3 +111,4 @@ it.each([false, true])(
     ).toHaveAttribute("href", "#/access/ROLE_CASE_PROCESSOR/register");
   },
 );
+it('Case Processing Team Lead login sends Team Lead intent without role-admin authority',async()=>{render(<LoginPage applicationRole="ROLE_CASE_PROCESSOR" roleName="Case Processor" teamLeadLogin/>);fireEvent.change(screen.getByLabelText('Username or official email'),{target:{value:'lead.one'}});fireEvent.change(screen.getByLabelText('Password',{exact:true}),{target:{value:'SyntheticLeadPassword123!'}});fireEvent.click(screen.getByRole('button',{name:'Log In to PharmaSafe'}));await waitFor(()=>expect(auth.login).toHaveBeenCalledWith('lead.one','SyntheticLeadPassword123!',{applicationRole:'ROLE_CASE_PROCESSOR',loginMode:'TEAM_LEAD'}));});

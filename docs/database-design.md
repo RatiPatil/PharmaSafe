@@ -1,6 +1,6 @@
 # PharmaSafe — Database Architecture & Relational Schema Design
 **System:** PharmaSafe Educational Pharmacovigilance Case Management System  
-**Current additions:** V14–V15 report evidence and synthetic intake data are documented in [REPORT-EVIDENCE.md](REPORT-EVIDENCE.md). Earlier schema sections below describe the historical baseline.
+**Current additions:** V16 adds the Case Processing team hierarchy, scoped assignments and immutable PDF/progress evidence: [CASE-PROCESSING-TEAMS.md](CASE-PROCESSING-TEAMS.md). V14–V15 report evidence and synthetic intake data are documented in [REPORT-EVIDENCE.md](REPORT-EVIDENCE.md). Earlier schema sections below describe the historical baseline.
 **Baseline Reference:** Oracle Argus Safety 7.0.3  
 **Database Engine:** PostgreSQL 18.4  
 **Target Database:** `pharmasafe_db`  

@@ -35,6 +35,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const failures=[];const contexts=[];
   // Public page layout checks use the real role catalog. Selection alone is stubbed
   // because this isolated H2 harness has no PostgreSQL rate-limit table.
+  if(process.env.PROCESSING_ONLY!=='1'){
   const publicContext=await browser.newContext({viewport:{width:1440,height:1000}});
   const publicPage=await publicContext.newPage();
   await publicPage.route('**/api/auth/access-roles',r=>r.abort());
@@ -91,6 +92,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   console.log('PASS photographic recovery page at desktop, tablet and mobile');
   await publicContext.close();console.log('PASS separate public home, role dropdowns and registration at desktop/tablet/mobile with one scroll surface');
 
+  }
   async function login(username,home,portalRole,adminPortal=false){const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);const p=await context.newPage();diagnosticPage=p;p.on('pageerror',e=>failures.push(e.message));p.on('dialog',d=>d.accept());const heldSessions=[];let holdStartup=username==='ui-admin';const roleModules=[];p.on('request',r=>{if(/\/src\/components\/(RoleWorkspace|CaseEntryForm)\.tsx/.test(r.url()))roleModules.push(r.url());});
   if(holdStartup)await p.route('**/api/auth/me',route=>{if(holdStartup){heldSessions.push(route);return;}return route.continue();});
   await p.goto(origin+(portalRole?'/#/access/'+portalRole+'/'+(adminPortal?'admin':'user'):'/#/login'));if(username==='ui-admin'){
@@ -101,6 +103,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    await p.setViewportSize({width:1440,height:1000});console.log('PASS professional login layout at five widths without field overlap and four complete desktop viewport fits');
   }holdStartup=false;await Promise.all(heldSessions.map(route=>route.fulfill({status:401,contentType:'application/json',body:'{"message":"No test session"}'}).catch(()=>{})));await p.unroute('**/api/auth/me');await p.getByLabel('Username',{exact:false}).fill(username);await p.getByLabel(/^Password/).fill(password);await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).click();await p.getByTestId(home).waitFor({timeout:20000});return p;}
   const admin=await login('ui-admin','admin-home');console.log('PASS administrator login and dedicated home');
+  if(process.env.PROCESSING_ONLY==='1'){await admin.evaluate(async password=>{const token=(await(await fetch('/api/auth/csrf')).json()).token;const r=await fetch('/api/administration/assignments/ROLE_CASE_PROCESSOR',{method:'POST',headers:{'Content-Type':'application/json','X-XSRF-TOKEN':token},body:JSON.stringify({username:'processing.department.admin',email:'processing.department.admin@example.test',fullName:'Synthetic Department Admin',password,reason:'Isolated processing workflow verification',expectedVersion:0})});if(!r.ok)throw Error(await r.text());},password);const department=await login('processing.department.admin','role-admin-home','ROLE_CASE_PROCESSOR',true);await require('./qa/verify-processing-team-workflow.cjs')({browser,origin,department,password,registrationChoices:JSON.parse(fs.readFileSync(root+'/frontend/src/config/inputRules.json','utf8')).registrationChoices,qaDirectory});console.log('QA artifacts: '+qaDirectory);return;}
   const firstLegend=admin.locator('.premium-chart-legend button').first();await firstLegend.click();
   if(await firstLegend.getAttribute('aria-pressed')!=='true')throw Error('Chart legend must highlight the selected stage');
   await firstLegend.click();
@@ -264,6 +267,9 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   console.log('PASS real Super Admin provisioning, role-scoped approvals, unique employee identities, API tampering denial, shared role management, assignment history and immediate replacement/release session revocation');
   await admin.getByRole('button',{name:'Users & access',exact:true}).click();await admin.getByRole('row').filter({has:admin.getByRole('cell',{name:'analyst',exact:true})}).getByRole('button',{name:'Deactivate',exact:true}).click();await admin.getByRole('row').filter({has:admin.getByRole('cell',{name:'analyst',exact:true})}).getByText('Disabled',{exact:true}).waitFor();await analyst.getByRole('button',{name:'Refresh',exact:true}).click();await analyst.getByLabel(/^Username/).waitFor();console.log('PASS revoked session returns to login without stale workspace');
 
+  await admin.getByRole('button',{name:'Role management',exact:true}).click();await admin.getByLabel('Application role',{exact:true}).selectOption('ROLE_CASE_PROCESSOR');await admin.getByRole('button',{name:'Role Admin assignments',exact:true}).click();await provisionSupervisor('processing.department.admin','Synthetic Processing Department Admin');
+  const departmentAdmin=await login('processing.department.admin','role-admin-home','ROLE_CASE_PROCESSOR',true);diagnosticPage=departmentAdmin;
+  await require('./qa/verify-processing-team-workflow.cjs')({browser,origin,department:departmentAdmin,password,registrationChoices,qaDirectory});
   if(failures.length)throw Error('Browser JS errors: '+failures.join('; '));
   console.log('QA artifacts: '+qaDirectory);
   console.log('PASS real browser + isolated Spring Boot/H2 end-to-end workflow; zero browser exceptions');

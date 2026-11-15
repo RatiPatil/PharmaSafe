@@ -1066,7 +1066,8 @@
       "max": 16,
       "enum": [
         "USER",
-        "ROLE_ADMIN"
+        "ROLE_ADMIN",
+        "TEAM_LEAD"
       ]
     },
     "report.outcome": {
@@ -1085,6 +1086,82 @@
     },
     "report.message": {
       "max": 2000
+    },
+    "registration.teamRegistrationKey": {
+      "max": 36,
+      "pattern": "[0-9a-fA-F-]{36}"
+    },
+    "processing.stage": {
+      "enum": [
+        "INTAKE",
+        "VALIDATION",
+        "DUPLICATE_REVIEW",
+        "CODING",
+        "NARRATIVE",
+        "MEDICAL_HANDOFF",
+        "QC_CORRECTION",
+        "REPORTING_HANDOFF"
+      ],
+      "max": 32
+    },
+    "processing.status": {
+      "enum": [
+        "IN_PROGRESS",
+        "BLOCKED",
+        "COMPLETED"
+      ],
+      "max": 16
+    },
+    "processing.recipientMode": {
+      "enum": [
+        "INDIVIDUAL",
+        "ALL_TEAM"
+      ],
+      "max": 16
+    },
+    "processing.description": {
+      "max": 5000
+    },
+    "processing.instructions": {
+      "max": 5000
+    },
+    "processing.employeeStaffCode": {
+      "max": 32,
+      "pattern": "PS-[1-9][0-9]{0,17}"
+    },
+    "processing.progress": {
+      "number": true,
+      "min": 0,
+      "max": 100,
+      "scale": 0
+    },
+    "processing.workDone": {
+      "max": 5000
+    },
+    "processing.pendingWork": {
+      "max": 3000
+    },
+    "processing.remainingWork": {
+      "max": 3000
+    },
+    "processing.blockers": {
+      "max": 2000
+    },
+    "processing.reason": {
+      "max": 2000
+    },
+    "processing.codingReference": {
+      "max": 500
+    },
+    "processing.name": {
+      "max": 100
+    },
+    "processing.title": {
+      "max": 160
+    },
+    "processing.email": {
+      "max": 254,
+      "email": true
     }
   },
   "registrationChoices": {

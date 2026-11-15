@@ -403,6 +403,7 @@ export function RoleAdministration({
             : "Your users, approvals and work records are restricted to your assigned application role."}
         </p>
       </div>
+      {(superAdmin||user?.managedRole==='ROLE_CASE_PROCESSOR')&&<a className="cp-team-launch" href="#/processing-teams">Processing teams & work</a>}
       <button
         disabled={loading || saving}
         onClick={() => setRefresh((v) => v + 1)}

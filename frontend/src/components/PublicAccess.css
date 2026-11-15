@@ -75,3 +75,6 @@
   .role-portal .login-help{display:none}
   .role-portal>.pa-footer{height:36px;padding:8px 5%;font-size:10px}
 }
+.pa-team-invite{padding:18px 20px;margin-bottom:22px;border:1px solid #c9e2ee;border-radius:12px;background:#eff8fc;color:#1c536a}.pa-team-invite p{margin:8px 0 0;font-size:13px}
+@media(max-width:760px){.role-access-header nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.role-access-header nav a{min-width:0}.role-access-header nav{min-height:84px}}
+.cp-team-launch,.cp-sidebar-link{display:inline-flex;align-items:center;gap:8px;padding:11px 15px;border:1px solid #d3dfec;border-radius:9px;color:#214e75;text-decoration:none;font-weight:600;font-size:13px}.ws-sidebar .cp-sidebar-link{color:#c9dfed;border-color:#55728666;font-size:12px;margin-top:12px}

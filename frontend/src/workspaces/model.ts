@@ -29,4 +29,4 @@ export const date = (v: unknown) => {
  return Number.isNaN(parsed.getTime())?'—':parsed.toLocaleDateString(undefined,{day:'2-digit',month:'short',year:'numeric'});
 };
 export const dateTime = (v: unknown) => v && !Number.isNaN(new Date(String(v)).getTime()) ? new Date(String(v)).toLocaleString() : '—';
-export const roleName = (role: unknown) => role==='ROLE_SCOPED_ADMIN'?'Role Admin':profiles[canonicalRole(String(role))]?.title || text(role);
+export const roleName = (role: unknown) => role==='ROLE_CASE_TEAM_LEAD'?'Case Processing Team Lead':role==='ROLE_SCOPED_ADMIN'?'Role Admin':profiles[canonicalRole(String(role))]?.title || text(role);

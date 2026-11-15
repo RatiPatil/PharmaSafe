@@ -4,6 +4,7 @@ import java.time.Instant;
 @Entity @Table(name="registration_requests")
 public class RegistrationRequest {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
+    @ManyToOne(fetch=FetchType.EAGER) @JoinColumn(name="cp_team_id") public com.pharmasafe.processing.ProcessingTeam processingTeam;
     @ManyToOne(optional=false) @JoinColumn(name="user_id") public User user;
     @Column(name="created_at",nullable=false) public Instant createdAt=Instant.now();
     @ManyToOne @JoinColumn(name="reviewed_by") public User reviewedBy;
