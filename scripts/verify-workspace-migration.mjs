@@ -21,7 +21,7 @@ for (const populated of [false, true]) {
    if(populated && file.startsWith('V8__')) await db.exec("INSERT INTO case_review_events(case_id,reviewer_username,from_state,to_state,outcome,comments) SELECT id,'legacy','Quality Review','Approved','APPROVED','Historical review retained' FROM cases WHERE case_number='PRESERVED-CASE'");
    await db.exec(readFileSync(join(directory,file),'utf8'));
   }
-  assert.equal((await db.query('SELECT count(*)::int AS n FROM workspace_roles WHERE assignable')).rows[0].n,6);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM workspace_roles WHERE assignable')).rows[0].n,7);
   if (populated) {
    assert.equal((await db.query('SELECT count(*)::int AS n FROM users')).rows[0].n,2);
    assert.equal((await db.query("SELECT p.patient_identifier,c.row_version FROM cases c JOIN case_patients p ON p.case_id=c.id WHERE c.case_number='PRESERVED-CASE'")).rows[0].patient_identifier,'SYNTHETIC-PATIENT');
@@ -78,7 +78,7 @@ for (const populated of [false, true]) {
   // Stable employee identity and immutable scoped administration evidence.
   const staff=(await db.query("SELECT id::text,staff_code FROM users WHERE username='receipt-actor'")).rows[0];assert.equal(staff.staff_code,'PS-'+staff.id);
   await assert.rejects(db.exec("UPDATE users SET staff_code='PS-forged' WHERE username='receipt-actor'"),e=>e.code==='428C9');
-  assert.equal((await db.query('SELECT count(*)::int AS n FROM role_admin_assignments')).rows[0].n,6);
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM role_admin_assignments')).rows[0].n,7);
   await db.exec("INSERT INTO users(username,password_hash,role,email) VALUES ('scoped-admin','hash','ROLE_SCOPED_ADMIN','scoped@example.test'),('other-scoped-admin','hash','ROLE_SCOPED_ADMIN','other-scoped@example.test')");
   await db.exec("UPDATE role_admin_assignments SET administrator_id=(SELECT id FROM users WHERE username='scoped-admin'),assigned_by=(SELECT id FROM users WHERE username='receipt-actor'),assigned_at=CURRENT_TIMESTAMP WHERE application_role='ROLE_CASE_PROCESSOR'");
   await assert.rejects(db.exec("UPDATE role_admin_assignments SET administrator_id=(SELECT id FROM users WHERE username='scoped-admin'),assigned_by=(SELECT id FROM users WHERE username='receipt-actor'),assigned_at=CURRENT_TIMESTAMP WHERE application_role='ROLE_MEDICAL_REVIEWER'"),e=>e.code==='23505');
@@ -105,7 +105,15 @@ for (const populated of [false, true]) {
   await assert.rejects(db.exec('DELETE FROM report_document_exports'),e=>e.code==='23514');
   await assert.rejects(db.exec("UPDATE report_acknowledgements SET outcome='REJECTED'"),e=>e.code==='23514');
   await assert.rejects(db.exec('DELETE FROM report_acknowledgements'),e=>e.code==='23514');
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V16, six public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
+  await db.exec("INSERT INTO users(username,password_hash,role) VALUES('pv-evidence-author','hash','ROLE_PV_ANALYST'); INSERT INTO users(username,password_hash,role,enabled,account_status) VALUES('pv-pending','hash','ROLE_PV_ANALYST',FALSE,'PENDING'); INSERT INTO registration_requests(user_id,requested_role,reason,created_at) SELECT id,'ROLE_PV_ANALYST','Synthetic analytics registration',CURRENT_TIMESTAMP FROM users WHERE username='pv-pending'");
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM role_admin_assignments WHERE application_role='ROLE_PV_ANALYST'")).rows[0].n,1);
+  const pvInsert=(id,actor,caseExpr='NULL')=>`INSERT INTO pv_analysis_records(id,analyst_user_id,title,objective,findings,recommendation,case_id,created_at,snapshot_json,pdf_bytes,pdf_sha256) SELECT '${id}',id,'Synthetic analysis','Review evidence','Observed pattern','Evaluate sources',${caseExpr},CURRENT_TIMESTAMP,'{}'::jsonb,decode('25504446','hex'),repeat('a',64) FROM users WHERE username='${actor}'`;
+  await db.exec(pvInsert('pv-evidence','pv-evidence-author'));
+  await assert.rejects(db.exec(pvInsert('pv-wrong-author','receipt-actor')),e=>e.code==='23514');
+  await assert.rejects(db.exec(pvInsert('pv-unreviewed','pv-evidence-author',"(SELECT id FROM cases WHERE case_number='RECEIPT-A')")),e=>e.code==='23514');
+  await assert.rejects(db.exec("UPDATE pv_analysis_records SET title='Changed evidence'"),e=>e.code==='23514');
+  await assert.rejects(db.exec('DELETE FROM pv_analysis_records'),e=>e.code==='23514');
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V17, seven public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }
 

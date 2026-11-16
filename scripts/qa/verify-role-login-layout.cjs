@@ -37,5 +37,5 @@ module.exports = async function verifyRoleLoginLayout(page, origin, roles) {
     await link.click();
     await page.getByRole('heading',{name:`${role.name} registration`,exact:true}).waitFor();
   }
-  console.log('PASS stable role/user/admin login card, photo and field positions across eight viewport sizes; all six home registration links open the correct form directly');
+  console.log('PASS stable role/user/admin login card, photo and field positions across eight viewport sizes; all seven home registration links open the correct form directly');
 };

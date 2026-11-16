@@ -8,6 +8,8 @@ The V16 Case Processing hierarchy adds department Admin → Team Lead → employ
 workspaces, team registration links, staff-ID task allocation and preserved PDF
 responses. Setup, usage, permissions and schema are in
 [Case Processing teams](docs/CASE-PROCESSING-TEAMS.md).
+V17 adds the seventh employee role, **PV Analyst**, with reviewed-case analytics,
+role-scoped administration and preserved analysis PDFs. See [PV Analyst](docs/PV-ANALYST.md).
 Older stage descriptions below are retained as project history.
 
 ---

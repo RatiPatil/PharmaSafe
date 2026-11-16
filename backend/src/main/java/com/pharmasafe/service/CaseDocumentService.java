@@ -22,7 +22,7 @@ public class CaseDocumentService {
  private final CaseLabResultRepository labs; private final CaseFollowUpRepository receipts; private final CaseContactLogRepository contacts; private final CaseActionItemRepository actions;
  private final CaseReviewEventRepository reviews; private final SafetyReportRepository reports; private final AuditService audit;
  private final ObjectMapper json; private final CasePdfRenderer renderer;
- private static final Set<String> SUPPORTED=Set.of("ROLE_ADMIN","ROLE_SAFETY_MANAGER","ROLE_CASE_PROCESSOR","ROLE_USER","ROLE_MEDICAL_REVIEWER","ROLE_QUALITY_REVIEWER","ROLE_REPORTING_SPECIALIST","ROLE_AUDITOR");
+ private static final Set<String> SUPPORTED=Set.of("ROLE_ADMIN","ROLE_SAFETY_MANAGER","ROLE_CASE_PROCESSOR","ROLE_USER","ROLE_MEDICAL_REVIEWER","ROLE_QUALITY_REVIEWER","ROLE_REPORTING_SPECIALIST","ROLE_AUDITOR","ROLE_PV_ANALYST");
  public CaseDocumentService(SafetyCaseRepository cases,UserRepository users,CaseDocumentExportRepository documents,
  CaseFollowUpRepository receipts,CaseContactLogRepository contacts,CaseActionItemRepository actions,CaseReviewEventRepository reviews,
  SafetyReportRepository reports,CaseLabResultRepository labs,AuditService audit,ObjectMapper json,CasePdfRenderer renderer){this.labs=labs;this.cases=cases;this.users=users;this.documents=documents;this.receipts=receipts;this.contacts=contacts;this.actions=actions;this.reviews=reviews;this.reports=reports;this.audit=audit;this.json=json;this.renderer=renderer;}

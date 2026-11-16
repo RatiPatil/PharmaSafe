@@ -31,7 +31,7 @@ public class WorkspaceQueueService {
             if (roles.stream().anyMatch(Set.of("ROLE_ADMIN", "ROLE_SAFETY_MANAGER", "ROLE_AUDITOR")::contains)) scope.add(cb.conjunction());
             if (roles.contains("ROLE_MEDICAL_REVIEWER")) scope.add(cb.equal(root.get("workflowState"), "Medical Review"));
             if (roles.contains("ROLE_QUALITY_REVIEWER")) scope.add(cb.equal(root.get("workflowState"), "Quality Review"));
-            if (roles.contains("ROLE_REPORTING_SPECIALIST")) scope.add(root.get("workflowState").in("Approved", "Locked", "Closed"));
+            if (roles.contains("ROLE_REPORTING_SPECIALIST") || roles.contains("ROLE_PV_ANALYST")) scope.add(root.get("workflowState").in("Approved", "Locked", "Closed"));
             if (roles.contains("ROLE_CASE_PROCESSOR") || roles.contains("ROLE_USER")) {
                 scope.add(cb.or(cb.equal(root.join("assignedToUser", JoinType.LEFT).get("username"), auth.getName()),
                         cb.equal(root.join("createdByUser", JoinType.LEFT).get("username"), auth.getName())));

@@ -32,6 +32,17 @@
     ]
   },
   {
+    "role": "ROLE_PV_ANALYST",
+    "name": "PV Analyst",
+    "fields": [
+      "analyticsDepartment",
+      "businessUnit",
+      "countryRegion",
+      "analysisExperience",
+      "training"
+    ]
+  },
+  {
     "role": "ROLE_QUALITY_REVIEWER",
     "name": "Quality Reviewer",
     "fields": [

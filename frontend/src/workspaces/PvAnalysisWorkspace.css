@@ -1,0 +1,8 @@
+.pv-analysis-workspace { min-width: 0; }
+.pv-analysis-workspace > .ws-card { margin-top: 22px; }
+.pv-analysis-workspace .ws-form > h2 { grid-column: 1 / -1; }
+.pv-analysis-workspace .ws-detail-cards > article { min-width: 0; overflow-wrap: anywhere; }
+.pv-analysis-workspace details { margin: 14px 0; }
+.pv-analysis-workspace summary { cursor: pointer; color: #245b82; font-weight: 600; }
+.pv-analysis-workspace details h4 { margin-top: 18px; font-weight: 600; }
+.pv-analysis-workspace .ws-prose { white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -118,6 +118,7 @@ public class SecurityConfig {
                     "/api/auth/csrf"
                 ).permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET,"/api/processing-teams/invitations/*", "/api/processing-teams/invitations/code/*").permitAll()
+                .requestMatchers("/api/pv-analyses/**", "/api/pv-analyses").hasAnyRole("ADMIN","PV_ANALYST","SAFETY_MANAGER","SCOPED_ADMIN")
                 .requestMatchers("/api/processing-teams/**").hasAnyRole("ADMIN","SCOPED_ADMIN","CASE_TEAM_LEAD","CASE_PROCESSOR","USER")
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/cases").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/cases/*").hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER")
@@ -127,7 +128,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**", "/api/profile", "/api/profile/**").authenticated()
                 .requestMatchers("/api/reports/*/evidence", "/api/reports/*/documents", "/api/reports/*/documents/*/pdf", "/api/reports/*/acknowledgements").hasAnyRole("ADMIN", "SAFETY_MANAGER", "REPORTING_SPECIALIST", "AUDITOR", "SCOPED_ADMIN")
                 .anyRequest().hasAnyRole("ADMIN", "CASE_PROCESSOR", "USER", "MEDICAL_REVIEWER",
-                        "QUALITY_REVIEWER", "SAFETY_MANAGER", "REPORTING_SPECIALIST", "AUDITOR")
+                        "QUALITY_REVIEWER", "SAFETY_MANAGER", "REPORTING_SPECIALIST", "AUDITOR", "PV_ANALYST")
             );
 
         return http.build();

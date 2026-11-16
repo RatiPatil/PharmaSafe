@@ -1,3 +1,4 @@
+import { PvAnalysisWorkspace } from '../workspaces/PvAnalysisWorkspace';
 import { ReportEvidencePanel } from '../workspaces/ReportEvidencePanel';
 import { RoleAdministration } from '../workspaces/RoleAdministration';
 import { LayoutDashboard, ClipboardList, Plus, Phone, ListTodo, FileChartColumn, Users, ShieldCheck, UserRound, KeyRound } from 'lucide-react';
@@ -19,7 +20,7 @@ import { CaseEntryForm } from './CaseEntryForm';
 import type { SafetyCaseDetails, SafetyCaseSummary } from '../types/case';
 import './RoleWorkspace.css';
 
-const navigationIcons={administration:UserRound,overview:LayoutDashboard,cases:ClipboardList,new:Plus,contacts:Phone,tasks:ListTodo,reports:FileChartColumn,users:Users,audit:ShieldCheck,profile:UserRound,access:KeyRound};
+const navigationIcons={analysis:FileChartColumn,administration:UserRound,overview:LayoutDashboard,cases:ClipboardList,new:Plus,contacts:Phone,tasks:ListTodo,reports:FileChartColumn,users:Users,audit:ShieldCheck,profile:UserRound,access:KeyRound};
 function roleProfile(role: string) { return profiles[canonicalRole(role)]; }
 function ApplicationWorkspace() {
   const { user, logout } = useAuth();
@@ -70,11 +71,11 @@ function ApplicationWorkspace() {
   const generation = useRef(0);
   const manager = ['ROLE_ADMIN', 'ROLE_SAFETY_MANAGER'].includes(user?.role || '');
   const processor = ['ROLE_ADMIN', 'ROLE_CASE_PROCESSOR', 'ROLE_USER'].includes(user?.role || '');
-  const readOnly = user?.role === 'ROLE_AUDITOR';
+  const readOnly = ['ROLE_AUDITOR','ROLE_PV_ANALYST'].includes(user?.role||'');
   const [evidenceReport,setEvidenceReport]=useState<number|null>(null);
   const [reportFormRevision,setReportFormRevision]=useState(0);
   const reportWriter = ['ROLE_ADMIN', 'ROLE_SAFETY_MANAGER', 'ROLE_REPORTING_SPECIALIST'].includes(user?.role || '');
-  const regulatoryReader = reportWriter || readOnly;
+  const regulatoryReader = reportWriter || user?.role === 'ROLE_AUDITOR';
   const navLabel=(s:Section)=>s==='reports'&&!regulatoryReader?'Case documents':labels[s];
   const input = (name: string, label: string, type = 'text', required = true) => <label>{label}<input type={type} required={required} value={form[name] || ''} onChange={e => setForm(f => ({ ...f, [name]: e.target.value }))} /></label>;
   useEffect(() => {
@@ -135,7 +136,7 @@ function ApplicationWorkspace() {
       } else if (section === 'cases') {
         const data = await request<Page<SafetyCaseSummary>>(`/api/workspace/cases?page=${page}&search=${encodeURIComponent(search)}&state=${encodeURIComponent(stateFilter)}&priority=${encodeURIComponent(priorityFilter)}`, 'GET', undefined, controller.signal);
         if (active && id === generation.current) setCases(data);
-      } else if (section !== 'administration' && section !== 'access' && section !== 'new' && section !== 'profile' && (section !== 'reports' || regulatoryReader)) {
+      } else if (section !== 'analysis' && section !== 'administration' && section !== 'access' && section !== 'new' && section !== 'profile' && (section !== 'reports' || regulatoryReader)) {
         const paths: Partial<Record<Section, string>> = { users: `/api/admin/users/paged?page=${page}&search=${encodeURIComponent(search)}`, audit: `/api/workspace/audit/paged?page=${page}&search=${encodeURIComponent(search)}`, reports: `/api/reports?page=${page}`, tasks: `/api/action-items?page=${page}&overdue=${overdue}`, contacts: `/api/contact-logs?page=${page}` };
         const data = await request<Row[] | Page<Row>>(paths[section]!, 'GET', undefined, controller.signal);
         if (active && id === generation.current) { setRows(Array.isArray(data) ? data : data.content); setTotalRows(Array.isArray(data) ? data.length : data.totalElements); }
@@ -214,6 +215,7 @@ function ApplicationWorkspace() {
     : section === 'administration' && user?.role==='ROLE_ADMIN' ? <RoleAdministration embedded/>
     : section === 'access' && user?.role === 'ROLE_ADMIN' ? <UserAccessManagement/>
     : section === 'profile' ? <ProfilePanel refresh={refresh} onDirtyChange={setDirty}/>
+    : section === 'analysis' ? <PvAnalysisWorkspace onDirtyChange={setActivityDirty}/>
     : section === 'reports' && !regulatoryReader ? <CaseReportsWorkspace role={user!.role} open={id=>void openCase(id)}/>
     : section === 'overview' ? <WorkspaceHome role={user!.role} data={overview} cases={cases.content} go={go} open={openCase}/>
     : section === 'cases' ? <>

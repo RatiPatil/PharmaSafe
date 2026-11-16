@@ -129,7 +129,7 @@ class ScopedAdministrationTest {
     var session = (MockHttpSession) logged.getRequest().getSession(false);
     mvc.perform(get("/api/administration/overview").session(session))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.roles.length()").value(6))
+        .andExpect(jsonPath("$.roles.length()").value(7))
         .andExpect(jsonPath("$.totalRoleAdmins").value(1))
         .andExpect(jsonPath("$.totalUsers").value(5));
     for (String role : AccessRoleCatalog.FIELDS.keySet())

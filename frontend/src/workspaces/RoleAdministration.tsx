@@ -1,3 +1,4 @@
+import { PvAnalysisWorkspace } from './PvAnalysisWorkspace';
 import { ReportEvidencePanel } from "./ReportEvidencePanel";
 import { RoleInsights, RoleOverviewPreview } from "./RoleInsights";
 import { useEffect, useRef, useState } from "react";
@@ -55,7 +56,8 @@ type Tab =
   | "work"
   | "audit"
   | "activity"
-  | "report-work";
+  | "report-work"
+  | "pv-analysis";
 const roleName = (code: unknown) =>
   catalog.find((r) => r.role === code)?.name ||
   (code === "ROLE_SCOPED_ADMIN"
@@ -196,6 +198,7 @@ const navigation: { tab: Tab; label: string; Icon: typeof Users }[] = [
     Icon: ClipboardCheck,
   },
   { tab: "password-resets", label: "Password reset requests", Icon: KeyRound },
+  { tab: "pv-analysis", label: "PV analyst reports", Icon: ListTodo },
   { tab: "work", label: "Employee work", Icon: ListTodo },
   { tab: "report-work", label: "Reporting work", Icon: ListTodo },
   { tab: "audit", label: "Administrative audit", Icon: ShieldCheck },
@@ -300,7 +303,7 @@ export function RoleAdministration({
         c.signal,
       );
       const listing =
-        tab === "overview" || tab === "assignments"
+        tab === "overview" || tab === "assignments" || tab === "pv-analysis"
           ? Promise.resolve(empty)
           : apiRequest<Page<Row>>(
               `/api/administration/${tab}?${params}`,
@@ -382,7 +385,7 @@ export function RoleAdministration({
   const showWork = (row: Row) => {
     setWorkUser(row);
     selectTab(
-      row.role === "ROLE_REPORTING_SPECIALIST" ? "report-work" : "work",
+      row.role === "ROLE_PV_ANALYST" ? "pv-analysis" : row.role === "ROLE_REPORTING_SPECIALIST" ? "report-work" : "work",
     );
   };
   const Heading = embedded ? "h2" : "h1";
@@ -691,7 +694,7 @@ export function RoleAdministration({
                   },
                 ]
               : []),
-          ].map((n) => (
+          ].filter(n=>n.tab!=="pv-analysis"||role==="ROLE_PV_ANALYST").map((n) => (
             <button
               key={n.tab}
               aria-current={tab === n.tab ? "page" : undefined}
@@ -965,14 +968,15 @@ export function RoleAdministration({
           )}
         </div>
       )}
-      {workUser && (tab === "work" || tab === "report-work") && (
+      {workUser && (tab === "work" || tab === "report-work" || tab === "pv-analysis") && (
         <RoleInsights
           role={role}
           userId={Number(workUser.userId)}
           refresh={refresh}
         />
       )}
-      {!["overview", "assignments"].includes(tab) && (
+      {tab==="pv-analysis"&&<PvAnalysisWorkspace employeeId={workUser?.userId as number|undefined}/>}
+      {!["overview", "assignments", "pv-analysis"].includes(tab) && (
         <>
           <div className="ws-card">
             <div
@@ -1311,6 +1315,7 @@ export function RoleAdministration({
         <p>{roleName(user?.managedRole)} · Role Admin</p>
         <nav aria-label="Role Admin navigation">
           {navigation
+            .filter(n=>n.tab!=="pv-analysis"||role==="ROLE_PV_ANALYST")
             .filter(
               (n) =>
                 n.tab !== "report-work" ||

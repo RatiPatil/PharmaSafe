@@ -32,16 +32,16 @@ describe('Public user access',()=>{
 });
 
 describe('account catalogue availability',()=>{
- it('renders all six public cards immediately while the service is pending',()=>{
+ it('renders all seven public cards immediately while the service is pending',()=>{
   request.mockImplementation(()=>new Promise(()=>{}));render(<PublicAccess/>);
-  expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(6);
+  expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(7);
   expect(screen.queryByText(/Loading account types/)).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:/Administrator/})).not.toBeInTheDocument();
  });
  it('keeps cards visible on failure and retries the connection successfully',async()=>{
   request.mockRejectedValueOnce(new Error('Offline'));render(<PublicAccess/>);
   expect(await screen.findByRole('status')).toHaveTextContent('temporarily unavailable');
-  expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(6);
+  expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(7);
   fireEvent.click(screen.getByRole('button',{name:'Retry connection'}));
   await waitFor(()=>expect(screen.queryByText(/temporarily unavailable/)).not.toBeInTheDocument());
   await waitFor(()=>expect(screen.getAllByRole('button',{name:/Request access as/})).toHaveLength(2));

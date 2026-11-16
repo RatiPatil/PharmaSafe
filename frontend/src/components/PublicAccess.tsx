@@ -7,8 +7,8 @@ import publicRoleCatalog from '../config/publicRoleCatalog.json';
 import { registrationOptions } from '../config/registrationOptions';
 type TeamInvitation = {teamCode:string;name:string;leadName:string;remainingSeats:number;registrationKey?:string};
 type Role = {role:string; name:string; fields:string[]};
-const descriptions:Record<string,string>={ROLE_CASE_PROCESSOR:'Capture and process assigned safety cases.',ROLE_MEDICAL_REVIEWER:'Review clinical evidence, causality and expectedness.',ROLE_QUALITY_REVIEWER:'Check completeness and review data quality.',ROLE_SAFETY_MANAGER:'Monitor workflows, assignments and safety operations.',ROLE_REPORTING_SPECIALIST:'Prepare safety reports and track reporting deadlines.',ROLE_AUDITOR:'Inspect permitted records and audit history with read-only access.'};
-const icons={ROLE_CASE_PROCESSOR:ClipboardList,ROLE_MEDICAL_REVIEWER:Stethoscope,ROLE_QUALITY_REVIEWER:BadgeCheck,ROLE_SAFETY_MANAGER:Users,ROLE_REPORTING_SPECIALIST:FileCheck,ROLE_AUDITOR:Search};
+const descriptions:Record<string,string>={ROLE_PV_ANALYST:'Analyse reviewed safety cases, explore trends and prepare safety analysis reports.',ROLE_CASE_PROCESSOR:'Capture and process assigned safety cases.',ROLE_MEDICAL_REVIEWER:'Review clinical evidence, causality and expectedness.',ROLE_QUALITY_REVIEWER:'Check completeness and review data quality.',ROLE_SAFETY_MANAGER:'Monitor workflows, assignments and safety operations.',ROLE_REPORTING_SPECIALIST:'Prepare safety reports and track reporting deadlines.',ROLE_AUDITOR:'Inspect permitted records and audit history with read-only access.'};
+const icons={ROLE_PV_ANALYST:Search,ROLE_CASE_PROCESSOR:ClipboardList,ROLE_MEDICAL_REVIEWER:Stethoscope,ROLE_QUALITY_REVIEWER:BadgeCheck,ROLE_SAFETY_MANAGER:Users,ROLE_REPORTING_SPECIALIST:FileCheck,ROLE_AUDITOR:Search};
 export const fieldLabel=(value:string)=>value.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase());
 export function PublicAccess(){
  const [route,setRoute]=useState(window.location.hash);

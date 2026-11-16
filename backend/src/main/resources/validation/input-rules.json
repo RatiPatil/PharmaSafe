@@ -5,7 +5,7 @@
   "fields": {
     "fullName": {
       "max": 128,
-      "pattern": "[\\p{L}\\p{M}][\\p{L}\\p{M} .,'’\\-]*"
+      "pattern": "[\\p{L}\\p{M}][\\p{L}\\p{M} .,'\u2019\\-]*"
     },
     "username": {
       "max": 64,
@@ -43,11 +43,11 @@
     },
     "firstName": {
       "max": 64,
-      "pattern": "[\\p{L}\\p{M}][\\p{L}\\p{M} .,'’\\-]*"
+      "pattern": "[\\p{L}\\p{M}][\\p{L}\\p{M} .,'\u2019\\-]*"
     },
     "lastName": {
       "max": 64,
-      "pattern": "[\\p{L}\\p{M}][\\p{L}\\p{M} .,'’\\-]*"
+      "pattern": "[\\p{L}\\p{M}][\\p{L}\\p{M} .,'\u2019\\-]*"
     },
     "title": {
       "max": 32
@@ -1034,7 +1034,8 @@
         "ROLE_QUALITY_REVIEWER",
         "ROLE_SAFETY_MANAGER",
         "ROLE_REPORTING_SPECIALIST",
-        "ROLE_AUDITOR"
+        "ROLE_AUDITOR",
+        "ROLE_PV_ANALYST"
       ]
     },
     "registration.details.medicalRegistrationNumber": {
@@ -1059,7 +1060,8 @@
         "ROLE_MEDICAL_REVIEWER",
         "ROLE_QUALITY_REVIEWER",
         "ROLE_REPORTING_SPECIALIST",
-        "ROLE_SAFETY_MANAGER"
+        "ROLE_SAFETY_MANAGER",
+        "ROLE_PV_ANALYST"
       ]
     },
     "auth.loginMode": {
@@ -1162,6 +1164,21 @@
     "processing.email": {
       "max": 254,
       "email": true
+    },
+    "pv.objective": {
+      "max": 3000
+    },
+    "pv.findings": {
+      "max": 5000
+    },
+    "pv.recommendation": {
+      "max": 3000
+    },
+    "pv.title": {
+      "max": 160
+    },
+    "pv.caseNumber": {
+      "max": 64
     }
   },
   "registrationChoices": {
@@ -1280,44 +1297,44 @@
     ],
     "processingExperience": [
       "Less than 1 year",
-      "1–3 years",
-      "4–7 years",
-      "8–15 years",
+      "1\u20133 years",
+      "4\u20137 years",
+      "8\u201315 years",
       "More than 15 years"
     ],
     "qualityExperience": [
       "Less than 1 year",
-      "1–3 years",
-      "4–7 years",
-      "8–15 years",
+      "1\u20133 years",
+      "4\u20137 years",
+      "8\u201315 years",
       "More than 15 years"
     ],
     "managementExperience": [
       "Less than 1 year",
-      "1–3 years",
-      "4–7 years",
-      "8–15 years",
+      "1\u20133 years",
+      "4\u20137 years",
+      "8\u201315 years",
       "More than 15 years"
     ],
     "reportingExperience": [
       "Less than 1 year",
-      "1–3 years",
-      "4–7 years",
-      "8–15 years",
+      "1\u20133 years",
+      "4\u20137 years",
+      "8\u201315 years",
       "More than 15 years"
     ],
     "auditExperience": [
       "Less than 1 year",
-      "1–3 years",
-      "4–7 years",
-      "8–15 years",
+      "1\u20133 years",
+      "4\u20137 years",
+      "8\u201315 years",
       "More than 15 years"
     ],
     "yearsExperience": [
       "Less than 1 year",
-      "1–3 years",
-      "4–7 years",
-      "8–15 years",
+      "1\u20133 years",
+      "4\u20137 years",
+      "8\u201315 years",
       "More than 15 years"
     ],
     "training": [
@@ -1340,6 +1357,20 @@
       "Regulatory reporting",
       "System access and security",
       "Full safety workflow"
+    ],
+    "analyticsDepartment": [
+      "Safety Analytics",
+      "Signal Detection and Evaluation",
+      "Benefit-Risk Analysis",
+      "Pharmacovigilance Operations",
+      "Other / not listed"
+    ],
+    "analysisExperience": [
+      "Less than 1 year",
+      "1\u20133 years",
+      "4\u20137 years",
+      "8\u201315 years",
+      "More than 15 years"
     ]
   }
 }

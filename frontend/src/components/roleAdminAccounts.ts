@@ -5,5 +5,6 @@ export const ROLE_ADMIN_USERNAMES: Readonly<Record<string, string>> = {
   ROLE_QUALITY_REVIEWER: 'pv.quality.admin',
   ROLE_SAFETY_MANAGER: 'pv.manager.admin',
   ROLE_REPORTING_SPECIALIST: 'pv.reporting.admin',
+  ROLE_PV_ANALYST: 'pv.analyst.admin',
   ROLE_AUDITOR: 'pv.auditor.admin',
 };

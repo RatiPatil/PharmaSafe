@@ -50,7 +50,7 @@ public class WorkspaceController {
             data.put("overdueReports", reports.countByStatusNotAndDueDateBefore("Submitted", java.time.LocalDate.now()));
             data.put("upcomingReports", reports.findByStatusNotOrderByDueDateAscIdAsc("Submitted", PageRequest.of(0,6)).map(SafetyReportDto::fromEntity).getContent());
         }
-        if (!Set.of("ROLE_REPORTING_SPECIALIST", "ROLE_AUDITOR").contains(role)) {
+        if (!Set.of("ROLE_REPORTING_SPECIALIST", "ROLE_AUDITOR", "ROLE_PV_ANALYST").contains(role)) {
             data.put("openActions", actions.countWorkspaceOpen(auth.getName(), role, false, java.time.Instant.now()));
             data.put("overdueActions", actions.countWorkspaceOpen(auth.getName(), role, true, java.time.Instant.now()));
         }

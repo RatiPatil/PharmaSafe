@@ -30,7 +30,7 @@ for(const service of services){
  if(service.name==='backend'){
   const check=await fetch(service.url+'/api/auth/access-roles',{signal:AbortSignal.timeout(30000)});
   if(!check.ok)throw Error('Deployed backend access-management API did not pass its smoke check.');
-  const roles=await check.json();if(!Array.isArray(roles)||roles.length!==6||roles.some(r=>r.role==='ROLE_ADMIN'))throw Error('Deployed backend returned an unexpected public role catalog.');
+  const roles=await check.json();if(!Array.isArray(roles)||roles.length!==7||roles.some(r=>r.role==='ROLE_ADMIN'))throw Error('Deployed backend returned an unexpected public role catalog.');
  }
  console.log(`Verified ${service.name} serves ${sha.slice(0,12)}.`);
 }
