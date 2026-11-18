@@ -814,7 +814,7 @@ export function MedicalTeamWorkspace() {
     >
       <aside className={`ws-sidebar ${menu ? "is-open" : ""}`}>
         <a className="ws-brand" href="#/medical-teams">
-          PharmaSafe<span>CASE PROCESSING</span>
+          PharmaSafe<span>MEDICAL REVIEW</span>
         </a>
         <p>
           {level === "ADMIN"

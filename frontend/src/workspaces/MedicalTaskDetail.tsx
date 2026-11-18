@@ -300,7 +300,7 @@ export function MedicalTaskDetail({
             {data.caseNumber && (
               <p>
                 Clinical case: <strong>{data.caseNumber}</strong>
-                {level === "EMPLOYEE" && (
+                {level === "EMPLOYEE" && data.medicalReadiness?.workflowState === "Medical Review" && (
                   <a
                     className="cp-inline-link"
                     target="_blank"

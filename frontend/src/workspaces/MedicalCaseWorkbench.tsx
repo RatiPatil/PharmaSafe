@@ -247,7 +247,7 @@ export function MedicalCaseWorkbench({
               <span>Current clinical workflow state</span>
             </div>
           </div>
-          {readiness.missing.length ? (
+          {readiness.workflowState !== "Medical Review" ? (<p>Medical editing is closed in {readiness.workflowState}. Saved conclusions and original task PDFs remain available below.</p>) : readiness.missing.length ? (
             <ul>
               {readiness.missing.map((s) => (
                 <li key={s}>{s}</li>
@@ -258,10 +258,10 @@ export function MedicalCaseWorkbench({
               Saved clinical checks are complete for this medical stage.
             </p>
           )}
-          <small>
+          {readiness.workflowState === "Medical Review" && <small>
             Checks use saved data and the current case revision. After adding or
             correcting an assessment, record a fresh conclusion.
-          </small>
+          </small>}
         </section>
       )}
       {record && (
