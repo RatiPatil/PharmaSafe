@@ -75,7 +75,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   if(await publicPage.getByText('Use the Role Admin login tab for this account.',{exact:true}).count())throw Error('Automatic credential clearing must not display a warning');
   if(await publicPage.getByLabel('Username or official email',{exact:true}).inputValue()||await publicPage.getByLabel('Password',{exact:true}).inputValue())throw Error('Saved admin credentials leaked into employee form');
   console.log('PASS separate administrator autofill metadata and browser-inserted credential clearing on employee login');
-  await publicPage.setViewportSize({width:1440,height:1000});await publicPage.goto(origin+'/#/home');console.log('PASS all seven dedicated role portals: user login, role-admin login, reloadable registration and responsive forms');
+  await publicPage.setViewportSize({width:1440,height:1000});await publicPage.goto(origin+'/#/register');console.log('PASS all seven dedicated role portals: user login, role-admin login, reloadable registration and responsive forms');
   await publicPage.route('**/api/auth/role-selection',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({selectionToken:'layout-check-only'})}));
   await publicPage.getByRole('button',{name:'Request access as Medical Reviewer',exact:true}).click();
   await publicPage.getByRole('heading',{name:'Medical Reviewer registration',exact:true}).waitFor();
