@@ -224,6 +224,7 @@ function AssignWorkForm({
     description: "",
     instructions: "",
     stage: "INTAKE",
+    clinicalRequired: true,
     priority: "Routine",
     dueAt: localTime(new Date(Date.now() + 86400000)),
     recipientMode: "INDIVIDUAL",
@@ -270,6 +271,14 @@ function AssignWorkForm({
           value={form.title}
           onChange={(e) => setForm((v) => ({ ...v, title: e.target.value }))}
         />
+      </label>
+      <label>
+        Work type
+        <select aria-label="Work type" value={form.clinicalRequired ? 'CLINICAL' : 'INSTRUCTIONS'} onChange={e=>setForm(v=>({...v,clinicalRequired:e.target.value==='CLINICAL'}))}>
+          <option value="CLINICAL">Clinical case work — saved case required</option>
+          <option value="INSTRUCTIONS">General instructions / training task</option>
+        </select>
+        <small>Clinical work requires a linked case and saved stage evidence before completion.</small>
       </label>
       <label>
         Case Processing stage

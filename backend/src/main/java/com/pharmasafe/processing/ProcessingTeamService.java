@@ -38,6 +38,7 @@ public class ProcessingTeamService {
   private final AuditService audit;
   private final ObjectMapper json;
   private final CasePdfRenderer renderer;
+  private final ProcessingCaseWorkbench workbench;
 
   public ProcessingTeamService(
       ProcessingAccess a,
@@ -55,7 +56,9 @@ public class ProcessingTeamService {
       PasswordEncoder p,
       AuditService au,
       ObjectMapper j,
-      CasePdfRenderer re) {
+      CasePdfRenderer re,
+      ProcessingCaseWorkbench wb) {
+    workbench = wb;
     access = a;
     teams = t;
     members = m;
@@ -108,7 +111,8 @@ public class ProcessingTeamService {
       @NotNull Instant dueAt,
       @NotBlank @Pattern(regexp = "INDIVIDUAL|ALL_TEAM") String recipientMode,
       @Pattern(regexp = "PS-[1-9][0-9]{0,17}") String employeeStaffCode,
-      @Size(max = 64) String caseNumber) {}
+      @Size(max = 64) String caseNumber,
+      boolean clinicalRequired) {}
 
   public record UpdateRequest(
       @NotNull @PositiveOrZero Long expectedVersion,
@@ -446,6 +450,7 @@ public class ProcessingTeamService {
     v.put("employee", person(a.employee));
     v.put("title", a.workOrder.title);
     v.put("stage", a.workOrder.stage);
+    v.put("clinicalRequired", a.workOrder.clinicalRequired);
     v.put("priority", a.workOrder.priority);
     v.put("dueAt", a.workOrder.dueAt);
     v.put("status", a.status);
@@ -603,6 +608,7 @@ public class ProcessingTeamService {
     order.description = d.description().trim();
     order.instructions = d.instructions().trim();
     order.stage = d.stage();
+    order.clinicalRequired = d.clinicalRequired();
     order.priority = d.priority();
     order.dueAt = d.dueAt();
     order.recipientMode = d.recipientMode();
@@ -687,10 +693,10 @@ public class ProcessingTeamService {
     v.put("description", a.workOrder.description);
     v.put("instructions", a.workOrder.instructions);
     v.put("assignedBy", person(a.workOrder.createdBy));
-    v.put("caseId", a.workOrder.safetyCase == null ? null : a.workOrder.safetyCase.getId());
-    v.put(
-        "caseNumber",
-        a.workOrder.safetyCase == null ? null : a.workOrder.safetyCase.getCaseNumber());
+    SafetyCase linked = workbench.linked(a);
+    v.put("caseId", linked == null ? null : linked.getId());
+    v.put("processingReadiness", workbench.view(a));
+    v.put("caseNumber", linked == null ? null : linked.getCaseNumber());
     v.put(
         "updates",
         updates
@@ -714,7 +720,7 @@ public class ProcessingTeamService {
             .findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Assignment not found"));
     access.assignment(actor, a);
-    SafetyCase c = a.workOrder.safetyCase;
+    SafetyCase c = workbench.linked(a);
     if (c == null) throw new EntityNotFoundException("This task has no linked clinical case");
     if ("EMPLOYEE".equals(access.level(actor))) {
       if (!new com.pharmasafe.security.WorkspaceAccess().canRead(c, username, actor.getRole()))
@@ -767,7 +773,22 @@ public class ProcessingTeamService {
       throw new IllegalArgumentException("Only completed work can have 100 percent progress");
     if ("BLOCKED".equals(d.status()) && d.blockers().isBlank())
       throw new IllegalArgumentException("Explain the blocker or missing information");
+    // Every response PDF, including partial progress, must capture an owned case under its lock.
+    SafetyCase linked = workbench.linked(a);
+    if (linked != null) {
+      linked = cases.findForUpdate(linked.getId()).orElseThrow();
+      if (linked.getAssignedToUser() == null
+          || !actor.getId().equals(linked.getAssignedToUser().getId()))
+        throw new AccessDeniedException("The clinical case is no longer assigned to you");
+    }
     if ("COMPLETED".equals(d.status())) {
+      if (linked == null && a.workOrder.clinicalRequired)
+        throw new IllegalArgumentException(
+            "Create or link the clinical case before completing this clinical assignment");
+      if (linked != null) {
+        var missing = workbench.missing(a, linked);
+        if (!missing.isEmpty()) throw new IllegalArgumentException(String.join(" ", missing));
+      }
       if (!d.pendingWork().isBlank() || !d.remainingWork().isBlank())
         throw new IllegalArgumentException("Completed work cannot have pending or remaining work");
       if (Set.of("INTAKE", "VALIDATION").contains(a.workOrder.stage)
@@ -874,12 +895,21 @@ public class ProcessingTeamService {
     snapshot.put("createdBy", a.workOrder.createdBy.getUsername());
     snapshot.put(
         "clinicalCaseNumber",
-        a.workOrder.safetyCase == null ? "Not linked" : a.workOrder.safetyCase.getCaseNumber());
+        workbench.linked(a) == null ? "Not linked" : workbench.linked(a).getCaseNumber());
     snapshot.put(
         "scope",
         "Internal Case Processing task evidence. Task completion does not approve a clinical case"
             + " or transmit a regulatory report.");
-    if (u != null) snapshot.set("employeeResponse", json.valueToTree(updateView(u)));
+    if (u != null) {
+      snapshot.set("employeeResponse", json.valueToTree(updateView(u)));
+      SafetyCase linked = workbench.linked(a);
+      if (linked != null) {
+        snapshot.set(
+            "clinicalCaseAtResponse",
+            json.valueToTree(com.pharmasafe.dto.CaseResponseDto.fromEntity(linked)));
+        snapshot.set("processingReadinessAtResponse", json.valueToTree(workbench.view(a)));
+      }
+    }
     try {
       byte[] source = json.writeValueAsBytes(snapshot);
       d.snapshotJson = new String(source, java.nio.charset.StandardCharsets.UTF_8);

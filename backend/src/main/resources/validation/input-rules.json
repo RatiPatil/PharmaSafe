@@ -1179,6 +1179,31 @@
     },
     "pv.caseNumber": {
       "max": 64
+    },
+    "processing.kind": {
+      "max": 32,
+      "enum": [
+        "DUPLICATE_REVIEW",
+        "CODING"
+      ]
+    },
+    "processing.outcome": {
+      "max": 32,
+      "enum": [
+        "NO_DUPLICATE",
+        "POTENTIAL_DUPLICATE",
+        "DISTINCT_CASE",
+        "VERIFIED"
+      ]
+    },
+    "processing.notes": {
+      "max": 5000
+    },
+    "processing.dictionaryReference": {
+      "max": 500
+    },
+    "processing.caseNumber": {
+      "max": 64
     }
   },
   "registrationChoices": {

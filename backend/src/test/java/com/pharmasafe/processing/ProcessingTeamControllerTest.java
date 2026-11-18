@@ -69,6 +69,8 @@ class ProcessingTeamControllerTest {
     jdbc.execute("SET REFERENTIAL_INTEGRITY FALSE");
     for (String table :
         List.of(
+            "cp_processing_evidence",
+            "cp_assignment_cases",
             "cp_work_documents",
             "cp_work_updates",
             "cp_work_assignments",
@@ -729,5 +731,429 @@ class ProcessingTeamControllerTest {
             get("/api/processing-teams/unassigned-employees")
                 .with(user(employee.getUsername()).roles("SCOPED_ADMIN")))
         .andExpect(status().isForbidden());
+  }
+
+  Map<String, Object> clinicalInput(boolean coded) {
+    var d = new LinkedHashMap<String, Object>();
+    d.put("countryCode", "USA");
+    d.put("reportType", "Spontaneous");
+    d.put("initialReceiptDate", LocalDate.now().toString());
+    d.put("latestReceivedDate", LocalDate.now().toString());
+    d.put("priority", "Routine");
+    d.put("patient", Map.of("patientIdentifier", "SYNTHETIC-TASK-PATIENT", "gender", "Unknown"));
+    d.put(
+        "reporters",
+        List.of(
+            Map.of(
+                "primary",
+                true,
+                "qualification",
+                "Physician",
+                "firstName",
+                "Synthetic",
+                "lastName",
+                "Reporter",
+                "countryCode",
+                "USA")));
+    d.put("products", List.of(Map.of("productType", "Suspect", "productName", "Synthetic Drug")));
+    var ev = new LinkedHashMap<String, Object>();
+    ev.put("eventVerbatim", "Synthetic rash");
+    ev.put("onsetDate", LocalDate.now().toString());
+    ev.put("outcome", "Unknown");
+    if (coded) {
+      ev.put("meddraPt", "Rash");
+      ev.put("meddraLlt", "Rash");
+      ev.put("meddraSoc", "Skin and subcutaneous tissue disorders");
+    }
+    d.put("events", List.of(ev));
+    d.put(
+        "narrative",
+        "Fictional source receipt, patient, drug exposure, event timeline and outcome for workflow"
+            + " verification.");
+    return d;
+  }
+
+  JsonNode createClinical(long id, User employee, boolean coded) throws Exception {
+    return parsed(
+        mvc.perform(
+                post("/api/processing-teams/work/" + id + "/clinical-case")
+                    .with(as(employee))
+                    .with(csrf())
+                    .contentType("application/json")
+                    .content(body(clinicalInput(coded))))
+            .andExpect(status().isCreated())
+            .andReturn());
+  }
+
+  Map<String, Object> review(long version, String kind, String outcome) {
+    return Map.of(
+        "expectedCaseVersion",
+        version,
+        "kind",
+        kind,
+        "outcome",
+        outcome,
+        "notes",
+        "Source identifiers, product/event coding and dictionary release checked against fictional"
+            + " source documents.",
+        "dictionaryReference",
+        kind.equals("CODING")
+            ? "Licensed dictionary release and source product code reference"
+            : "");
+  }
+
+  @Test
+  void employeeCreatesClinicalWorkAndSupervisorsInspectWithoutEditing() throws Exception {
+    var t = team(createTeam("workstation"));
+    var e = employee(t, "clinical.worker");
+    var colleague = employee(t, "clinical.colleague");
+    var request = work(t, "INDIVIDUAL", e, "INTAKE");
+    request.put("clinicalRequired", true);
+    long id =
+        parsed(
+                mvc.perform(
+                        post("/api/processing-teams/work")
+                            .with(as(lead(t)))
+                            .with(csrf())
+                            .contentType("application/json")
+                            .content(body(request)))
+                    .andExpect(status().isCreated())
+                    .andReturn())
+            .get(0)
+            .path("id")
+            .asLong();
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(progress(0, "COMPLETED", 100, true))))
+        .andExpect(status().isBadRequest());
+    var c = createClinical(id, e, false);
+    assertEquals(e.getUsername(), c.path("assignedToUsername").asText());
+    for (User supervisor : List.of(lead(t), central, root))
+      mvc.perform(get("/api/processing-teams/work/" + id + "/clinical-case").with(as(supervisor)))
+          .andExpect(status().isOk())
+          .andExpect(jsonPath("$.patient.patientIdentifier").value("SYNTHETIC-TASK-PATIENT"));
+    mvc.perform(get("/api/processing-teams/work/" + id + "/clinical-case").with(as(colleague)))
+        .andExpect(status().isForbidden());
+    for (User actor : List.of(lead(t), central, colleague))
+      mvc.perform(
+              post("/api/processing-teams/work/" + id + "/clinical-case")
+                  .with(as(actor))
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(body(clinicalInput(false))))
+          .andExpect(status().isForbidden());
+    long before = cases.count();
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/clinical-case")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(clinicalInput(false))))
+        .andExpect(status().isConflict());
+    assertEquals(before, cases.count());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(progress(0, "COMPLETED", 100, true))))
+        .andExpect(status().isCreated());
+    var pdf =
+        documents.findAll().stream()
+            .filter(x -> "EMPLOYEE_RESPONSE".equals(x.documentKind))
+            .findFirst()
+            .orElseThrow();
+    assertTrue(pdf.snapshotJson.contains("clinicalCaseAtResponse"));
+    assertTrue(pdf.snapshotJson.contains("SYNTHETIC-TASK-PATIENT"));
+  }
+
+  @Test
+  void completionUsesSavedCaseFactsRatherThanOnlyEmployeeCheckboxes() throws Exception {
+    var t = team(createTeam("realcriteria"));
+    var e = employee(t, "criteria.worker");
+    long id = assign(t, e, "VALIDATION").path("id").asLong();
+    var input = clinicalInput(false);
+    input.put("patient", Map.of("gender", "Unknown"));
+    input.put(
+        "reporters",
+        List.of(Map.of("primary", true, "qualification", "Physician", "countryCode", "USA")));
+    input.put("draft", true);
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/clinical-case")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(input)))
+        .andExpect(status().isCreated());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(progress(0, "COMPLETED", 100, true))))
+        .andExpect(status().isBadRequest());
+    assertEquals(0, updates.count());
+    assertEquals("NOT_STARTED", assignments.findById(id).orElseThrow().status);
+  }
+
+  @Test
+  void unresolvedOrOutdatedReviewCannotCompleteLinkedClinicalStage() throws Exception {
+    var t = team(createTeam("revisionchecks"));
+    var e = employee(t, "coding.worker");
+    long id = assign(t, e, "DUPLICATE_REVIEW").path("id").asLong();
+    var c = createClinical(id, e, true);
+    long revision = c.path("rowVersion").asLong();
+    for (String outcome : List.of("NO_DUPLICATE", "POTENTIAL_DUPLICATE"))
+      mvc.perform(
+              post("/api/processing-teams/work/" + id + "/processing-evidence")
+                  .with(as(e))
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(body(review(revision, "DUPLICATE_REVIEW", outcome))))
+          .andExpect(status().isOk());
+    var completion = progress(0, "COMPLETED", 100, true);
+    completion.put("checklist", Map.of("duplicateChecked", true));
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(completion)))
+        .andExpect(status().isBadRequest());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/processing-evidence")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(review(revision, "DUPLICATE_REVIEW", "DISTINCT_CASE"))))
+        .andExpect(status().isOk());
+    var changed = clinicalInput(true);
+    changed.put("expectedRowVersion", revision);
+    changed.put("companyComments", "New source evidence changes the case revision");
+    var updated =
+        parsed(
+            mvc.perform(
+                    put("/api/cases/" + c.path("id").asLong())
+                        .with(as(e))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body(changed)))
+                .andExpect(status().isOk())
+                .andReturn());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/processing-evidence")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(review(revision, "DUPLICATE_REVIEW", "NO_DUPLICATE"))))
+        .andExpect(status().isConflict());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(completion)))
+        .andExpect(status().isBadRequest());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/processing-evidence")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    body(
+                        review(
+                            updated.path("rowVersion").asLong(),
+                            "DUPLICATE_REVIEW",
+                            "NO_DUPLICATE"))))
+        .andExpect(status().isOk());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(completion)))
+        .andExpect(status().isCreated());
+  }
+
+  @Test
+  void codingRequiresSavedTermsAndReviewIsEmployeeOnly() throws Exception {
+    var t = team(createTeam("codingevidence"));
+    var e = employee(t, "terms.worker");
+    long id = assign(t, e, "CODING").path("id").asLong();
+    var c = createClinical(id, e, false);
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/processing-evidence")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(review(c.path("rowVersion").asLong(), "CODING", "VERIFIED"))))
+        .andExpect(status().isBadRequest());
+    var changed = clinicalInput(true);
+    changed.put("expectedRowVersion", c.path("rowVersion").asLong());
+    var updated =
+        parsed(
+            mvc.perform(
+                    put("/api/cases/" + c.path("id").asLong())
+                        .with(as(e))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(body(changed)))
+                .andExpect(status().isOk())
+                .andReturn());
+    for (User actor : List.of(lead(t), central, foreignAdmin))
+      mvc.perform(
+              post("/api/processing-teams/work/" + id + "/processing-evidence")
+                  .with(as(actor))
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(body(review(updated.path("rowVersion").asLong(), "CODING", "VERIFIED"))))
+          .andExpect(status().isForbidden());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/processing-evidence")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(review(updated.path("rowVersion").asLong(), "CODING", "VERIFIED"))))
+        .andExpect(status().isOk());
+    var completion = progress(0, "COMPLETED", 100, true);
+    completion.put("checklist", Map.of("codingReviewed", true));
+    completion.put("codingReference", "See preserved dictionary verification");
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(completion)))
+        .andExpect(status().isCreated());
+  }
+
+  @Test
+  void employeeCannotLinkColleagueCaseAndInactiveTeamsCannotCreateClinicalWork() throws Exception {
+    var t = team(createTeam("linkboundaries"));
+    var e = employee(t, "link.worker");
+    var other = employee(t, "link.other");
+    long otherId = assign(t, other, "INTAKE").path("id").asLong();
+    var c = createClinical(otherId, other, false);
+    long id = assign(t, e, "INTAKE").path("id").asLong();
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/clinical-case/link")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(Map.of("caseNumber", c.path("caseNumber").asText()))))
+        .andExpect(status().isForbidden());
+    long own = assign(t, other, "NARRATIVE").path("id").asLong();
+    mvc.perform(
+            post("/api/processing-teams/work/" + own + "/clinical-case/link")
+                .with(as(other))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(Map.of("caseNumber", c.path("caseNumber").asText()))))
+        .andExpect(status().isOk());
+    t.active = false;
+    teams.saveAndFlush(t);
+    long before = cases.count();
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/clinical-case")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(clinicalInput(false))))
+        .andExpect(status().isForbidden());
+    assertEquals(before, cases.count());
+  }
+
+  @Test
+  void medicalHandoffRequiresCompletedVerifiedClinicalWorkAndPreservesReviewerSeparation()
+      throws Exception {
+    var t = team(createTeam("clinicalhandoff"));
+    var e = employee(t, "handoff.worker");
+    long id = assign(t, e, "MEDICAL_HANDOFF").path("id").asLong();
+    var c = createClinical(id, e, true);
+    long revision = c.path("rowVersion").asLong();
+    var handoff =
+        Map.of(
+            "expectedCaseVersion",
+            revision,
+            "reason",
+            "Complete source verification, duplicate and coding review; ready for clinical review");
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/medical-handoff")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(handoff)))
+        .andExpect(status().isBadRequest());
+    for (var r :
+        List.of(
+            review(revision, "DUPLICATE_REVIEW", "NO_DUPLICATE"),
+            review(revision, "CODING", "VERIFIED")))
+      mvc.perform(
+              post("/api/processing-teams/work/" + id + "/processing-evidence")
+                  .with(as(e))
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(body(r)))
+          .andExpect(status().isOk());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(progress(0, "COMPLETED", 100, true))))
+        .andExpect(status().isCreated());
+    for (User actor : List.of(lead(t), central))
+      mvc.perform(
+              post("/api/processing-teams/work/" + id + "/medical-handoff")
+                  .with(as(actor))
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(body(handoff)))
+          .andExpect(status().isForbidden());
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/medical-handoff")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(handoff)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.workflowState").value("Medical Review"));
+    mvc.perform(get("/api/processing-teams/work/" + id + "/clinical-case").with(as(central)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.workflowState").value("Medical Review"));
+    var changed = clinicalInput(true);
+    changed.put("expectedRowVersion", revision + 1);
+    mvc.perform(
+            put("/api/cases/" + c.path("id").asLong())
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(changed)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void partialResponseCannotArchiveClinicalDataAfterCaseReassignment() throws Exception {
+    var t = team(createTeam("partialscope"));
+    var e = employee(t, "partial.employee");
+    var next = employee(t, "partial.next");
+    long id = assign(t, e, "INTAKE").path("id").asLong();
+    var created = createClinical(id, e, false);
+    var c = cases.findById(created.path("id").asLong()).orElseThrow();
+    c.setAssignedToUser(next);
+    cases.saveAndFlush(c);
+    long before = documents.count();
+    mvc.perform(
+            post("/api/processing-teams/work/" + id + "/updates")
+                .with(as(e))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(progress(0, "IN_PROGRESS", 30, true))))
+        .andExpect(status().isForbidden());
+    assertEquals(0, updates.count());
+    assertEquals(before, documents.count());
   }
 }

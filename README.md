@@ -343,3 +343,9 @@ PharmaSafe is fully configured for zero-cost cloud deployment:
 - **Documentation:** See [Cloud Deployment Guide](docs/cloud-deployment-guide.md) for full setup instructions, environment variables, and rollback procedures.
 
 
+
+### Employee clinical processing workstation
+
+Case Processing employees can open an assignment and create or link its clinical case, enter source case data, record duplicate/coding reviews, manage follow-up/laboratory evidence and generate case PDFs within one workstation. Clinical assignments require saved stage evidence before completion. Team Leads and the department Admin inspect the clinical work read-only, receive preserved response PDFs, and retain their existing team scopes. A completed Medical review handoff task exposes a guarded action to route the prepared case into the Medical Reviewer queue.
+
+See [employee workflow, schema and Oracle references](docs/CASE-PROCESSING-TEAMS.md#employee-clinical-workstation-v18). V18 is additive; existing accounts and task/document history are preserved.

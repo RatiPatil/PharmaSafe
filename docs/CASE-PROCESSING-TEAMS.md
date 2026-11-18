@@ -59,3 +59,34 @@ Entity associations between public-field processing entities are eagerly loaded 
 - PostgreSQL migration checks run all migrations on fresh/populated databases and exercise hierarchy constraints, account/membership synchronization and immutable evidence.
 - Frontend tests cover role-specific controls, team registration routing, Lead login intent, progress drafts and stale-save behavior.
 - The isolated browser workflow exercises existing roles plus real team creation, approvals by both authorities, staff-ID assignment, completion/PDF exchange, broadcast isolation and responsive team screens.
+
+## Employee clinical workstation (V18)
+
+New assignments default to **Clinical case work** in the Team Lead's Assign work form. A saved clinical case is mandatory before these assignments can be completed. Select **General instructions / training task** for nonclinical shared work. Historical assignments retain their original behavior.
+
+1. Employee signs in using Case Processor → User login. Open **Processing teams & work → My work & PDFs → Open assignment**.
+2. Read the task and download its assignment PDF. In **Clinical case processing**, choose **Create clinical case for this task**, or enter the number of an existing unlocked Draft/Data Entry case currently assigned to the same employee and choose **Link my existing case**.
+3. Enter and save actual case data in General, Patient, Reporters, Products, Adverse Events, Medical History, Narrative/References and attachment metadata. Incomplete information can be saved as a draft. This reuses the existing clinical case editor, validation, revision checks and access rules; clinical data is not copied into a parallel task form.
+4. Use **Duplicate & coding review** to run the existing exact-match search over accessible cases. Record the review outcome and source rationale. An unresolved potential duplicate blocks a duplicate-review/medical-handoff task. The latest review for that assignment and saved case revision determines readiness; earlier decisions remain preserved. The search does not establish absence of duplicates outside the employee's accessible cases.
+5. Enter actual MedDRA LLT, PT and SOC in Adverse Events. Record the drug/event dictionary names, releases and product-code reference plus source verification rationale. This records manual verification; it does not supply licensed MedDRA/WHODrug content or perform automatic dictionary validation.
+6. Use **Follow-up & contacts**, **Laboratory**, and **Case PDFs** for existing case-specific functionality without leaving the task. Laboratory corrections retain original evidence. Attachments remain metadata, not file-content storage.
+7. The completeness panel evaluates saved fields for the assigned stage. Intake/validation checks identifiable patient, reporter name/institution, a named suspect drug and adverse-event dates. Coding checks every event's LLT/PT/SOC and a current verification. Narrative checks saved narrative. Medical handoff requires the minimum facts, resolved duplicate review, coding verification, narrative, and a valid Data Entry case. A case edit invalidates earlier revision-specific reviews. Stage checks are processing controls, not a regulatory validation certification.
+8. Submit progress or report missing information with blockers. To complete, enter 100% progress, completed work, reason and required evidence, with no pending/remaining work. The archived response PDF now includes the linked clinical case snapshot and processing reviews available at response time. Original instruction PDFs remain unchanged even if a case is linked later.
+9. For a **Medical review handoff** task, first complete the response. Then enter **Medical handoff reason → Send case to Medical Review**. The server rechecks membership, case ownership, case revision and preparation evidence and uses the existing clinical workflow transition. Medical/QC decisions stay with their existing reviewers. A subsequent case change requires the Lead to reopen the task before the employee can record fresh processing evidence.
+10. Team Lead opens Work & responses; Case Processing Admin selects the team then the same task. Both inspect the saved clinical record and preserved processing reviews read-only and download the same original response PDF. Global Super Admin retains overall access.
+
+### Database and access
+
+- `cp_assignment_cases`: immutable employee-to-assignment clinical link, with assignment PK, case FK, employee FK and timestamp. A composite FK requires the link author to be the assigned employee. Cases already linked in the immutable original work order cannot be replaced.
+- `cp_processing_evidence`: append-only duplicate/coding decisions with assignment/case FKs, source case row revision, outcome, source notes, dictionary reference, author and timestamp. Index supports current-revision lookups and the latest decision; UI shows the latest 50 reviews while older reviews remain in the database and archived response snapshots.
+- PostgreSQL insert guards require the actual active assigned employee, active membership/team, current clinical revision and editable owned case. Update/delete triggers protect the links and reviews. No existing clinical record, account, assignment, review or PDF is overwritten by V18.
+- Assignment locks serialize case creation/linking, evidence, completion and handoff; case locks/revision checks reject stale evidence. Creating a case and binding it to the task is one transaction, so a link failure does not leave an orphan case.
+- Clinical assignments cannot finish using checklist attestations alone. Supporting evidence must exist in the saved clinical record. General training tasks are explicitly identified and are not clinical case completion.
+
+### Oracle workflow references
+
+The workstation follows the concepts of case data entry, worklists and responsibility by workflow stage described in Oracle's documentation. It is PharmaSafe functionality, not an Oracle integration or a complete replacement for a validated Argus installation:
+
+- [Oracle Argus Safety Quickstart: General, Patient, Products and Events](https://docs.oracle.com/health-sciences/argus-safety-811/QKSRT/qksrt.htm)
+- [Oracle Argus Safety: Review your cases / worklists](https://docs.oracle.com/health-sciences/argus-safety-812/user-EN/reviewyourcases.htm)
+- [Oracle Argus Safety 8.4.4: Configuring workflow](https://docs.oracle.com/en/industries/life-sciences/argus-safety/8.4.4/aadmn/configuring-workflow.html)

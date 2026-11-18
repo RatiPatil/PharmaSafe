@@ -45,6 +45,7 @@ export type WorkAssignment = {
   employee: TeamPerson;
   title: string;
   stage: string;
+  clinicalRequired?: boolean;
   priority: string;
   dueAt: string;
   status: string;

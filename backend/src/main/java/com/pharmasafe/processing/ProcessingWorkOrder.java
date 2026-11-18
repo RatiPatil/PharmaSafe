@@ -37,6 +37,9 @@ public class ProcessingWorkOrder {
   @JoinColumn(name = "case_id")
   public SafetyCase safetyCase;
 
+  @Column(name="clinical_required",nullable=false)
+  public boolean clinicalRequired;
+
   @Column(name = "recipient_mode", nullable = false, length = 16)
   public String recipientMode;
 

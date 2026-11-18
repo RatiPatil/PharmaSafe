@@ -1,5 +1,5 @@
 import { DuplicateCheck } from '../workspaces/DuplicateCheck';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId, useLayoutEffect } from 'react';
 import type { SafetyCaseDetails, CaseFormInput } from '../types/case';
 import { useAuth } from '../context/AuthContext';
 import { getApiUrl, apiRequest } from '../config/api';
@@ -29,6 +29,8 @@ interface CaseEntryFormProps {
   onSaveSuccess: (savedCase: SafetyCaseDetails) => void;
   onCancel: () => void;
   saveTrigger?: number;
+  createEndpoint?: string;
+  hideWorkflowRouting?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
 }
 
@@ -45,9 +47,24 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   onSaveSuccess,
   onCancel,
   saveTrigger,
+  createEndpoint,
+  hideWorkflowRouting = false,
   onDirtyChange
 }) => {
   const { user } = useAuth();
+  const entryRoot = useRef<HTMLDivElement>(null);
+  const formId = useId();
+  const fieldSequence = useRef(0);
+  useLayoutEffect(() => {
+    entryRoot.current?.querySelectorAll<HTMLLabelElement>('label:not([for])').forEach((label) => {
+      const sibling = label.nextElementSibling;
+      const field = sibling?.matches('input,select,textarea') ? sibling : sibling?.querySelector('input,select,textarea');
+      if (field instanceof HTMLElement) {
+        if (!field.id) field.id = `${formId}-field-${fieldSequence.current++}`;
+        label.htmlFor = field.id;
+      }
+    });
+  });
 
   const [activeSubTab, setActiveSubTab] = useState<
     'general' | 'patient' | 'reporters' | 'products' | 'events' | 'history' | 'assessments' | 'narrative' | 'attachments'
@@ -450,7 +467,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
         workflowState: isDraftMode ? 'Draft' : (formData.workflowState === 'Draft' ? 'Data Entry' : formData.workflowState)
       };
 
-      const savedCase = await apiRequest<SafetyCaseDetails>(initialCase ? `/api/cases/${initialCase.id}` : '/api/cases', initialCase ? 'PUT' : 'POST', payload);
+      const savedCase = await apiRequest<SafetyCaseDetails>(initialCase ? `/api/cases/${initialCase.id}` : (createEndpoint || '/api/cases'), initialCase ? 'PUT' : 'POST', payload);
       setLocalDirty(false);
       onSaveSuccess(savedCase);
     } catch (err: unknown) {
@@ -471,7 +488,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
   }, [saveTrigger, isSubmitting]);
 
   return (
-    <div onChangeCapture={e => { if (!(e.target as HTMLElement).closest('[data-workflow]')) setLocalDirty(true); onDirtyChange?.(true); }} className="bg-white rounded-xl border border-[#DCE4EE] shadow-xs overflow-hidden flex flex-col w-full max-w-full">
+    <div ref={entryRoot} data-validation-context="case" onChangeCapture={e => { if (!(e.target as HTMLElement).closest('[data-workflow]')) setLocalDirty(true); onDirtyChange?.(true); }} className="bg-white rounded-xl border border-[#DCE4EE] shadow-xs overflow-hidden flex flex-col w-full max-w-full">
       {routingTarget && <section ref={routingPanel} data-workflow="true" className="p-5 bg-blue-50 border-b border-blue-200"><h3 className="font-semibold mb-3">Route to {routingTarget}</h3><label className="block">Routing reason<textarea aria-label="Routing reason" value={routingReason} onChange={e=>setRoutingReason(e.target.value)} className="block w-full my-3 p-3 border rounded"/></label><div className="flex gap-3"><button type="button" disabled={isSubmitting || !routingReason.trim()} onClick={()=>transitionCase(routingTarget,routingReason.trim())}>Confirm routing</button><button type="button" onClick={()=>setRoutingTarget(null)}>Cancel routing</button></div></section>}
       {/* Top Header Bar */}
       <div className="bg-[#0B1F33] text-white p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 border-b border-[#1A3654]">
@@ -1322,6 +1339,16 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
                   </div>
 
                   <div>
+                    <label htmlFor={`event-llt-${idx}`} className="font-semibold text-[#172B4D] block mb-1.5">MedDRA lowest level term (LLT)</label>
+                    <input id={`event-llt-${idx}`} maxLength={255} value={ev.meddraLlt || ''} onChange={e=>{const updated=[...formData.events];updated[idx]={...updated[idx],meddraLlt:e.target.value};setFormData({...formData,events:updated});}} className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"/>
+                  </div>
+                  <div>
+                    <label htmlFor={`event-soc-${idx}`} className="font-semibold text-[#172B4D] block mb-1.5">MedDRA system organ class (SOC)</label>
+                    <input id={`event-soc-${idx}`} maxLength={255} value={ev.meddraSoc || ''} onChange={e=>{const updated=[...formData.events];updated[idx]={...updated[idx],meddraSoc:e.target.value};setFormData({...formData,events:updated});}} className="w-full px-3 py-2 border border-[#DCE4EE] rounded-lg text-sm bg-white text-[#172B4D]"/>
+                    <p className="text-xs text-[#526780] mt-1">Use the licensed dictionary release used by your organization. Recorded terms require source verification.</p>
+                  </div>
+
+                  <div>
                     <label className="font-semibold text-[#172B4D] block mb-1.5">Outcome</label>
                     <select
                       data-validation-field="outcome" value={ev.outcome}
@@ -1674,7 +1701,7 @@ export const CaseEntryForm: React.FC<CaseEntryFormProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {workflowMessage && <span className="text-xs text-emerald-700 font-medium mr-2">{workflowMessage}</span>}
-          {initialCase && formData.workflowState === 'Data Entry' && (
+          {!hideWorkflowRouting && initialCase && formData.workflowState === 'Data Entry' && (
             <button type="button" onClick={() => requestTransition('Medical Review')} className="bg-white hover:bg-[#F4F7FB] border border-[#DCE4EE] text-[#102A43] px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">
               Submit for Medical Review
             </button>

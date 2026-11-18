@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiRequest, downloadPdf } from "../config/api";
 import type {
   ProcessingLevel,
@@ -10,8 +10,8 @@ import {
   processingStages,
   workStatusLabels,
 } from "./processingModels";
-import { CaseRecordView } from "./CaseRecordView";
-import type { SafetyCaseDetails } from "../types/case";
+import { ProcessingCaseWorkbench, type ProcessingReadiness } from "./ProcessingCaseWorkbench";
+
 import { dateTime } from "./model";
 type WorkUpdate = {
   id: number;
@@ -42,6 +42,7 @@ type Detail = WorkAssignment & {
   caseId: number | null;
   caseNumber: string | null;
   canRespond: boolean;
+  processingReadiness?: ProcessingReadiness;
   updates: ProcessingPage<WorkUpdate>;
   documents: ProcessingPage<WorkDocument>;
 };
@@ -86,16 +87,17 @@ export function ProcessingTaskDetail({
     [reload, setReload] = useState(0),
     [page, setPage] = useState(0),
     [notice, setNotice] = useState("");
-  const [clinical, setClinical] = useState<SafetyCaseDetails | null>(null);
+  const [clinicalDirty, setClinicalDirty] = useState(false);
+  const clinicalSaved = useCallback(() => { setReload(v => v + 1); onUpdated(); }, [onUpdated]);
   const [form, setForm] = useState<ProgressForm>(empty),
     [dirty, setDirty] = useState(false),
     [reopenReason, setReopenReason] = useState("");
   const dirtyRef = useRef(false);
-  useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
+  useEffect(() => { dirtyRef.current = dirty || clinicalDirty; }, [dirty, clinicalDirty]);
   useEffect(() => {
-    onDirtyChange?.(dirty);
+    onDirtyChange?.(dirty || clinicalDirty);
     return () => onDirtyChange?.(false);
-  }, [dirty, onDirtyChange]);
+  }, [dirty, clinicalDirty, onDirtyChange]);
   const root = useRef<HTMLElement>(null);
   useEffect(() => {
     root.current?.scrollIntoView?.({ block: "start" });
@@ -109,7 +111,7 @@ export function ProcessingTaskDetail({
       c.signal,
     )
       .then((d) => {
-        if (c.signal.aborted || dirtyRef.current) return;
+        if (c.signal.aborted) return;
         setData(d);
         if (!dirtyRef.current)
           setForm((v) => ({
@@ -197,22 +199,23 @@ export function ProcessingTaskDetail({
         <button
           disabled={busy}
           onClick={() => {
-            if (!dirty || window.confirm("Leave this unsaved progress form?"))
+            if (!(dirty || clinicalDirty) || window.confirm("Leave this unsaved progress form?"))
               onClose();
           }}
         >
           ← Back to worklist
         </button>
         <button
-          disabled={busy}
+          disabled={busy || clinicalDirty}
           onClick={() => {
             if (
-              dirty &&
+              (dirty || clinicalDirty) &&
               !window.confirm(
                 "Discard unsaved progress and reload this assignment?",
               )
             )
               return;
+            if (clinicalDirty) return;
             setDirty(false);
             setForm(empty());
             setError("");
@@ -276,6 +279,7 @@ export function ProcessingTaskDetail({
             >
               <span style={{ width: `${data.progress}%` }} />
             </div>
+            <p className="ws-badge">{data.clinicalRequired ? "Clinical assignment · saved case required" : "General instruction / existing assignment"}</p>
             <h3>Assigned work</h3>
             <p className="cp-preserve">{data.description}</p>
             <h3>Instructions</h3>
@@ -309,6 +313,9 @@ export function ProcessingTaskDetail({
               <small>{dateTime(data.reopenedAt)}</small>
             </section>
           )}
+          <ProcessingCaseWorkbench assignmentId={id} caseId={data.caseId}
+            employee={level === "EMPLOYEE"} canHandoff={data.canRespond && data.status === "COMPLETED" && data.stage === "MEDICAL_HANDOFF"} canWork={data.canRespond && data.status !== "COMPLETED"}
+            readiness={data.processingReadiness} onSaved={clinicalSaved} onDirtyChange={setClinicalDirty} />
           {level === "EMPLOYEE" &&
             data.canRespond &&
             data.status !== "COMPLETED" && (
@@ -318,6 +325,7 @@ export function ProcessingTaskDetail({
                 inert={busy || undefined}
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (clinicalDirty) { setError("Save or discard your clinical edits before submitting a task response."); return; }
                   void mutate(`/api/processing-teams/work/${id}/updates`, {
                     ...form,
                     expectedVersion: data.rowVersion,
@@ -497,33 +505,6 @@ export function ProcessingTaskDetail({
                 <button disabled={busy}>Reopen task for employee</button>
               </form>
             )}
-          {data.caseId && level !== "EMPLOYEE" && (
-            <section className="ws-card">
-              <h3>Linked clinical work</h3>
-              <p>
-                Supervisory access is read-only. Medical and QC decisions retain
-                their existing role permissions.
-              </p>
-              <button
-                disabled={busy}
-                onClick={() => {
-                  setBusy(true);
-                  setError("");
-                  void apiRequest<SafetyCaseDetails>(
-                    `/api/processing-teams/work/${id}/clinical-case`,
-                  )
-                    .then(setClinical)
-                    .catch((e) => setError(e.message))
-                    .finally(() => setBusy(false));
-                }}
-              >
-                View linked clinical record
-              </button>
-            </section>
-          )}
-          {clinical && (
-            <CaseRecordView record={clinical} role="ROLE_CASE_TEAM_LEAD" />
-          )}
           <section className="ws-card">
             <h3>Assignment and response PDFs</h3>
             <p>

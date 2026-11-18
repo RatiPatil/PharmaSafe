@@ -12,8 +12,11 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/processing-teams")
 public class ProcessingTeamController {
   private final ProcessingTeamService service;
+  private final com.pharmasafe.processing.ProcessingCaseWorkbench workbench;
 
-  public ProcessingTeamController(ProcessingTeamService s) {
+  public ProcessingTeamController(
+      ProcessingTeamService s, com.pharmasafe.processing.ProcessingCaseWorkbench wb) {
+    workbench = wb;
     service = s;
   }
 
@@ -121,6 +124,42 @@ public class ProcessingTeamController {
   @GetMapping("/work/{id}/clinical-case")
   public com.pharmasafe.dto.CaseResponseDto clinical(@PathVariable Long id, Authentication a) {
     return service.clinicalCase(id, a.getName());
+  }
+
+  @PostMapping("/work/{id}/clinical-case")
+  public ResponseEntity<com.pharmasafe.dto.CaseResponseDto> createClinicalCase(
+      @PathVariable Long id,
+      @Valid @RequestBody com.pharmasafe.dto.CaseRequestDto d,
+      Authentication a,
+      jakarta.servlet.http.HttpServletRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            workbench.create(
+                id, d, a.getName(), request.getRemoteAddr(), request.getHeader("User-Agent")));
+  }
+
+  @PostMapping("/work/{id}/clinical-case/link")
+  public com.pharmasafe.dto.CaseResponseDto linkClinicalCase(
+      @PathVariable Long id,
+      @Valid @RequestBody com.pharmasafe.processing.ProcessingCaseWorkbench.LinkRequest d,
+      Authentication a) {
+    return workbench.link(id, d, a.getName());
+  }
+
+  @PostMapping("/work/{id}/processing-evidence")
+  public Map<String, Object> evidence(
+      @PathVariable Long id,
+      @Valid @RequestBody com.pharmasafe.processing.ProcessingCaseWorkbench.EvidenceRequest d,
+      Authentication a) {
+    return workbench.record(id, d, a.getName());
+  }
+
+  @PostMapping("/work/{id}/medical-handoff")
+  public com.pharmasafe.dto.CaseResponseDto medicalHandoff(
+      @PathVariable Long id,
+      @Valid @RequestBody com.pharmasafe.processing.ProcessingCaseWorkbench.HandoffRequest d,
+      Authentication a) {
+    return workbench.handoff(id, d, a.getName());
   }
 
   @PostMapping("/work/{id}/updates")

@@ -45,6 +45,22 @@ module.exports=async function({browser,origin,department,password,registrationCh
  const assigned=(await api(lead,'/work')).content.find(w=>w.title==='Verify initial case facts');
  const employee=await signIn('team.employee.one','user','processing-employee-home');
  await nav(employee,'My work & PDFs').click();await employee.getByRole('row').filter({hasText:'Verify initial case facts'}).getByRole('button',{name:'Open assignment',exact:true}).click();await employee.getByRole('heading',{name:'Submit my progress',exact:true}).waitFor();await checkTaskActions(employee);
+
+ // Create actual clinical data in the employee's assigned task, using the rendered form.
+ await employee.getByRole('button',{name:'Create clinical case for this task',exact:true}).click();
+ await employee.getByRole('button',{name:'2. Patient',exact:true}).click();
+ await employee.getByLabel('Patient Initials / ID',{exact:true}).fill('SYNTHETIC-TEAM-CLINICAL');
+ await employee.getByRole('button',{name:'3. Reporters (1)',exact:true}).click();
+ await employee.getByLabel('First Name',{exact:true}).fill('Synthetic');await employee.getByLabel('Last Name',{exact:true}).fill('Reporter');
+ await employee.getByRole('button',{name:'4. Products (1)',exact:true}).click();await employee.getByLabel('Product Name',{exact:false}).fill('Synthetic team product');
+ await employee.getByRole('button',{name:'5. Adverse Events (1)',exact:true}).click();await employee.getByLabel('Event Verbatim',{exact:false}).fill('Synthetic team rash');
+ await employee.getByLabel('MedDRA Preferred Term (PT)',{exact:false}).fill('Rash');
+ await employee.getByLabel('MedDRA lowest level term (LLT)',{exact:true}).fill('Rash');await employee.getByLabel('MedDRA system organ class (SOC)',{exact:true}).fill('Skin and subcutaneous tissue disorders');
+ await employee.getByRole('button',{name:'8. Narrative & Refs',exact:true}).click();await employee.getByLabel('Case Narrative (Clinical Summary)',{exact:true}).fill('Fictional clinical source report: patient identifier and reporter verified, synthetic product exposure followed by rash, outcome unknown. Training workflow only.');
+ const clinicalSave=employee.waitForResponse(r=>r.url().endsWith('/work/'+assigned.id+'/clinical-case')&&r.request().method()==='POST');await employee.getByRole('button',{name:'Save Case',exact:true}).first().click();
+ const clinicalResponse=await clinicalSave;if(clinicalResponse.status()!==201)throw Error('Clinical workstation save failed: '+await clinicalResponse.text());
+ const clinical=await clinicalResponse.json();await employee.getByText(/Saved .*Continue the processing steps below/).waitFor();
+ console.log('PASS employee enters and saves actual patient/reporter/product/event/coding/narrative data inside assigned task');
  fs.mkdirSync(path.join(qaDirectory,'documents'),{recursive:true});async function pdf(page,label,file){const [d]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:label,exact:true}).first().click()]);const target=path.join(qaDirectory,'documents',file);await d.saveAs(target);const bytes=fs.readFileSync(target);if(bytes.subarray(0,5).toString()!=='%PDF-')throw Error('Invalid '+file);return bytes;}
  await pdf(employee,'Download assignment PDF','team-assignment.pdf');
  await employee.getByLabel('Progress status',{exact:true}).selectOption('COMPLETED');await employee.getByLabel('Work completed',{exact:true}).fill('Confirmed the four minimum criteria against synthetic source evidence.');await employee.getByLabel('Update or correction reason',{exact:true}).fill('Synthetic source verification completed');
@@ -57,6 +73,8 @@ module.exports=async function({browser,origin,department,password,registrationCh
  const second=await signIn('team.employee.two','user','processing-employee-home');const privateStatus=await second.evaluate(async(id)=>(await fetch('/api/processing-teams/work/'+id)).status,assigned.id);if(privateStatus!==403)throw Error('Employee accessed colleague task');
  await nav(department,'Dashboard').click();await department.getByRole('button',{name:'Refresh team data',exact:true}).click();await department.getByLabel('Team dashboard',{exact:true}).selectOption(String(alpha.id));await department.getByRole('img',{name:'3 scoped work assignments',exact:true}).waitFor();
  for(const [name,p]of [['processing-admin',department],['processing-lead',lead],['processing-employee',employee]])for(const width of [1440,390]){await p.setViewportSize({width,height:900});await checkTaskActions(p);if(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw Error('Processing page overflow '+name+' '+width);await p.screenshot({path:path.join(qaDirectory,'screens',name+'-'+width+'.png'),fullPage:true});}
+
+ await require('./verify-processing-clinical-workflow.cjs')({employee,lead,department,api,nav,pdf,alpha,one,clinical,qaDirectory});
  if(pageErrors.length)throw Error('Processing browser errors: '+pageErrors.join('; '));
  console.log('PASS Case Processing hierarchy: real Lead provisioning, team invitation, Lead/Admin approvals, employee-ID assignment, independent broadcast, completion checklist, shared immutable PDFs, cross-team/employee denials and mobile screens');
  for(const p of [lead,otherLead,employee,second])await p.context().close();

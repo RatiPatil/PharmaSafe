@@ -474,3 +474,13 @@ Migration file: `V3__case_management.sql`
    - `ROLE_USER`: Case data entry, workflow routing, medical review, contact log entry.
 4. **Password & Credential Security**:
    - Plaintext passwords and hashes are never exposed in audit logs, API responses, or front-end memory.
+
+### V18 — employee clinical processing workstation
+
+`cp_work_orders.clinical_required` distinguishes new clinical assignments from general instructions. It defaults to false for historical orders; the Lead UI defaults new work to clinical. A clinical assignment cannot finish without a linked saved case and stage-specific persisted data.
+
+`cp_assignment_cases` adds an immutable clinical link when the original order did not have a case. Its assignment primary key prevents replacement and its composite assignment/employee foreign key prevents another employee from authoring the link. Clinical records remain in `cases` and its existing normalized child tables.
+
+`cp_processing_evidence` preserves duplicate and coding review outcomes, source rationale, dictionary releases, author, timestamp and exact source case row revision. Composite assignment/author FKs and insertion triggers enforce the assigned active employee, editable owned case and current revision; update/delete triggers enforce append-only records. New case revisions require fresh reviews, and the latest decision for the current revision determines readiness. Responses embed clinical and processing snapshots in the existing protected `cp_work_documents` PDF archive.
+
+No destructive backfill or production demo-data insertion is part of V18. Medical, QC and reporting authorities remain separate; the workstation handoff uses the existing audited clinical transition into Medical Review.

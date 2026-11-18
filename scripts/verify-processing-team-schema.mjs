@@ -39,6 +39,22 @@ try{
  await assert.rejects(db.exec(doc('foreign-response',a,updateB,'EMPLOYEE_RESPONSE')),e=>e.code==='23503'||e.code==='23505');
  for(const table of ['cp_work_orders','cp_work_updates','cp_work_documents'])await assert.rejects(db.exec(`DELETE FROM ${table}`),e=>e.code==='23514');
  await assert.rejects(db.exec("UPDATE cp_work_documents SET file_name='changed.pdf'"),e=>e.code==='23514');
+ // V18: actual clinical work is bound to its assigned employee; reviews are append-only.
+ await db.exec(`INSERT INTO cases(case_number,country_code,report_type,initial_receipt_date,latest_received_date,assigned_to_user_id) VALUES('CP-CLINICAL','USA','Spontaneous',CURRENT_DATE,CURRENT_DATE,${u0}),('CP-FOREIGN','USA','Spontaneous',CURRENT_DATE,CURRENT_DATE,${u1})`);
+ const clinical=(await db.query("SELECT id FROM cases WHERE case_number='CP-CLINICAL'")).rows[0].id;
+ const foreign=(await db.query("SELECT id FROM cases WHERE case_number='CP-FOREIGN'")).rows[0].id;
+ await assert.rejects(db.exec(`INSERT INTO cp_assignment_cases(assignment_id,case_id,employee_id,linked_at) VALUES(${a},${foreign},${u0},CURRENT_TIMESTAMP)`),e=>e.code==='23514');
+ await db.exec(`INSERT INTO cp_assignment_cases(assignment_id,case_id,employee_id,linked_at) VALUES(${a},${clinical},${u0},CURRENT_TIMESTAMP)`);
+ const evidence=(caseId=clinical,revision=0,kind='DUPLICATE_REVIEW',outcome='NO_DUPLICATE',dictionary='')=>`INSERT INTO cp_processing_evidence(assignment_id,case_id,case_row_version,kind,outcome,notes,dictionary_reference,recorded_by,recorded_at) VALUES(${a},${caseId},${revision},'${kind}','${outcome}','Synthetic source review','${dictionary}',${u0},CURRENT_TIMESTAMP)`;
+ await db.exec(evidence());
+ await assert.rejects(db.exec(evidence(foreign)),e=>e.code==='23514');
+ await assert.rejects(db.exec(evidence(clinical,1)),e=>e.code==='23514');
+ await assert.rejects(db.exec(evidence(clinical,0,'CODING','VERIFIED')),e=>e.code==='23514');
+ await db.exec(evidence(clinical,0,'CODING','VERIFIED','Synthetic dictionary release reference'));
+ await assert.rejects(db.exec("UPDATE cp_processing_evidence SET notes='Changed'"),e=>e.code==='23514');
+ await assert.rejects(db.exec('DELETE FROM cp_processing_evidence'),e=>e.code==='23514');
+ await assert.rejects(db.exec('DELETE FROM cp_assignment_cases'),e=>e.code==='23514');
+ console.log('PASS employee clinical workbench: assignment case ownership, current revision evidence, coding source requirement, immutable links/reviews');
  for(let i=2;i<=10;i++)await db.exec(`INSERT INTO cp_team_members(team_id,user_id,status,joined_at) VALUES(${teamA},${await uid('cp-employee-'+i)},'ACTIVE',CURRENT_TIMESTAMP)`);
  await assert.rejects(db.exec(`INSERT INTO cp_team_members(team_id,user_id,status,joined_at) VALUES(${teamA},${await uid('cp-employee-11')},'ACTIVE',CURRENT_TIMESTAMP)`),e=>e.code==='23514');
  await db.exec(`UPDATE users SET enabled=FALSE WHERE id=${u0}`);assert.equal((await db.query(`SELECT status FROM cp_team_members WHERE user_id=${u0}`)).rows[0].status,'SUSPENDED');
@@ -47,5 +63,6 @@ try{
  for(let i=2;i<10;i++){await db.exec(`INSERT INTO users(username,password_hash,role) VALUES('cp-extra-lead-${i}','hash','ROLE_CASE_TEAM_LEAD')`);await db.exec(teamInsert('Extra Team '+i,'cp-extra-lead-'+i,`00000000-0000-0000-0000-${String(i).padStart(12,'0')}`));}
  await db.exec("INSERT INTO users(username,password_hash,role) VALUES('cp-overflow-lead','hash','ROLE_CASE_TEAM_LEAD')");await assert.rejects(db.exec(teamInsert('Overflow Team','cp-overflow-lead','eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee')),e=>e.code==='23514');
  await db.exec("INSERT INTO administrative_events(actor_username,actor_level,managed_role,action,reason,outcome,created_at) VALUES('cp-lead-a','TEAM_LEAD','ROLE_CASE_PROCESSOR','REGISTRATION_APPROVED','Synthetic verification','SUCCESS',CURRENT_TIMESTAMP)");
+
  console.log('PASS processing hierarchy: ten-team/ten-seat limits, exclusive active membership, account-state synchronization, fixed assignment ownership, composite team/employee/document FKs, append-only evidence and Team Lead audit identity');
 }finally{await db.close()}
