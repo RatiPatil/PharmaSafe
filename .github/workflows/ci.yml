@@ -47,6 +47,7 @@ jobs:
         run: |
           node ../scripts/verify-input-rules.mjs
           node ../scripts/verify-public-role-catalog.mjs
+          node ../scripts/verify-render-readiness.mjs
 
       - name: Run Frontend Tests (Vitest)
         run: npm test -- --run

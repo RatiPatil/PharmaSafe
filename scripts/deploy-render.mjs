@@ -1,3 +1,4 @@
+import {frontendReady} from './render-frontend-readiness.mjs';
 // Deploy only tested main commits, backend first. Never print deploy-hook credentials.
 const sha=process.env.GITHUB_SHA;
 if (!/^[0-9a-f]{40}$/.test(sha||'')) throw Error('A full tested commit SHA is required.');
@@ -22,7 +23,7 @@ for(const service of services){
   try {
    const check=await fetch(service.url.replace(/\/+$/,'')+service.release+`?expected=${sha}&check=${attempt}`,{headers:{'Cache-Control':'no-cache'},signal:AbortSignal.timeout(15000)});
    const release=check.ok?await check.json():null;
-   if(release?.commit===sha){ready=true;break;}
+   if(release?.commit===sha && (service.name!=='frontend'||await frontendReady(service.url,release))){ready=true;break;}
   }catch{/* Wait for Render startup and migration completion. */}
   await new Promise(resolve=>setTimeout(resolve,15000));
  }

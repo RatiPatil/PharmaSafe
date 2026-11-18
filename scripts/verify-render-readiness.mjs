@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {frontendReady} from './render-frontend-readiness.mjs';
+const base='https://example.test';
+const release={entry:'/assets/app-new.js',initialAssets:['/assets/app-new.js','/assets/shared-new.js','/assets/app-new.css']};
+const html='<script src="/assets/app-new.js"></script><link href="/assets/shared-new.js"><link href="/assets/app-new.css">';
+const valid=async url=>new Response(url===base+'/'?html:'content',{headers:{'content-type':url===base+'/'?'text/html':url.endsWith('.css')?'text/css':'application/javascript'}});
+assert.equal(await frontendReady(base,release,valid),true);
+assert.equal(await frontendReady(base,release,async()=>new Response('<script src="/assets/app-old.js"></script>')),false,'Stale CDN HTML must not pass release verification');
+assert.equal(await frontendReady(base,release,async url=>url===base+'/'?new Response(html):new Response('<html>Fallback page</html>',{headers:{'content-type':'text/html'}})),false,'Missing JavaScript rewritten to HTML must not pass');
+assert.equal(await frontendReady(base,{entry:'https://other.test/app.js',initialAssets:['https://other.test/app.js']},valid),false,'Only same-origin asset paths may be verified');
+console.log('PASS frontend deployment readiness: matching HTML assets, valid JS/CSS, stale HTML rejection and HTML asset-fallback rejection');
