@@ -40,7 +40,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const publicContext=await browser.newContext({viewport:{width:1440,height:1000}});
   const publicPage=await publicContext.newPage();
   await publicPage.route('**/api/auth/access-roles',r=>r.abort());
-  await publicPage.goto(origin+'/#/home');
+  await publicPage.goto(origin+'/#/register');
   await publicPage.getByRole('heading',{name:'Find your place in the safety workflow.'}).waitFor();
   await publicPage.getByText(/The access service is temporarily unavailable/).waitFor();
   if(await publicPage.getByRole('button',{name:/Request access as/}).count()!==7)throw Error('Public cards must remain visible during backend failure');
@@ -49,6 +49,9 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   console.log('PASS immediate seven-role catalogue during API failure and successful connection retry');
   if(await publicPage.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).count())throw Error('Login form must not appear on home');
   await publicPage.getByRole('button',{name:'Request access as Medical Reviewer',exact:true}).waitFor();
+  await publicPage.goto(origin+'/#/home');
+  await publicPage.getByRole('heading',{name:/Safer decisions/}).waitFor();
+  if(await publicPage.locator('#account-types').count()||await publicPage.getByRole('navigation',{name:'Public site'}).getByRole('link').count()!==2)throw Error('Home must show only Login and Student registration, without role cards');
   fs.mkdirSync(path.join(qaDirectory,'screens'),{recursive:true});
   for(const width of [1440,768,390]){
    await publicPage.setViewportSize({width,height:1000});
