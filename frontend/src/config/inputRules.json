@@ -1204,6 +1204,64 @@
     },
     "processing.caseNumber": {
       "max": 64
+    },
+    "pv.name": {
+      "max": 160
+    },
+    "pv.purpose": {
+      "max": 3000
+    },
+    "pv.criteria.product": {
+      "max": 128
+    },
+    "pv.criteria.reaction": {
+      "max": 200
+    },
+    "pv.reaction": {
+      "max": 200
+    },
+    "pv.seriousness": {
+      "max": 16,
+      "enum": [
+        "ALL",
+        "SERIOUS",
+        "NON_SERIOUS"
+      ]
+    },
+    "pv.criteria.seriousness": {
+      "max": 16,
+      "enum": [
+        "ALL",
+        "SERIOUS",
+        "NON_SERIOUS"
+      ]
+    },
+    "pv.outcome": {
+      "max": 32,
+      "enum": [
+        "ACKNOWLEDGED",
+        "RETURNED",
+        "FOLLOW_UP_REQUIRED"
+      ]
+    },
+    "pv.comments": {
+      "max": 3000
+    },
+    "pv.followUpDueDate": {
+      "date": true,
+      "max": 10
+    },
+    "pv.expectedLatestReviewId": {
+      "number": true,
+      "min": 0,
+      "max": 9007199254740991,
+      "scale": 0
+    },
+    "pv.seriesId": {
+      "max": 36
+    },
+    "pv.supersedesId": {
+      "max": 36
     }
   },
   "registrationChoices": {

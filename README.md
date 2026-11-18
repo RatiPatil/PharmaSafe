@@ -349,3 +349,9 @@ PharmaSafe is fully configured for zero-cost cloud deployment:
 Case Processing employees can open an assignment and create or link its clinical case, enter source case data, record duplicate/coding reviews, manage follow-up/laboratory evidence and generate case PDFs within one workstation. Clinical assignments require saved stage evidence before completion. Team Leads and the department Admin inspect the clinical work read-only, receive preserved response PDFs, and retain their existing team scopes. A completed Medical review handoff task exposes a guarded action to route the prepared case into the Medical Reviewer queue.
 
 See [employee workflow, schema and Oracle references](docs/CASE-PROCESSING-TEAMS.md#employee-clinical-workstation-v18). V18 is additive; existing accounts and task/document history are preserved.
+
+### PV Analyst case-series workstation
+
+PV Analysts can query reviewed cases, freeze a defined population with its source revisions and line-listing PDF, and publish analysis against that exact evidence. Safety Managers record acknowledgement, corrections or dated follow-up requests with preserved response PDFs; analysts publish linked replacement reports without changing the originals. Role administration retains department/employee oversight, with current review-status counts on the dashboard.
+
+See [PV Analyst workflow and V19 database safeguards](docs/PV-ANALYST.md#v19--practical-analytical-workflow).

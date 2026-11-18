@@ -212,7 +212,7 @@ function ApplicationWorkspace() {
       <CaseActivities key={selected.id} record={selected} blocked={labDirty || busy || dirty || Object.values(form).some(Boolean) || Object.values(checks).some(Boolean)} assignees={assignees} onReload={()=>void openCase(selected.id,false)} onDirtyChange={setActivityDirty} onReadiness={setClosureReady}/>
       <section className="ws-card"><h2>Case audit history</h2><div className="ws-timeline">{history.map(row=><div key={text(row.id)}><strong>{text(row.eventType).replaceAll('_',' ')}</strong><span>{text(row.username)} · {new Date(String(row.createdAt)).toLocaleString()}</span><p>{text(row.details)}</p></div>)}{!history.length&&<p>No case history recorded.</p>}</div></section></>
     : section === 'new' ? <CaseEntryForm onOpenCandidate={id=>void openCase(id)} onDirtyChange={setDirty} onCancel={() => go('cases')} onSaveSuccess={c => { go('cases',true); setSelected(c); const url=routeUrl('cases',c.id); window.history.replaceState(null,'',url); lastRoute.current=url; setRefresh(v => v + 1); }} />
-    : section === 'administration' && user?.role==='ROLE_ADMIN' ? <RoleAdministration embedded/>
+    : section === 'administration' && user?.role==='ROLE_ADMIN' ? <RoleAdministration embedded onDirtyChange={setActivityDirty}/>
     : section === 'access' && user?.role === 'ROLE_ADMIN' ? <UserAccessManagement/>
     : section === 'profile' ? <ProfilePanel refresh={refresh} onDirtyChange={setDirty}/>
     : section === 'analysis' ? <PvAnalysisWorkspace onDirtyChange={setActivityDirty}/>

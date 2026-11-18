@@ -484,3 +484,11 @@ Migration file: `V3__case_management.sql`
 `cp_processing_evidence` preserves duplicate and coding review outcomes, source rationale, dictionary releases, author, timestamp and exact source case row revision. Composite assignment/author FKs and insertion triggers enforce the assigned active employee, editable owned case and current revision; update/delete triggers enforce append-only records. New case revisions require fresh reviews, and the latest decision for the current revision determines readiness. Responses embed clinical and processing snapshots in the existing protected `cp_work_documents` PDF archive.
 
 No destructive backfill or production demo-data insertion is part of V18. Medical, QC and reporting authorities remain separate; the workstation handoff uses the existing audited clinical transition into Medical Review.
+
+### V19 — reproducible PV populations and review ledger
+
+`pv_case_series` and `pv_series_cases` preserve immutable criteria, exact case membership, source case revisions, de-identified listing values and a digest-protected original PDF. A repeatable-read capture keeps query results and statistics coherent; deferred membership constraints reject incomplete populations at commit. Captures are explicitly bounded to 200 cases with no silent truncation.
+
+`pv_analysis_records` gains optional `series_id` and unique `supersedes_id` FKs. The author must own the series, optional case references must be members, and a replacement must continue its original author's returned/follow-up report. Historical records remain valid with null new relationships.
+
+`pv_analysis_reviews` is a separate append-only managerial decision ledger. Composite previous-review/report FKs, a unique first-review index, serialized insertion and active reviewer checks prevent stale or cross-report chains. Feedback PDFs preserve the original report digest and decision evidence. Analytical review does not alter case state, medical assessments, quality approval or regulatory reporting records.

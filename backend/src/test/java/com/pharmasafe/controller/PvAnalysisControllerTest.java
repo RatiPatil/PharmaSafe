@@ -34,6 +34,9 @@ class PvAnalysisControllerTest {
   @Autowired UserRepository users;
   @Autowired SafetyCaseRepository cases;
   @Autowired PvAnalysisRepository records;
+  @Autowired PvCaseSeriesRepository series;
+  @Autowired PvSeriesCaseRepository seriesCases;
+  @Autowired PvAnalysisReviewRepository reviews;
   @Autowired RoleAdminAssignmentRepository assignments;
   @SpyBean CasePdfRenderer renderer;
   User analyst, other, manager, root, pvAdmin, foreignAdmin;
@@ -237,5 +240,340 @@ class PvAnalysisControllerTest {
                 .content(body("")))
         .andExpect(status().isInternalServerError());
     assertEquals(0, records.count());
+  }
+
+  Map<String, Object> criteria() {
+    return new LinkedHashMap<>(
+        Map.of(
+            "product",
+            "Synthetic",
+            "reaction",
+            "reaction",
+            "seriousness",
+            "ALL",
+            "includeSynthetic",
+            false));
+  }
+
+  JsonNode capture() throws Exception {
+    return json.readTree(
+        mvc.perform(
+                post("/api/pv-analyses/series")
+                    .with(as(analyst))
+                    .with(csrf())
+                    .contentType("application/json")
+                    .content(
+                        json.writeValueAsBytes(
+                            Map.of(
+                                "name",
+                                "Synthetic focused population",
+                                "purpose",
+                                "Evaluate the reviewed source population",
+                                "criteria",
+                                criteria()))))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString());
+  }
+
+  JsonNode report(String seriesId, String prior) throws Exception {
+    var d = new LinkedHashMap<String, Object>();
+    d.put("title", "Frozen cohort evaluation");
+    d.put("objective", "Review a defined population");
+    d.put("findings", "Observed reports require source evaluation");
+    d.put("recommendation", "Manager should evaluate evidence");
+    d.put("seriesId", seriesId);
+    d.put("supersedesId", prior);
+    return json.readTree(
+        mvc.perform(
+                post("/api/pv-analyses")
+                    .with(as(analyst))
+                    .with(csrf())
+                    .contentType("application/json")
+                    .content(json.writeValueAsBytes(d)))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString());
+  }
+
+  @Test
+  void caseSeriesUsesReviewedAndLiteralConjunctiveFiltersWithoutDuplicates() throws Exception {
+    var d = criteria();
+    mvc.perform(
+            post("/api/pv-analyses/series/preview")
+                .with(as(analyst))
+                .with(csrf())
+                .contentType("application/json")
+                .content(json.writeValueAsBytes(d)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalElements").value(1));
+    d.put("product", "%");
+    mvc.perform(
+            post("/api/pv-analyses/series/preview")
+                .with(as(analyst))
+                .with(csrf())
+                .contentType("application/json")
+                .content(json.writeValueAsBytes(d)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.totalElements").value(0));
+    d = criteria();
+    d.put("receiptFrom", LocalDate.now().plusDays(1).toString());
+    d.put("receiptTo", LocalDate.now().toString());
+    mvc.perform(
+            post("/api/pv-analyses/series/preview")
+                .with(as(analyst))
+                .with(csrf())
+                .contentType("application/json")
+                .content(json.writeValueAsBytes(d)))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void frozenSeriesRetainsItsRevisionListingAfterSourceChangesAndEnforcesOwnerScope()
+      throws Exception {
+    var saved = capture();
+    String id = saved.path("id").asText();
+    assertEquals(1, saved.path("caseCount").asInt());
+    assertEquals(1, seriesCases.count());
+    var pdf =
+        mvc.perform(get("/api/pv-analyses/series/" + id + "/pdf").with(as(analyst)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsByteArray();
+    assertTrue(
+        new String(pdf, 0, 5, java.nio.charset.StandardCharsets.US_ASCII).startsWith("%PDF"));
+    reviewed.setWorkflowState("Data Entry");
+    cases.saveAndFlush(reviewed);
+    mvc.perform(get("/api/pv-analyses/series/" + id).with(as(analyst)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.snapshot.caseListing[0].workflowState").value("Approved"));
+    for (User u : List.of(manager, pvAdmin, root))
+      assertArrayEquals(
+          pdf,
+          mvc.perform(get("/api/pv-analyses/series/" + id + "/pdf").with(as(u)))
+              .andExpect(status().isOk())
+              .andReturn()
+              .getResponse()
+              .getContentAsByteArray());
+    for (User u : List.of(other, foreignAdmin))
+      mvc.perform(get("/api/pv-analyses/series/" + id).with(as(u)))
+          .andExpect(status().isForbidden());
+    mvc.perform(get("/api/pv-analyses/series?userId=" + analyst.getId()).with(as(other)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void publishedReportContainsFrozenPopulationAndRejectsAnotherAnalystsSeries() throws Exception {
+    String id = capture().path("id").asText();
+    var published = report(id, "");
+    var stored = records.findById(published.path("id").asText()).orElseThrow();
+    assertTrue(stored.snapshotJson.contains("frozenCaseSeries"));
+    assertTrue(stored.snapshotJson.contains("PV-REVIEWED"));
+    assertFalse(stored.snapshotJson.contains("PV-UNREVIEWED"));
+    var d = json.readTree(body(""));
+    ((com.fasterxml.jackson.databind.node.ObjectNode) d).put("seriesId", id);
+    mvc.perform(
+            post("/api/pv-analyses")
+                .with(as(other))
+                .with(csrf())
+                .contentType("application/json")
+                .content(json.writeValueAsBytes(d)))
+        .andExpect(status().isForbidden());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) d)
+        .put("caseNumber", unreviewed.getCaseNumber());
+    mvc.perform(
+            post("/api/pv-analyses")
+                .with(as(analyst))
+                .with(csrf())
+                .contentType("application/json")
+                .content(json.writeValueAsBytes(d)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void reviewCycleIsManagerOnlyVersionedAndPreservesOriginalAndReplacement() throws Exception {
+    var published = report(capture().path("id").asText(), "");
+    String id = published.path("id").asText();
+    byte[] original = records.findById(id).orElseThrow().pdfBytes.clone();
+    var request =
+        Map.of(
+            "expectedLatestReviewId",
+            0,
+            "outcome",
+            "FOLLOW_UP_REQUIRED",
+            "comments",
+            "Reassess the chronology and source coding",
+            "followUpDueDate",
+            LocalDate.now().plusDays(3).toString());
+    for (User u : List.of(analyst, pvAdmin, foreignAdmin))
+      mvc.perform(
+              post("/api/pv-analyses/" + id + "/reviews")
+                  .with(as(u))
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(json.writeValueAsBytes(request)))
+          .andExpect(status().isForbidden());
+    var response =
+        json.readTree(
+            mvc.perform(
+                    post("/api/pv-analyses/" + id + "/reviews")
+                        .with(as(manager))
+                        .with(csrf())
+                        .contentType("application/json")
+                        .content(json.writeValueAsBytes(request)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    mvc.perform(
+            post("/api/pv-analyses/" + id + "/reviews")
+                .with(as(root))
+                .with(csrf())
+                .contentType("application/json")
+                .content(json.writeValueAsBytes(request)))
+        .andExpect(status().isConflict());
+    long reviewId = response.path("id").asLong();
+    byte[] feedback =
+        mvc.perform(
+                get("/api/pv-analyses/" + id + "/reviews/" + reviewId + "/pdf").with(as(analyst)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsByteArray();
+    assertArrayEquals(
+        feedback,
+        mvc.perform(
+                get("/api/pv-analyses/" + id + "/reviews/" + reviewId + "/pdf").with(as(manager)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsByteArray());
+    mvc.perform(get("/api/pv-analyses/" + id + "/reviews").with(as(other)))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/pv-analyses/work-summary").with(as(analyst)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.followUpRequired").value(1));
+    var replacement = report(published.path("seriesId").asText(), id);
+    assertEquals(id, replacement.path("supersedesId").asText());
+    assertArrayEquals(original, records.findById(id).orElseThrow().pdfBytes);
+    mvc.perform(get("/api/pv-analyses/work-summary").with(as(analyst)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.awaitingReview").value(1))
+        .andExpect(jsonPath("$.followUpRequired").value(0));
+    mvc.perform(
+            post("/api/pv-analyses/" + id + "/reviews")
+                .with(as(manager))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    json.writeValueAsBytes(
+                        Map.of(
+                            "expectedLatestReviewId",
+                            reviewId,
+                            "outcome",
+                            "ACKNOWLEDGED",
+                            "comments",
+                            "Old report reviewed"))))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void emptyAndOversizedPopulationsAreRejectedAndPdfFailureIsAtomic() throws Exception {
+    var d =
+        Map.of(
+            "name",
+            "No population",
+            "purpose",
+            "Test empty population",
+            "criteria",
+            Map.of("product", "No match"));
+    mvc.perform(
+            post("/api/pv-analyses/series")
+                .with(as(analyst))
+                .with(csrf())
+                .contentType("application/json")
+                .content(json.writeValueAsBytes(d)))
+        .andExpect(status().isBadRequest());
+    doThrow(new java.io.IOException("Synthetic PDF failure"))
+        .when(renderer)
+        .render(any(JsonNode.class), any(byte[].class));
+    mvc.perform(
+            post("/api/pv-analyses/series")
+                .with(as(analyst))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    json.writeValueAsBytes(
+                        Map.of(
+                            "name",
+                            "Atomic evidence",
+                            "purpose",
+                            "Test rollback",
+                            "criteria",
+                            criteria()))))
+        .andExpect(status().isInternalServerError());
+    assertEquals(0, series.count());
+    assertEquals(0, seriesCases.count());
+  }
+
+  @Test
+  void moreThanTwoHundredMatchesCannotBeSilentlyTruncated() throws Exception {
+    var bulk = new ArrayList<SafetyCase>();
+    for (int i = 0; i < 200; i++) {
+      var c = new SafetyCase();
+      c.setCaseNumber("PV-LIMIT-" + i);
+      c.setWorkflowState("Approved");
+      c.setInitialReceiptDate(LocalDate.now());
+      c.setLatestReceivedDate(LocalDate.now());
+      bulk.add(c);
+    }
+    cases.saveAllAndFlush(bulk);
+    mvc.perform(
+            post("/api/pv-analyses/series")
+                .with(as(analyst))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    json.writeValueAsBytes(
+                        Map.of(
+                            "name",
+                            "Large population",
+                            "purpose",
+                            "Validate the population bound",
+                            "criteria",
+                            Map.of("includeSynthetic", false)))))
+        .andExpect(status().isBadRequest());
+    assertEquals(0, series.count());
+    assertEquals(0, seriesCases.count());
+  }
+
+  @Test
+  void managerPdfFailureDoesNotSavePartialFeedbackOrChangeOriginal() throws Exception {
+    var p = create();
+    String id = p.path("id").asText();
+    byte[] original = records.findById(id).orElseThrow().pdfBytes.clone();
+    doThrow(new java.io.IOException("Synthetic review rendering failure"))
+        .when(renderer)
+        .render(any(JsonNode.class), any(byte[].class));
+    mvc.perform(
+            post("/api/pv-analyses/" + id + "/reviews")
+                .with(as(manager))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    json.writeValueAsBytes(
+                        Map.of(
+                            "expectedLatestReviewId",
+                            0,
+                            "outcome",
+                            "ACKNOWLEDGED",
+                            "comments",
+                            "Source interpretation evaluated"))))
+        .andExpect(status().isInternalServerError());
+    assertEquals(0, reviews.count());
+    assertArrayEquals(original, records.findById(id).orElseThrow().pdfBytes);
   }
 }

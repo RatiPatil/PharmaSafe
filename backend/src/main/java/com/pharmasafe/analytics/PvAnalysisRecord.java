@@ -7,6 +7,14 @@ import java.time.Instant;
 @Entity
 @Table(name = "pv_analysis_records")
 public class PvAnalysisRecord {
+  public String getId() {
+    return id;
+  }
+
+  public User getAnalyst() {
+    return analyst;
+  }
+
   @Id
   @Column(length = 36)
   public String id;
@@ -30,6 +38,13 @@ public class PvAnalysisRecord {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "case_id")
   public SafetyCase safetyCase;
+
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "series_id")
+  public PvCaseSeries series;
+
+  @Column(name = "supersedes_id", length = 36, unique = true)
+  public String supersedesId;
 
   @Column(name = "created_at", nullable = false)
   public Instant createdAt;

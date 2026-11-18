@@ -20,6 +20,9 @@ import org.springframework.transaction.annotation.*;
 @Transactional(readOnly = true)
 public class PvAnalysisService {
   public static final String ROLE = "ROLE_PV_ANALYST";
+  private final PvCaseSeriesService seriesService;
+  private final PvSeriesCaseRepository seriesMembers;
+  private final PvAnalysisReviewRepository reviews;
   private final AdminScope access;
   private final UserRepository users;
   private final SafetyCaseRepository cases;
@@ -36,7 +39,13 @@ public class PvAnalysisService {
       PvAnalysisRepository r,
       ObjectMapper j,
       CasePdfRenderer p,
-      AuditService au) {
+      AuditService au,
+      PvCaseSeriesService ss,
+      PvSeriesCaseRepository sm,
+      PvAnalysisReviewRepository rr) {
+    seriesService = ss;
+    seriesMembers = sm;
+    reviews = rr;
     access = a;
     users = u;
     cases = c;
@@ -51,7 +60,9 @@ public class PvAnalysisService {
       @NotBlank @Size(max = 3000) String objective,
       @NotBlank @Size(max = 5000) String findings,
       @NotBlank @Size(max = 3000) String recommendation,
-      @Size(max = 64) String caseNumber) {}
+      @Size(max = 64) String caseNumber,
+      @Pattern(regexp = "|[a-f0-9-]{36}") String seriesId,
+      @Pattern(regexp = "|[a-f0-9-]{36}") String supersedesId) {}
 
   private User actor(String username) {
     User u = access.actor(username);
@@ -133,6 +144,13 @@ public class PvAnalysisService {
     v.put("createdAt", r.createdAt);
     v.put("caseNumber", r.safetyCase == null ? null : r.safetyCase.getCaseNumber());
     v.put("sha256", r.pdfSha256);
+    v.put("seriesId", r.series == null ? null : r.series.getId());
+    v.put("seriesName", r.series == null ? null : r.series.getName());
+    v.put("supersedesId", r.supersedesId);
+    v.put("supersededById", records.findFirstBySupersedesId(r.id).map(vv -> vv.id).orElse(null));
+    var latest = reviews.findFirstByAnalysisIdOrderByIdDesc(r.id).orElse(null);
+    v.put("reviewStatus", latest == null ? "AWAITING_REVIEW" : latest.outcome);
+    v.put("latestReviewId", latest == null ? 0 : latest.id);
     return v;
   }
 
@@ -144,6 +162,23 @@ public class PvAnalysisService {
             PageRequest.of(
                 Math.max(0, page), 20, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.asc("id"))))
         .map(this::view);
+  }
+
+  public Map<String, Object> workSummary(String username, Long userId) {
+    var a = actor(username);
+    var scoped = scope(a, userId);
+    Long owner = ROLE.equals(a.getRole()) ? a.getId() : userId;
+    return Map.of(
+        "totalReports",
+        records.count(scoped),
+        "awaitingReview",
+        records.countCurrentReviewState(owner, "AWAITING_REVIEW"),
+        "returned",
+        records.countCurrentReviewState(owner, "RETURNED"),
+        "followUpRequired",
+        records.countCurrentReviewState(owner, "FOLLOW_UP_REQUIRED"),
+        "acknowledged",
+        records.countCurrentReviewState(owner, "ACKNOWLEDGED"));
   }
 
   @Transactional(isolation = Isolation.REPEATABLE_READ)
@@ -167,6 +202,32 @@ public class PvAnalysisService {
       if (!Set.of("Approved", "Locked", "Closed").contains(r.safetyCase.getWorkflowState()))
         throw new AccessDeniedException("Only reviewed cases may be linked");
     }
+    if (d.seriesId() != null && !d.seriesId().isBlank()) {
+      r.series = seriesService.readable(d.seriesId(), a);
+      if (!r.series.getAnalyst().getId().equals(a.getId()))
+        throw new AccessDeniedException("Use your own saved case series");
+      if (r.safetyCase != null
+          && !seriesMembers.existsBySeriesIdAndSafetyCaseId(r.series.getId(), r.safetyCase.getId()))
+        throw new IllegalArgumentException(
+            "The linked case must belong to the selected case series");
+    }
+    if (d.supersedesId() != null && !d.supersedesId().isBlank()) {
+      var old =
+          records
+              .lockById(d.supersedesId())
+              .orElseThrow(() -> new EntityNotFoundException("Previous analysis not found"));
+      if (!old.analyst.getId().equals(a.getId()))
+        throw new AccessDeniedException("Only your own analysis can be revised");
+      var last = reviews.findFirstByAnalysisIdOrderByIdDesc(old.id).orElse(null);
+      if (last == null || !Set.of("RETURNED", "FOLLOW_UP_REQUIRED").contains(last.outcome))
+        throw new IllegalArgumentException(
+            "The previous report must have a returned or follow-up review");
+      if (records.findFirstBySupersedesId(old.id).isPresent())
+        throw new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.CONFLICT,
+            "This analysis already has a replacement");
+      r.supersedesId = old.id;
+    }
     var snapshot = json.createObjectNode();
     var control = snapshot.putObject("documentControl");
     control.put("documentKind", "PV_ANALYSIS");
@@ -176,7 +237,13 @@ public class PvAnalysisService {
     control.put("generatedAtUtc", r.createdAt.toString());
     control.put("finalDocument", false);
     snapshot.set("analysis", json.valueToTree(view(r)));
-    snapshot.set("reviewedCaseTrends", json.valueToTree(trends(username)));
+    if (r.series == null) snapshot.set("reviewedCaseTrends", json.valueToTree(trends(username)));
+    else
+      try {
+        snapshot.set("frozenCaseSeries", json.readTree(r.series.getSnapshotJson()));
+      } catch (Exception e) {
+        throw new IllegalStateException("Stored case-series evidence is unreadable", e);
+      }
     snapshot.put(
         "reviewRoute",
         "Available to the Safety Manager and PV Analyst administration for evaluation; not a"

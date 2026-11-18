@@ -206,8 +206,10 @@ const navigation: { tab: Tab; label: string; Icon: typeof Users }[] = [
 ];
 export function RoleAdministration({
   embedded = false,
+  onDirtyChange,
 }: {
   embedded?: boolean;
+  onDirtyChange?: (v:boolean)=>void;
 }) {
   const { user, logout } = useAuth(),
     superAdmin = user?.role === "ROLE_ADMIN";
@@ -253,8 +255,12 @@ export function RoleAdministration({
   const generation = useRef(0),
     detailGeneration = useRef(0),
     mutation = useRef(false);
+  const [pvDirty,setPvDirty]=useState(false);
+  useEffect(()=>{onDirtyChange?.(pvDirty);return()=>onDirtyChange?.(false);},[pvDirty,onDirtyChange]);
+  const leavePv=()=>!pvDirty||window.confirm('Leave unsaved PV review comments?');
   const slot = summary?.roles.find((r) => r.role === role);
   const selectTab = (next: Tab) => {
+    if(!leavePv())return;setPvDirty(false);
     setTab(next);
     setFilters({});
     setApplied({});
@@ -267,6 +273,7 @@ export function RoleAdministration({
       window.history.replaceState(null, "", `#/workspace/role_admin/${next}`);
   };
   const selectRole = (next: string) => {
+    if(!leavePv())return;setPvDirty(false);
     setRole(next);
     setPage(0);
     setForm({});
@@ -975,7 +982,7 @@ export function RoleAdministration({
           refresh={refresh}
         />
       )}
-      {tab==="pv-analysis"&&<PvAnalysisWorkspace employeeId={workUser?.userId as number|undefined}/>}
+      {tab==="pv-analysis"&&<PvAnalysisWorkspace onDirtyChange={setPvDirty} employeeId={workUser?.userId as number|undefined}/>}
       {!["overview", "assignments", "pv-analysis"].includes(tab) && (
         <>
           <div className="ws-card">
