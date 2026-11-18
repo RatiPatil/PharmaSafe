@@ -26,7 +26,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
  let server,browser,diagnosticPage;
  try{
   let ready=false;
-  for(let i=0;i<300;i++){try{if(!backendPort||!initialized)throw Error('Starting');const r=await fetch(`http://127.0.0.1:${backendPort}/api/health`);if(r.ok){ready=true;break;}}catch{} await sleep(200);}
+  for(let i=0;i<900;i++){try{if(!backendPort||!initialized)throw Error('Starting');const r=await fetch(`http://127.0.0.1:${backendPort}/api/health`);if(r.ok){ready=true;break;}}catch{} await sleep(200);}
   if(!ready)throw Error('Isolated backend did not start.');
   process.chdir(root+'/frontend');process.env.VITE_API_URL='';
   const { createServer }=await import(root+'/frontend/node_modules/vite/dist/node/index.js');
@@ -36,7 +36,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const publicRoles=JSON.parse(fs.readFileSync(root+'/frontend/src/config/publicRoleCatalog.json','utf8'));
   // Public page layout checks use the real role catalog. Selection alone is stubbed
   // because this isolated H2 harness has no PostgreSQL rate-limit table.
-  if(process.env.PROCESSING_ONLY!=='1'&&process.env.MEDICAL_ONLY!=='1'){
+  if(process.env.PROCESSING_ONLY!=='1'&&process.env.MEDICAL_ONLY!=='1'&&process.env.EDUCATION_ONLY!=='1'){
   const publicContext=await browser.newContext({viewport:{width:1440,height:1000}});
   const publicPage=await publicContext.newPage();
   await publicPage.route('**/api/auth/access-roles',r=>r.abort());
@@ -104,6 +104,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    await p.setViewportSize({width:1440,height:1000});console.log('PASS professional login layout at five widths without field overlap and four complete desktop viewport fits');
   }holdStartup=false;await Promise.all(heldSessions.map(route=>route.fulfill({status:401,contentType:'application/json',body:'{"message":"No test session"}'}).catch(()=>{})));await p.unroute('**/api/auth/me');await p.getByLabel('Username',{exact:false}).fill(username);await p.getByLabel(/^Password/).fill(password);await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).click();await p.getByTestId(home).waitFor({timeout:20000});return p;}
   const admin=await login('ui-admin','admin-home');console.log('PASS administrator login and dedicated home');
+  if(process.env.EDUCATION_ONLY==='1'){await require('./qa/verify-education-workflow.cjs')({browser,origin,admin,password,qaDirectory});console.log('QA artifacts: '+qaDirectory);return;}
   if(process.env.MEDICAL_ONLY==='1'){await admin.evaluate(async password=>{const token=(await(await fetch('/api/auth/csrf')).json()).token;const r=await fetch('/api/administration/assignments/ROLE_MEDICAL_REVIEWER',{method:'POST',headers:{'Content-Type':'application/json','X-XSRF-TOKEN':token},body:JSON.stringify({username:'medical.department.admin',email:'medical.department.admin@example.test',fullName:'Synthetic Medical Department Admin',password,reason:'Isolated medical workflow verification',expectedVersion:0})});if(!r.ok)throw Error(await r.text());},password);const department=await login('medical.department.admin','role-admin-home','ROLE_MEDICAL_REVIEWER',true);await require('./qa/verify-medical-team-workflow.cjs')({browser,origin,department,admin,password,registrationChoices:JSON.parse(fs.readFileSync(root+'/frontend/src/config/inputRules.json','utf8')).registrationChoices,qaDirectory});console.log('QA artifacts: '+qaDirectory);return;}
   if(process.env.PROCESSING_ONLY==='1'){await admin.evaluate(async password=>{const token=(await(await fetch('/api/auth/csrf')).json()).token;const r=await fetch('/api/administration/assignments/ROLE_CASE_PROCESSOR',{method:'POST',headers:{'Content-Type':'application/json','X-XSRF-TOKEN':token},body:JSON.stringify({username:'processing.department.admin',email:'processing.department.admin@example.test',fullName:'Synthetic Department Admin',password,reason:'Isolated processing workflow verification',expectedVersion:0})});if(!r.ok)throw Error(await r.text());},password);const department=await login('processing.department.admin','role-admin-home','ROLE_CASE_PROCESSOR',true);await require('./qa/verify-processing-team-workflow.cjs')({browser,origin,department,password,registrationChoices:JSON.parse(fs.readFileSync(root+'/frontend/src/config/inputRules.json','utf8')).registrationChoices,qaDirectory});console.log('QA artifacts: '+qaDirectory);return;}
   const firstLegend=admin.locator('.premium-chart-legend button').first();await firstLegend.click();
@@ -278,6 +279,8 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   // Earlier workflows have finished; release their browser contexts before the medical walkthrough.
   for(const context of browser.contexts())if(context!==admin.context()&&context!==medicalDepartment.context())await context.close();
   await require('./qa/verify-medical-team-workflow.cjs')({browser,origin,department:medicalDepartment,admin,password,registrationChoices,qaDirectory});
+  for(const context of browser.contexts())if(context!==admin.context())await context.close();
+  await require('./qa/verify-education-workflow.cjs')({browser,origin,admin,password,qaDirectory});
   if(failures.length)throw Error('Browser JS errors: '+failures.join('; '));
   console.log('QA artifacts: '+qaDirectory);
   console.log('PASS real browser + isolated Spring Boot/H2 end-to-end workflow; zero browser exceptions');

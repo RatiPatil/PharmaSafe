@@ -46,7 +46,7 @@ public class AdminScope {
   }
 
   public static boolean loginRole(String role) {
-    return "ROLE_MEDICAL_TEAM_LEAD".equals(role) || "ROLE_CASE_TEAM_LEAD".equals(role) || com.pharmasafe.security.WorkspaceAccess.ROLES.contains(role)
+    return com.pharmasafe.education.EducationAccess.ROLES.contains(role) || "ROLE_MEDICAL_TEAM_LEAD".equals(role) || "ROLE_CASE_TEAM_LEAD".equals(role) || com.pharmasafe.security.WorkspaceAccess.ROLES.contains(role)
         || SCOPED_ADMIN.equals(role);
   }
 

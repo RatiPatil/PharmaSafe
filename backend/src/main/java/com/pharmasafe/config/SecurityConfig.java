@@ -117,6 +117,9 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/csrf"
                 ).permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET,"/api/education/catalog").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST,"/api/education/student-id","/api/education/register").permitAll()
+                .requestMatchers("/api/education/**").hasAnyRole("ADMIN","DOMAIN_ADMIN","COLLEGE_ADMIN","STUDENT")
                 .requestMatchers(org.springframework.http.HttpMethod.GET,"/api/processing-teams/invitations/*", "/api/processing-teams/invitations/code/*").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET,"/api/medical-teams/invitations/*","/api/medical-teams/invitations/code/*").permitAll()
                 .requestMatchers("/api/medical-teams/**").hasAnyRole("ADMIN","SCOPED_ADMIN","MEDICAL_TEAM_LEAD","MEDICAL_REVIEWER")

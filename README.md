@@ -359,3 +359,11 @@ See [PV Analyst workflow and V19 database safeguards](docs/PV-ANALYST.md#v19--pr
 ### Medical Review team module
 
 Separate Medical Role Admin, Team Lead and employee workflows, clinical assessment/conclusion entry, PDF exchange and QC/correction routing are documented in [Medical Review teams and clinical work](docs/MEDICAL-REVIEW-TEAMS.md). Migration V20 preserves existing case/account data and creates the isolated Medical team schema.
+
+### College and domain learning
+
+Main Super Admin → **Colleges & domain learning → Colleges & administrators** creates active colleges and scoped College/Domain Admin accounts. Existing clinical administration remains available through **Main Super Admin workspace**.
+
+Students open **Student registration**, select an active college, reserve their unique Student ID and choose one or more of the seven domains. Common sign-in opens each account's own dashboard. Students can monitor pending selections; a College Admin approves each selected domain before work becomes accessible.
+
+College Admins assign individual or whole-cohort work, inspect evidence, return submissions with feedback or accept completion. Students save progress, submit domain-specific evidence and supporting PDFs, and retain submission history. Domain Admins inspect their assigned domain across colleges. Reports use current college, Student ID, domain and status filters and preserve the generated PDF.

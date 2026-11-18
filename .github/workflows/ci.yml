@@ -102,7 +102,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pv-migrations" --no-audit --no-fund @electric-sql/pglite@0.3.14
           node scripts/verify-workspace-migration.mjs "$RUNNER_TEMP/pv-migrations"
 
-      - name: Verify role, Case Processing and Medical Review browser workflows
+      - name: Verify clinical roles and college education browser workflows
         working-directory: .
         run: |
           npm ci --prefix frontend

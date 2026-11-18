@@ -1377,6 +1377,68 @@
     },
     "medical.caseNumber": {
       "max": 64
+    },
+    "education.stage": {
+      "max": 64
+    },
+    "education.status": {
+      "max": 16
+    },
+    "education.kind": {
+      "enum": [
+        "COLLEGE_ADMIN",
+        "DOMAIN_ADMIN"
+      ]
+    },
+    "education.outcome": {
+      "enum": [
+        "RETURNED",
+        "COMPLETED"
+      ]
+    },
+    "education.recipientMode": {
+      "enum": [
+        "INDIVIDUAL",
+        "ALL_APPROVED"
+      ]
+    },
+    "education.title": {
+      "max": 160
+    },
+    "education.description": {
+      "max": 5000
+    },
+    "education.instructions": {
+      "max": 5000
+    },
+    "education.workDone": {
+      "max": 5000
+    },
+    "education.pendingWork": {
+      "max": 3000
+    },
+    "education.remainingWork": {
+      "max": 3000
+    },
+    "education.feedback": {
+      "max": 3000
+    },
+    "education.collegeName": {
+      "max": 180
+    },
+    "education.reason": {
+      "max": 2000
+    },
+    "education.code": {
+      "max": 16,
+      "pattern": "[A-Z0-9][A-Z0-9-]{2,15}"
+    },
+    "education.reservationToken": {
+      "max": 64
+    },
+    "education.studentCode": {
+      "max": 32,
+      "pattern": "ST-[0-9]{6,18}"
     }
   },
   "registrationChoices": {

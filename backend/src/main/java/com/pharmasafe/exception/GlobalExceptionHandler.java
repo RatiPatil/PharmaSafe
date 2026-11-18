@@ -104,6 +104,14 @@ public class GlobalExceptionHandler {
     public ResponseEntity<AuthResponseDto> handleMalformedBody(org.springframework.http.converter.HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest().body(AuthResponseDto.error("A valid JSON request body is required"));
     }
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<AuthResponseDto> handleUploadSize(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(AuthResponseDto.error("Upload a PDF of at most 5 MB."));
+    }
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<AuthResponseDto> handleMissingPart(org.springframework.web.multipart.support.MissingServletRequestPartException ex) {
+        return ResponseEntity.badRequest().body(AuthResponseDto.error("Required submission data is missing."));
+    }
     @ExceptionHandler(Exception.class)
     public ResponseEntity<AuthResponseDto> handleGenericException(Exception ex) {
         log.error("Unhandled internal server error: ", ex);

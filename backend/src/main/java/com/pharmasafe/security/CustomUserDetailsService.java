@@ -16,6 +16,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.medicalteam.MedicalTeamRepository medicalTeams;
     @org.springframework.beans.factory.annotation.Autowired(required=false) private com.pharmasafe.processing.ProcessingTeamRepository processingTeams;
 
+    @org.springframework.beans.factory.annotation.Autowired(required=false) private com.pharmasafe.education.EducationAccess educationAccess;
     private final UserRepository userRepository;
     private final com.pharmasafe.administration.RoleAdminAssignmentRepository adminAssignments;
 
@@ -46,7 +47,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPasswordHash(),
-                user.isEnabled() && user.isApproved() && (!"ROLE_MEDICAL_TEAM_LEAD".equals(user.getRole())||medicalTeams==null||medicalTeams.findByLeadId(user.getId()).filter(t->t.active).isPresent()) && (!"ROLE_CASE_TEAM_LEAD".equals(user.getRole())||processingTeams==null||processingTeams.findByLeadId(user.getId()).filter(t->t.active).isPresent()) && com.pharmasafe.administration.AdminScope.loginRole(user.getRole()) && (!com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())||adminAssignments.findByAdministratorId(user.getId()).isPresent()),
+                user.isEnabled() && user.isApproved() && (educationAccess==null||educationAccess.enabled(user)) && (!"ROLE_MEDICAL_TEAM_LEAD".equals(user.getRole())||medicalTeams==null||medicalTeams.findByLeadId(user.getId()).filter(t->t.active).isPresent()) && (!"ROLE_CASE_TEAM_LEAD".equals(user.getRole())||processingTeams==null||processingTeams.findByLeadId(user.getId()).filter(t->t.active).isPresent()) && com.pharmasafe.administration.AdminScope.loginRole(user.getRole()) && (!com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())||adminAssignments.findByAdministratorId(user.getId()).isPresent()),
                 true, // accountNonExpired
                 true, // credentialsNonExpired
                 accountNonLocked,
