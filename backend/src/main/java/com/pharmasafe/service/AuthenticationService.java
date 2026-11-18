@@ -75,6 +75,8 @@ public class AuthenticationService {
         String loginName = normalizedUsername;
         if (normalizedUsername.contains("@")) loginName = userRepository.findByEmailIgnoreCase(normalizedUsername)
                 .map(User::getUsername).orElse(normalizedUsername);
+        if (normalizedUsername.matches("st-[0-9]{6,18}")) loginName = userRepository.findStudentLoginName(normalizedUsername)
+                .orElse(loginName);
         Optional<User> userOpt = userRepository.findByUsernameForUpdate(loginName);
         normalizedUsername = loginName.length() > 64 ? "unknown-account" : loginName;
 

@@ -431,8 +431,12 @@ class EducationWorkflowTest {
 
   @Test
   void commonLoginUsesActualAuthorityAndRevokedCollegeAdminCannotContinue() throws Exception {
-    register("student.login", college, Set.of("ROLE_PV_ANALYST"));
+    var student = register("student.login", college, Set.of("ROLE_PV_ANALYST"));
     send(null, "/api/auth/login", Map.of("username", "student.login", "password", PW), 200);
+    var code = student.path("studentCode").asText();
+    assertEquals("ROLE_STUDENT", send(null, "/api/auth/login", Map.of("username", code, "password", PW), 200).path("user").path("role").asText());
+    send(null, "/api/auth/login", Map.of("username", code.toLowerCase(), "password", PW), 200);
+    send(null, "/api/auth/login", Map.of("username", code, "password", "WrongPassword123!"), 401);
     var admins = read(admin, "/api/education/administrators", 200);
     for (var g : admins)
       if (g.path("username").asText().equals("college.alpha"))

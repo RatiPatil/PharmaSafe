@@ -1,5 +1,10 @@
 // Reused by the isolated full workflow and focused public-page browser checks.
 module.exports = async function verifyRoleLoginLayout(page, origin, roles) {
+  await page.goto(`${origin}/#/home`);
+  await page.getByRole('heading',{name:/Safer decisions.*Stronger together/}).waitFor();
+  const nav=page.getByRole('navigation',{name:'Public site'});
+  if(await nav.getByRole('link').count()!==2||await page.locator('#account-types').count())throw Error('Home must have only Login and Student registration, without role cards');
+  if(await nav.getByRole('link',{name:'Login',exact:true}).getAttribute('href')!=='#/login'||await nav.getByRole('link',{name:'Student registration',exact:true}).getAttribute('href')!=='#/students/register')throw Error('Home actions must use common login and student registration');
   const viewports = [[1920,880],[1440,900],[1366,768],[1280,590],[1024,640],[800,600],[390,844],[320,700]];
   for (const [width,height] of viewports) {
     await page.setViewportSize({width,height});
@@ -31,11 +36,11 @@ module.exports = async function verifyRoleLoginLayout(page, origin, roles) {
   }
   await page.setViewportSize({width:1440,height:900});
   for(const role of roles){
-    await page.goto(`${origin}/#/home`);
+    await page.goto(`${origin}/#/register`);
     const link=page.getByRole('link',{name:`New registration for ${role.name}`,exact:true});
-    if(await link.getAttribute('href')!==`#/access/${role.role}/register`)throw Error('Home registration link must open the selected role directly');
+    if(await link.getAttribute('href')!==`#/access/${role.role}/register`)throw Error('Staff registration link must open the selected role directly');
     await link.click();
     await page.getByRole('heading',{name:`${role.name} registration`,exact:true}).waitFor();
   }
-  console.log('PASS stable role/user/admin login card, photo and field positions across eight viewport sizes; all seven home registration links open the correct form directly');
+  console.log('PASS stable role/user/admin login card, photo and field positions across eight viewport sizes; all seven legacy staff registration links open the correct form directly');
 };

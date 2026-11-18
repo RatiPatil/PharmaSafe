@@ -15,6 +15,8 @@ public interface UserRepository extends JpaRepository<User, Long>, org.springfra
 
     Optional<User> findByUsername(String username);
     Optional<User> findByEmailIgnoreCase(String email);
+    @Query("SELECT s.user.username FROM EduStudent s WHERE UPPER(s.studentCode) = UPPER(:studentCode) AND s.user.role = 'ROLE_STUDENT'")
+    Optional<String> findStudentLoginName(@Param("studentCode") String studentCode);
     boolean existsByEmailIgnoreCase(String email);
     boolean existsByEmployeeIdIgnoreCase(String employeeId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
