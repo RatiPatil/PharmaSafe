@@ -39,6 +39,7 @@ class WorkspaceAccessTest {
     }
     @Test @WithMockUser(username="reviewer",roles="MEDICAL_REVIEWER")
     void medicalQueueAndDetailsHaveSameScope() throws Exception {
+        users.saveAndFlush(new User("reviewer", "hash", "ROLE_MEDICAL_REVIEWER"));
         mvc.perform(get("/api/workspace/cases")).andExpect(status().isOk())
             .andExpect(jsonPath("$.content[*].caseNumber",hasItem("QUEUE-MED")))
             .andExpect(jsonPath("$.content[*].caseNumber",not(hasItem("QUEUE-QC"))));

@@ -13,6 +13,7 @@ import java.util.*;
 @Service
 public class WorkspaceQueueService {
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
+    @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.medicalteam.MedicalClinicalScope medicalScope;
     private final SafetyCaseRepository cases;
     public WorkspaceQueueService(SafetyCaseRepository cases) { this.cases = cases; }
     @Transactional(readOnly = true)
@@ -29,7 +30,7 @@ public class WorkspaceQueueService {
         Specification<SafetyCase> spec = (root, query, cb) -> {
             List<Predicate> scope = new ArrayList<>();
             if (roles.stream().anyMatch(Set.of("ROLE_ADMIN", "ROLE_SAFETY_MANAGER", "ROLE_AUDITOR")::contains)) scope.add(cb.conjunction());
-            if (roles.contains("ROLE_MEDICAL_REVIEWER")) scope.add(cb.equal(root.get("workflowState"), "Medical Review"));
+            if (roles.contains("ROLE_MEDICAL_REVIEWER")) scope.add(cb.and(cb.equal(root.get("workflowState"), "Medical Review"),medicalScope==null?cb.conjunction():medicalScope.scope(auth.getName()).toPredicate(root,query,cb)));
             if (roles.contains("ROLE_QUALITY_REVIEWER")) scope.add(cb.equal(root.get("workflowState"), "Quality Review"));
             if (roles.contains("ROLE_REPORTING_SPECIALIST") || roles.contains("ROLE_PV_ANALYST")) scope.add(root.get("workflowState").in("Approved", "Locked", "Closed"));
             if (roles.contains("ROLE_CASE_PROCESSOR") || roles.contains("ROLE_USER")) {

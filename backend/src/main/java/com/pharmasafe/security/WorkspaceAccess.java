@@ -8,6 +8,7 @@ import java.util.Set;
 /** Shared policy for case read scope and coarse operation permissions. */
 @Component("workspaceAccess")
 public class WorkspaceAccess {
+    @org.springframework.beans.factory.annotation.Autowired(required=false) private com.pharmasafe.medicalteam.MedicalClinicalScope medicalScope;
     public static final Set<String> ROLES = Set.of("ROLE_ADMIN", "ROLE_CASE_PROCESSOR",
             "ROLE_MEDICAL_REVIEWER", "ROLE_QUALITY_REVIEWER", "ROLE_SAFETY_MANAGER",
             "ROLE_REPORTING_SPECIALIST", "ROLE_AUDITOR", "ROLE_PV_ANALYST", "ROLE_USER");
@@ -21,7 +22,7 @@ public class WorkspaceAccess {
         if (Set.of("ROLE_REPORTING_SPECIALIST", "ROLE_PV_ANALYST").contains(role))
             return Set.of("Approved", "Locked", "Closed").contains(c.getWorkflowState());
         if ("ROLE_MEDICAL_REVIEWER".equals(role))
-            return "Medical Review".equals(c.getWorkflowState());
+            return "Medical Review".equals(c.getWorkflowState()) && (medicalScope==null||medicalScope.canRead(c,username));
         if ("ROLE_QUALITY_REVIEWER".equals(role))
             return "Quality Review".equals(c.getWorkflowState());
         return (c.getAssignedToUser() != null && c.getAssignedToUser().getUsername().equalsIgnoreCase(username))

@@ -130,11 +130,12 @@ public class AuthenticationService {
             }
         }
 
+        if("ROLE_MEDICAL_TEAM_LEAD".equals(user.getRole())&&medicalTeams!=null&&medicalTeams.findByLeadId(user.getId()).filter(t->t.active).isEmpty())throw new org.springframework.security.access.AccessDeniedException("Medical team is inactive");
         // A role portal restricts sign-in; it never grants the requested role.
         if(request.getApplicationRole()!=null||request.getLoginMode()!=null){
             String role=request.getApplicationRole(),mode=request.getLoginMode();
             if(!AccessRoleCatalog.FIELDS.containsKey(role==null?"":role)||!java.util.Set.of("USER","ROLE_ADMIN","TEAM_LEAD").contains(mode==null?"":mode))throw new IllegalArgumentException("Choose a supported role and sign-in tab");
-            boolean allowed="TEAM_LEAD".equals(mode)?"ROLE_CASE_PROCESSOR".equals(role)&&"ROLE_CASE_TEAM_LEAD".equals(user.getRole()):"USER".equals(mode)?role.equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())):com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())&&adminAssignments.findByAdministratorId(user.getId()).map(a->role.equals(a.applicationRole)).orElse(false);
+            boolean allowed="TEAM_LEAD".equals(mode)?(("ROLE_CASE_PROCESSOR".equals(role)&&"ROLE_CASE_TEAM_LEAD".equals(user.getRole()))||("ROLE_MEDICAL_REVIEWER".equals(role)&&"ROLE_MEDICAL_TEAM_LEAD".equals(user.getRole()))):"USER".equals(mode)?role.equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())):com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole())&&adminAssignments.findByAdministratorId(user.getId()).map(a->role.equals(a.applicationRole)).orElse(false);
             if(!allowed){auditService.logEvent("LOGIN_PORTAL_DENIED",normalizedUsername,clientIp,userAgent,"DENIED","Account does not match the selected role portal");throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,"This account is not assigned to the selected role and login tab. Choose the matching role or use general sign in.");}
         }
 
@@ -185,7 +186,9 @@ public class AuthenticationService {
     }
 
     @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.administration.RoleAdminAssignmentRepository adminAssignments;
-    private UserResponseDto response(User user){var dto=UserResponseDto.fromEntity(user);if(processingMembers!=null&&"ROLE_CASE_PROCESSOR".equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())))processingMembers.findByUserId(user.getId()).stream().filter(m->"ACTIVE".equals(m.status)).findFirst().ifPresent(m->dto.setProcessingTeamId(m.team.id));if("ROLE_CASE_TEAM_LEAD".equals(user.getRole()))dto.setManagedRole("ROLE_CASE_PROCESSOR");if(adminAssignments!=null&&com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole()))adminAssignments.findByAdministratorId(user.getId()).ifPresent(a->dto.setManagedRole(a.applicationRole));return dto;}
+    @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.medicalteam.MedicalMemberRepository medicalMembers;
+    @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.medicalteam.MedicalTeamRepository medicalTeams;
+    private UserResponseDto response(User user){var dto=UserResponseDto.fromEntity(user);if(processingMembers!=null&&"ROLE_CASE_PROCESSOR".equals(com.pharmasafe.administration.AdminScope.canonical(user.getRole())))processingMembers.findByUserId(user.getId()).stream().filter(m->"ACTIVE".equals(m.status)).findFirst().ifPresent(m->dto.setProcessingTeamId(m.team.id));if("ROLE_MEDICAL_REVIEWER".equals(user.getRole())&&medicalMembers!=null)medicalMembers.findByUserId(user.getId()).stream().filter(m->"ACTIVE".equals(m.status)&&m.team.active).findFirst().ifPresent(m->dto.setMedicalTeamId(m.team.id));if("ROLE_MEDICAL_TEAM_LEAD".equals(user.getRole()))dto.setManagedRole("ROLE_MEDICAL_REVIEWER");if("ROLE_CASE_TEAM_LEAD".equals(user.getRole()))dto.setManagedRole("ROLE_CASE_PROCESSOR");if(adminAssignments!=null&&com.pharmasafe.administration.AdminScope.SCOPED_ADMIN.equals(user.getRole()))adminAssignments.findByAdministratorId(user.getId()).ifPresent(a->dto.setManagedRole(a.applicationRole));return dto;}
     @Transactional(readOnly = true)
     public UserResponseDto getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

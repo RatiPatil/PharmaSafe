@@ -18,6 +18,8 @@ import java.security.*;
 
 @Service
 public class CaseDocumentService {
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.security.WorkspaceAccess workspaceAccess = new com.pharmasafe.security.WorkspaceAccess();
+
  private final SafetyCaseRepository cases; private final UserRepository users; private final CaseDocumentExportRepository documents;
  private final CaseLabResultRepository labs; private final CaseFollowUpRepository receipts; private final CaseContactLogRepository contacts; private final CaseActionItemRepository actions;
  private final CaseReviewEventRepository reviews; private final SafetyReportRepository reports; private final AuditService audit;
@@ -29,7 +31,7 @@ public class CaseDocumentService {
  private SafetyCase access(Long id,String actor,String role,boolean lock){
   if(!SUPPORTED.contains(role))throw new AccessDeniedException("Document access is not configured for your role");
   SafetyCase c=(lock?cases.findForUpdate(id):cases.findById(id)).orElseThrow(()->new EntityNotFoundException("Case not found"));
-  if(!new WorkspaceAccess().canRead(c,actor,role))throw new AccessDeniedException("You do not have access to this case document");return c;
+  if(!workspaceAccess.canRead(c,actor,role))throw new AccessDeniedException("You do not have access to this case document");return c;
  }
  @Transactional(readOnly=true)
  public Page<CaseDocumentDto> list(Long id,String actor,String role,Pageable page){access(id,actor,role,false);return documents.findMetadataByCaseId(id,page);}

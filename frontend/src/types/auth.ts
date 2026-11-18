@@ -3,6 +3,7 @@ export interface User {
   staffCode?:string;
   administrativeLevel?:string;
   processingTeamId?:number|null;
+  medicalTeamId?:number|null;
   managedRole?:string|null;
   username: string;
   fullName?: string | null;

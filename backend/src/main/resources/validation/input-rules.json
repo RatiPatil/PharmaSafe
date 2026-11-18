@@ -984,6 +984,25 @@
       "min": 0,
       "max": 9007199254740991,
       "scale": 0
+    },
+    "medicalNarrative": {
+      "max": 5000
+    },
+    "reviewSummary": {
+      "max": 3000
+    },
+    "severitySummary": {
+      "max": 1000
+    },
+    "evidenceReference": {
+      "max": 1000
+    },
+    "assessedSeriousness": {
+      "enum": [
+        "SERIOUS",
+        "NON_SERIOUS",
+        "UNDETERMINED"
+      ]
     }
   },
   "overrides": {
@@ -1262,6 +1281,102 @@
     },
     "pv.supersedesId": {
       "max": 36
+    },
+    "medical.stage": {
+      "enum": [
+        "SOURCE_REVIEW",
+        "CLINICAL_ASSESSMENT",
+        "SERIOUSNESS_REVIEW",
+        "CAUSALITY",
+        "EXPECTEDNESS",
+        "MEDICAL_NARRATIVE",
+        "QC_RESPONSE",
+        "QUALITY_HANDOFF"
+      ]
+    },
+    "medical.status": {
+      "enum": [
+        "IN_PROGRESS",
+        "BLOCKED",
+        "COMPLETED"
+      ],
+      "max": 16
+    },
+    "medical.recipientMode": {
+      "enum": [
+        "INDIVIDUAL",
+        "ALL_TEAM"
+      ],
+      "max": 16
+    },
+    "medical.description": {
+      "max": 5000
+    },
+    "medical.instructions": {
+      "max": 5000
+    },
+    "medical.employeeStaffCode": {
+      "max": 32,
+      "pattern": "PS-[1-9][0-9]{0,17}"
+    },
+    "medical.progress": {
+      "number": true,
+      "min": 0,
+      "max": 100,
+      "scale": 0
+    },
+    "medical.workDone": {
+      "max": 5000
+    },
+    "medical.pendingWork": {
+      "max": 3000
+    },
+    "medical.remainingWork": {
+      "max": 3000
+    },
+    "medical.blockers": {
+      "max": 2000
+    },
+    "medical.reason": {
+      "max": 2000
+    },
+    "medical.codingReference": {
+      "max": 500
+    },
+    "medical.name": {
+      "max": 100
+    },
+    "medical.title": {
+      "max": 160
+    },
+    "medical.email": {
+      "max": 254,
+      "email": true
+    },
+    "medical.kind": {
+      "max": 32,
+      "enum": [
+        "DUPLICATE_REVIEW",
+        "CODING"
+      ]
+    },
+    "medical.outcome": {
+      "max": 32,
+      "enum": [
+        "NO_DUPLICATE",
+        "POTENTIAL_DUPLICATE",
+        "DISTINCT_CASE",
+        "VERIFIED"
+      ]
+    },
+    "medical.notes": {
+      "max": 5000
+    },
+    "medical.dictionaryReference": {
+      "max": 500
+    },
+    "medical.caseNumber": {
+      "max": 64
     }
   },
   "registrationChoices": {

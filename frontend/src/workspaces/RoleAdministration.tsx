@@ -414,6 +414,7 @@ export function RoleAdministration({
         </p>
       </div>
       {(superAdmin||user?.managedRole==='ROLE_CASE_PROCESSOR')&&<a className="cp-team-launch" href="#/processing-teams">Processing teams & work</a>}
+      {(superAdmin||user?.managedRole==='ROLE_MEDICAL_REVIEWER')&&<a className="cp-team-launch" href="#/medical-teams">Medical teams & review</a>}
       <button
         disabled={loading || saving}
         onClick={() => setRefresh((v) => v + 1)}

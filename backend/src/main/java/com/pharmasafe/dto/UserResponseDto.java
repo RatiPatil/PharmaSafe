@@ -6,6 +6,9 @@ import java.time.Instant;
 public class UserResponseDto {
 
     private Long id;
+    private Long medicalTeamId;
+    public Long getMedicalTeamId(){return medicalTeamId;}
+    public void setMedicalTeamId(Long value){medicalTeamId=value;}
     private Long processingTeamId;
     public Long getProcessingTeamId(){return processingTeamId;}
     public void setProcessingTeamId(Long value){processingTeamId=value;}
@@ -13,7 +16,7 @@ public class UserResponseDto {
     public String getManagedRole(){return managedRole;}
     public void setManagedRole(String value){managedRole=value;}
     public String getStaffCode(){return id==null?null:"PS-"+id;}
-    public String getAdministrativeLevel(){return "ROLE_CASE_TEAM_LEAD".equals(role)?"TEAM_LEAD":"ROLE_ADMIN".equals(role)?"SUPER_ADMIN":"ROLE_SCOPED_ADMIN".equals(role)?"ROLE_ADMIN":"USER";}
+    public String getAdministrativeLevel(){return ("ROLE_CASE_TEAM_LEAD".equals(role)||"ROLE_MEDICAL_TEAM_LEAD".equals(role))?"TEAM_LEAD":"ROLE_ADMIN".equals(role)?"SUPER_ADMIN":"ROLE_SCOPED_ADMIN".equals(role)?"ROLE_ADMIN":"USER";}
     private String username;
     private String fullName;
     private String department;

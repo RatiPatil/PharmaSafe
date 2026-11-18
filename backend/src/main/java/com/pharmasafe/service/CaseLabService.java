@@ -11,11 +11,13 @@ import java.time.Instant;
 import java.util.*;
 @Service
 public class CaseLabService {
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.security.WorkspaceAccess workspaceAccess = new com.pharmasafe.security.WorkspaceAccess();
+
  private final SafetyCaseRepository cases; private final CaseLabResultRepository labs; private final UserRepository users; private final AuditService audit;
  public CaseLabService(SafetyCaseRepository cases,CaseLabResultRepository labs,UserRepository users,AuditService audit){this.cases=cases;this.labs=labs;this.users=users;this.audit=audit;}
  private SafetyCase access(Long id,String actor,String role,boolean write,Long expected){
   SafetyCase c=(write?cases.findForUpdate(id):cases.findById(id)).orElseThrow(()->new EntityNotFoundException("Case not found"));
-  if(!new WorkspaceAccess().canRead(c,actor,role))throw new AccessDeniedException("You do not have access to this case");
+  if(!workspaceAccess.canRead(c,actor,role))throw new AccessDeniedException("You do not have access to this case");
   if(write){
    if(!Set.of("ROLE_ADMIN","ROLE_SAFETY_MANAGER","ROLE_CASE_PROCESSOR","ROLE_USER").contains(role))throw new AccessDeniedException("Laboratory entry requires a processing role");
    if(c.isLocked()||!Set.of("Draft","Data Entry").contains(c.getWorkflowState()))throw new IllegalStateException("Return the case to data entry before changing laboratory evidence");

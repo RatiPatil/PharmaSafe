@@ -36,7 +36,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const publicRoles=JSON.parse(fs.readFileSync(root+'/frontend/src/config/publicRoleCatalog.json','utf8'));
   // Public page layout checks use the real role catalog. Selection alone is stubbed
   // because this isolated H2 harness has no PostgreSQL rate-limit table.
-  if(process.env.PROCESSING_ONLY!=='1'){
+  if(process.env.PROCESSING_ONLY!=='1'&&process.env.MEDICAL_ONLY!=='1'){
   const publicContext=await browser.newContext({viewport:{width:1440,height:1000}});
   const publicPage=await publicContext.newPage();
   await publicPage.route('**/api/auth/access-roles',r=>r.abort());
@@ -61,7 +61,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    for(const mode of ['user','admin']){await publicPage.goto(origin+'/#/access/'+account.role+'/'+mode);await publicPage.getByRole('heading',{name:account.name+(mode==='admin'?' Admin':'')+' sign in',exact:true}).waitFor();
     for(const [width,height] of [[1440,900],[1024,640],[390,900]]){await publicPage.setViewportSize({width,height});const fit=await publicPage.evaluate(()=>({horizontal:document.documentElement.scrollWidth>innerWidth,overlap:document.querySelector('.login-submit').getBoundingClientRect().top<=document.querySelector('input[id$="-password"]').getBoundingClientRect().bottom}));if(fit.horizontal||fit.overlap)throw Error('Role portal layout '+account.role+' '+mode+' '+width);}
    }
-   await publicPage.goto(origin+'/#/access/'+account.role+'/register');await publicPage.getByRole('heading',{name:account.name+' registration',exact:true}).waitFor();if(await publicPage.getByRole('navigation',{name:'Role access tabs'}).count()!==(account.role==='ROLE_CASE_PROCESSOR'?0:1))throw Error('Missing dedicated access tabs');
+   await publicPage.goto(origin+'/#/access/'+account.role+'/register');await publicPage.getByRole('heading',{name:account.name+' registration',exact:true}).waitFor();if(await publicPage.getByRole('navigation',{name:'Role access tabs'}).count()!==(['ROLE_CASE_PROCESSOR','ROLE_MEDICAL_REVIEWER'].includes(account.role)?0:1))throw Error('Missing dedicated access tabs');
   }
   await require('./qa/verify-role-login-layout.cjs')(publicPage,origin,publicRoles);
   await publicPage.goto(origin+'/#/access/ROLE_AUDITOR/admin');await publicPage.getByRole('heading',{name:'Auditor / Viewer Admin sign in',exact:true}).waitFor();
@@ -104,6 +104,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
    await p.setViewportSize({width:1440,height:1000});console.log('PASS professional login layout at five widths without field overlap and four complete desktop viewport fits');
   }holdStartup=false;await Promise.all(heldSessions.map(route=>route.fulfill({status:401,contentType:'application/json',body:'{"message":"No test session"}'}).catch(()=>{})));await p.unroute('**/api/auth/me');await p.getByLabel('Username',{exact:false}).fill(username);await p.getByLabel(/^Password/).fill(password);await p.getByRole('button',{name:'Log In to PharmaSafe',exact:false}).click();await p.getByTestId(home).waitFor({timeout:20000});return p;}
   const admin=await login('ui-admin','admin-home');console.log('PASS administrator login and dedicated home');
+  if(process.env.MEDICAL_ONLY==='1'){await admin.evaluate(async password=>{const token=(await(await fetch('/api/auth/csrf')).json()).token;const r=await fetch('/api/administration/assignments/ROLE_MEDICAL_REVIEWER',{method:'POST',headers:{'Content-Type':'application/json','X-XSRF-TOKEN':token},body:JSON.stringify({username:'medical.department.admin',email:'medical.department.admin@example.test',fullName:'Synthetic Medical Department Admin',password,reason:'Isolated medical workflow verification',expectedVersion:0})});if(!r.ok)throw Error(await r.text());},password);const department=await login('medical.department.admin','role-admin-home','ROLE_MEDICAL_REVIEWER',true);await require('./qa/verify-medical-team-workflow.cjs')({browser,origin,department,admin,password,registrationChoices:JSON.parse(fs.readFileSync(root+'/frontend/src/config/inputRules.json','utf8')).registrationChoices,qaDirectory});console.log('QA artifacts: '+qaDirectory);return;}
   if(process.env.PROCESSING_ONLY==='1'){await admin.evaluate(async password=>{const token=(await(await fetch('/api/auth/csrf')).json()).token;const r=await fetch('/api/administration/assignments/ROLE_CASE_PROCESSOR',{method:'POST',headers:{'Content-Type':'application/json','X-XSRF-TOKEN':token},body:JSON.stringify({username:'processing.department.admin',email:'processing.department.admin@example.test',fullName:'Synthetic Department Admin',password,reason:'Isolated processing workflow verification',expectedVersion:0})});if(!r.ok)throw Error(await r.text());},password);const department=await login('processing.department.admin','role-admin-home','ROLE_CASE_PROCESSOR',true);await require('./qa/verify-processing-team-workflow.cjs')({browser,origin,department,password,registrationChoices:JSON.parse(fs.readFileSync(root+'/frontend/src/config/inputRules.json','utf8')).registrationChoices,qaDirectory});console.log('QA artifacts: '+qaDirectory);return;}
   const firstLegend=admin.locator('.premium-chart-legend button').first();await firstLegend.click();
   if(await firstLegend.getAttribute('aria-pressed')!=='true')throw Error('Chart legend must highlight the selected stage');
@@ -272,6 +273,11 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await admin.getByRole('button',{name:'Role management',exact:true}).click();await admin.getByLabel('Application role',{exact:true}).selectOption('ROLE_CASE_PROCESSOR');await admin.getByRole('button',{name:'Role Admin assignments',exact:true}).click();await provisionSupervisor('processing.department.admin','Synthetic Processing Department Admin');
   const departmentAdmin=await login('processing.department.admin','role-admin-home','ROLE_CASE_PROCESSOR',true);diagnosticPage=departmentAdmin;
   await require('./qa/verify-processing-team-workflow.cjs')({browser,origin,department:departmentAdmin,password,registrationChoices,qaDirectory});
+  await admin.getByRole('button',{name:'Role management',exact:true}).click();await admin.getByLabel('Application role',{exact:true}).selectOption('ROLE_MEDICAL_REVIEWER');await admin.getByRole('button',{name:'Role Admin assignments',exact:true}).click();await provisionSupervisor('medical.department.admin','Synthetic Medical Department Admin');
+  const medicalDepartment=await login('medical.department.admin','role-admin-home','ROLE_MEDICAL_REVIEWER',true);diagnosticPage=medicalDepartment;
+  // Earlier workflows have finished; release their browser contexts before the medical walkthrough.
+  for(const context of browser.contexts())if(context!==admin.context()&&context!==medicalDepartment.context())await context.close();
+  await require('./qa/verify-medical-team-workflow.cjs')({browser,origin,department:medicalDepartment,admin,password,registrationChoices,qaDirectory});
   if(failures.length)throw Error('Browser JS errors: '+failures.join('; '));
   console.log('QA artifacts: '+qaDirectory);
   console.log('PASS real browser + isolated Spring Boot/H2 end-to-end workflow; zero browser exceptions');

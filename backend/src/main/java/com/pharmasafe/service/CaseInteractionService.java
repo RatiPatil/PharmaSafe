@@ -12,6 +12,8 @@ import java.time.Instant;
 
 @Service
 public class CaseInteractionService {
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.security.WorkspaceAccess workspaceAccess = new com.pharmasafe.security.WorkspaceAccess();
+
     private final SafetyCaseRepository caseRepository;
     private final UserRepository userRepository;
     private final CaseContactLogRepository contactRepository;
@@ -177,7 +179,7 @@ public class CaseInteractionService {
     }
 
     private void requireCaseAccess(SafetyCase safetyCase, User actor, String role) {
-        if (!new com.pharmasafe.security.WorkspaceAccess().canRead(safetyCase, actor.getUsername(), role)) {
+        if (!workspaceAccess.canRead(safetyCase, actor.getUsername(), role)) {
             throw new org.springframework.security.access.AccessDeniedException("You are not authorized to access this case");
         }
     }

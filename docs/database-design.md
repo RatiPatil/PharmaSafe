@@ -1,6 +1,6 @@
 # PharmaSafe — Database Architecture & Relational Schema Design
 **System:** PharmaSafe Educational Pharmacovigilance Case Management System  
-**Current additions:** V17 adds a separate PV Analyst authority and immutable analysis evidence: [PV-ANALYST.md](PV-ANALYST.md). V16 adds the Case Processing team hierarchy, scoped assignments and immutable PDF/progress evidence: [CASE-PROCESSING-TEAMS.md](CASE-PROCESSING-TEAMS.md). V14–V15 report evidence and synthetic intake data are documented in [REPORT-EVIDENCE.md](REPORT-EVIDENCE.md). Earlier schema sections below describe the historical baseline.
+**Current additions:** V20 adds the isolated Medical Review hierarchy and clinical evidence: [MEDICAL-REVIEW-TEAMS.md](MEDICAL-REVIEW-TEAMS.md). V17 adds a separate PV Analyst authority and immutable analysis evidence: [PV-ANALYST.md](PV-ANALYST.md). V16 adds the Case Processing team hierarchy, scoped assignments and immutable PDF/progress evidence: [CASE-PROCESSING-TEAMS.md](CASE-PROCESSING-TEAMS.md). V14–V15 report evidence and synthetic intake data are documented in [REPORT-EVIDENCE.md](REPORT-EVIDENCE.md). Earlier schema sections below describe the historical baseline.
 **Baseline Reference:** Oracle Argus Safety 7.0.3  
 **Database Engine:** PostgreSQL 18.4  
 **Target Database:** `pharmasafe_db`  
@@ -492,3 +492,16 @@ No destructive backfill or production demo-data insertion is part of V18. Medica
 `pv_analysis_records` gains optional `series_id` and unique `supersedes_id` FKs. The author must own the series, optional case references must be members, and a replacement must continue its original author's returned/follow-up report. Historical records remain valid with null new relationships.
 
 `pv_analysis_reviews` is a separate append-only managerial decision ledger. Composite previous-review/report FKs, a unique first-review index, serialized insertion and active reviewer checks prevent stale or cross-report chains. Feedback PDFs preserve the original report digest and decision evidence. Analytical review does not alter case state, medical assessments, quality approval or regulatory reporting records.
+
+
+## V20 — Medical Review department isolation
+
+`mr_teams` and `mr_team_members` use the dedicated `ROLE_MEDICAL_TEAM_LEAD` and `ROLE_MEDICAL_REVIEWER` authorities. Employee invitations and `registration_requests.mr_team_id` resolve only within this department. Deferred team/user membership FKs and an exclusive department-team check prevent attaching a registration to another department. Ten active teams and ten pending/active members per team are enforced transactionally and by PostgreSQL triggers.
+
+`mr_work_orders` → `mr_work_assignments` → `mr_work_updates` → `mr_work_documents` retain instructions, permanent individual ownership, versioned progress and original PDF bytes/digests. Composite relationships bind team, employee, update and document identity. Whole-team training creates individual assignments; a clinical case is assigned to one reviewer.
+
+`mr_case_allocations` records the current medical team and original processing correction recipient. `mr_case_allocation_events` preserves allocation history. Clinical orders require an unlocked Medical Review case allocated to the same team. Outstanding assignments block reassignment to another reviewer/team.
+
+`mr_review_conclusions` is an append-only ledger tied to assignment, employee, source case and source row revision. It records medical narrative, conclusion, seriousness, severity and explicit source/timeline confirmation. Causality/expectedness continue to use existing case assessments, with parent revision advancement so changed assessments invalidate earlier completion evidence. Corrections do not overwrite the processor's narrative. Laboratory evidence and medical readiness are captured in response PDF snapshots.
+
+Department scope is enforced in both the module and common case, document, laboratory and queue APIs. Migration V20 preserves previous roles, memberships, cases and clinical evidence; fresh-install and populated-upgrade checks cover all migrations.

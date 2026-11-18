@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class CaseService {
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.security.WorkspaceAccess workspaceAccess = new com.pharmasafe.security.WorkspaceAccess();
+
 
     private static final Logger log = LoggerFactory.getLogger(CaseService.class);
 
@@ -249,7 +251,7 @@ public class CaseService {
     }
 
     private void requireReadAccess(SafetyCase safetyCase, String username, String role) {
-        if (!new com.pharmasafe.security.WorkspaceAccess().canRead(safetyCase, username, role)) {
+        if (!workspaceAccess.canRead(safetyCase, username, role)) {
             throw new org.springframework.security.access.AccessDeniedException("You are not authorized to access this case");
         }
     }
@@ -270,7 +272,7 @@ public class CaseService {
                                                        String reportType, String username, String role) {
         List<CaseSummaryDto> results = searchCases(search, country, workflowState, reportType);
         return results.stream().filter(summary -> safetyCaseRepository.findById(summary.getId())
-                .map(c -> new com.pharmasafe.security.WorkspaceAccess().canRead(c, username, role))
+                .map(c -> workspaceAccess.canRead(c, username, role))
                 .orElse(false)).toList();
     }
 
@@ -535,6 +537,7 @@ public class CaseService {
         a.setAssessmentComment(ad.getAssessmentComment());
         a.setAssessedBy(username != null ? username : ad.getAssessedBy());
         safetyCase.addAssessment(a);
+        safetyCase.touchClinicalEvidence();
 
         SafetyCase saved = safetyCaseRepository.saveAndFlush(safetyCase);
 

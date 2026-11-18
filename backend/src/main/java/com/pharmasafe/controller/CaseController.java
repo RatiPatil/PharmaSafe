@@ -22,6 +22,7 @@ import java.util.List;
 @PreAuthorize("isAuthenticated()")
 public class CaseController {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.medicalteam.MedicalClinicalScope medicalTeamScope;
     private final CaseService caseService;
     private final com.pharmasafe.service.WorkspaceQueueService queue;
 
@@ -175,6 +176,7 @@ public class CaseController {
         String role = authentication != null
                 ? authentication.getAuthorities().stream().findFirst().map(a -> a.getAuthority()).orElse("")
                 : "";
+        if("ROLE_MEDICAL_REVIEWER".equals(role)&&medicalTeamScope.isTeamReviewer(username))throw new org.springframework.security.access.AccessDeniedException("Use the assigned Medical Review task to record this decision");
         caseService.getCaseByIdAuthorized(id, username, role);
         CaseResponseDto response = caseService.transitionWorkflow(id, targetState, comments, username, role, body.qcChecklist());
         return ResponseEntity.ok(response);

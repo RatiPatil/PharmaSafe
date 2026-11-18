@@ -15,6 +15,8 @@ import java.util.Set;
 
 @Service
 public class CaseFollowUpService {
+ @org.springframework.beans.factory.annotation.Autowired private com.pharmasafe.security.WorkspaceAccess workspaceAccess = new com.pharmasafe.security.WorkspaceAccess();
+
  private final SafetyCaseRepository cases; private final CaseFollowUpRepository receipts;
  private final UserRepository users; private final CaseActionItemRepository actions;
  private final CaseReviewEventRepository reviews; private final AuditService audit;
@@ -25,7 +27,7 @@ public class CaseFollowUpService {
  }
  private SafetyCase read(Long id,String username,String role,boolean lock) {
   SafetyCase c=(lock?cases.findForUpdate(id):cases.findById(id)).orElseThrow(()->new EntityNotFoundException("Case not found"));
-  if(!new WorkspaceAccess().canRead(c,username,role))throw new AccessDeniedException("You are not authorized to access this case");
+  if(!workspaceAccess.canRead(c,username,role))throw new AccessDeniedException("You are not authorized to access this case");
   return c;
  }
  private User actor(String username) { return users.findByUsername(username).orElseThrow(()->new AccessDeniedException("Account not found")); }

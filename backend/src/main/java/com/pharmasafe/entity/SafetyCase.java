@@ -66,6 +66,7 @@ public class SafetyCase {
     @Column(name = "row_version", nullable = false)
     private long rowVersion;
     public long getRowVersion() { return rowVersion; }
+    public void touchClinicalEvidence() { updatedAt = Instant.now(); }
 
     @Column(name = "version_number", nullable = false)
     private int versionNumber = 1;

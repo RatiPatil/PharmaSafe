@@ -23,7 +23,8 @@ class DashboardStatisticsTest {
   mvc.perform(get("/api/workspace/overview").with(user("statistics-processor").roles("CASE_PROCESSOR"))).andExpect(status().isOk()).andExpect(jsonPath("$.totalCases").value(1)).andExpect(jsonPath("$.countryDistribution.IND").value(1)).andExpect(jsonPath("$.countryDistribution.USA").doesNotExist()).andExpect(jsonPath("$.receivedLast7Days").value(1)).andExpect(jsonPath("$.receiptActivity['"+LocalDate.now()+"']").value(1)).andExpect(jsonPath("$.roleDistribution").doesNotExist()).andExpect(jsonPath("$.pendingResetRequests").doesNotExist());
  }
  @Test void reviewerStatisticsUseReviewQueueAndAdminHasAccountStatistics()throws Exception{
+  users.saveAndFlush(new User("reviewer","hash","ROLE_MEDICAL_REVIEWER"));
   mvc.perform(get("/api/workspace/overview").with(user("reviewer").roles("MEDICAL_REVIEWER"))).andExpect(status().isOk()).andExpect(jsonPath("$.totalCases").value(1)).andExpect(jsonPath("$.countryDistribution.USA").value(1)).andExpect(jsonPath("$.countryDistribution.IND").doesNotExist());
-  mvc.perform(get("/api/workspace/overview").with(user("admin").roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.totalCases").value(2)).andExpect(jsonPath("$.accountStatusDistribution.APPROVED").value(2)).andExpect(jsonPath("$.roleDistribution.ROLE_CASE_PROCESSOR").value(2));
+  mvc.perform(get("/api/workspace/overview").with(user("admin").roles("ADMIN"))).andExpect(status().isOk()).andExpect(jsonPath("$.totalCases").value(2)).andExpect(jsonPath("$.accountStatusDistribution.APPROVED").value(3)).andExpect(jsonPath("$.roleDistribution.ROLE_CASE_PROCESSOR").value(2));
  }
 }

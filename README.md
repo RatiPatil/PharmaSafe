@@ -355,3 +355,7 @@ See [employee workflow, schema and Oracle references](docs/CASE-PROCESSING-TEAMS
 PV Analysts can query reviewed cases, freeze a defined population with its source revisions and line-listing PDF, and publish analysis against that exact evidence. Safety Managers record acknowledgement, corrections or dated follow-up requests with preserved response PDFs; analysts publish linked replacement reports without changing the originals. Role administration retains department/employee oversight, with current review-status counts on the dashboard.
 
 See [PV Analyst workflow and V19 database safeguards](docs/PV-ANALYST.md#v19--practical-analytical-workflow).
+
+### Medical Review team module
+
+Separate Medical Role Admin, Team Lead and employee workflows, clinical assessment/conclusion entry, PDF exchange and QC/correction routing are documented in [Medical Review teams and clinical work](docs/MEDICAL-REVIEW-TEAMS.md). Migration V20 preserves existing case/account data and creates the isolated Medical team schema.
