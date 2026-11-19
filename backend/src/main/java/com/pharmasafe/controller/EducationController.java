@@ -60,8 +60,9 @@ public class EducationController {
   }
 
   @GetMapping("/colleges")
-  public List<Map<String, Object>> colleges(Authentication a) {
-    return service.colleges(a.getName());
+  public List<Map<String, Object>> colleges(
+      Authentication a, @RequestParam(required = false) String domain) {
+    return service.colleges(a.getName(), domain);
   }
 
   @PostMapping("/colleges")
@@ -188,6 +189,66 @@ public class EducationController {
   @GetMapping("/reports/{id}/pdf")
   public ResponseEntity<byte[]> pdf(Authentication a, @PathVariable Long id) {
     return download(service.reportPdf(a.getName(), id));
+  }
+
+  @PostMapping("/students")
+  @ResponseStatus(HttpStatus.CREATED)
+  public Map<String, Object> addStudent(
+      Authentication a, @Valid @RequestBody EducationService.StudentCreate d) {
+    return service.addStudent(a.getName(), d);
+  }
+
+  @GetMapping("/students/{id}")
+  public Map<String, Object> studentProfile(
+      Authentication a, @PathVariable Long id, @RequestParam(required = false) String domain) {
+    return service.studentProfile(a.getName(), id, domain);
+  }
+
+  @PutMapping("/students/{id}")
+  public Map<String, Object> editStudent(
+      Authentication a, @PathVariable Long id, @Valid @RequestBody EducationService.StudentEdit d) {
+    return service.editStudent(a.getName(), id, d);
+  }
+
+  @PutMapping("/tasks/{id}")
+  public Map<String, Object> editTask(
+      Authentication a, @PathVariable Long id, @Valid @RequestBody EducationService.WorkEdit d) {
+    return service.editTask(a.getName(), id, d);
+  }
+
+  @GetMapping("/orders")
+  public List<Map<String, Object>> orders(
+      Authentication a, @Valid @ModelAttribute EducationService.Filter f) {
+    return service.orders(a.getName(), f);
+  }
+
+  @PostMapping("/orders")
+  @ResponseStatus(HttpStatus.CREATED)
+  public Map<String, Object> addOrder(
+      Authentication a, @Valid @RequestBody EducationService.OrderInput d) {
+    return service.addOrder(a.getName(), d);
+  }
+
+  @PutMapping("/orders/{id}")
+  public Map<String, Object> editOrder(
+      Authentication a, @PathVariable Long id, @Valid @RequestBody EducationService.WorkEdit d) {
+    return service.editOrder(a.getName(), id, d);
+  }
+
+  @GetMapping("/profile")
+  public Map<String, Object> profile(Authentication a) {
+    return service.myProfile(a.getName());
+  }
+
+  @GetMapping("/preferences")
+  public EducationService.Preferences preferences(Authentication a) {
+    return service.preferences(a.getName());
+  }
+
+  @PutMapping("/preferences")
+  public EducationService.Preferences preferences(
+      Authentication a, @RequestBody EducationService.Preferences d) {
+    return service.preferences(a.getName(), d);
   }
 
   private ResponseEntity<byte[]> download(EducationService.Download d) {

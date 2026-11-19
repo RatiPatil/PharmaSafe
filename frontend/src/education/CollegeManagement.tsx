@@ -15,7 +15,6 @@ const newAdmin = () => ({
 });
 export function CollegeManagement({
   colleges,
-  domains,
   refresh,
   onSaved,
   onDirty,
@@ -181,8 +180,9 @@ export function CollegeManagement({
         <h2>College & Domain administrators</h2>
         <p>
           College Admins manage one college across all seven domains. Domain
-          Admins inspect their assigned domain across colleges. These
-          educational authorities do not grant clinical employee privileges.
+          Admin oversees all seven domains across colleges. Only one Domain
+          Admin can be active. These educational authorities do not grant
+          clinical employee privileges.
         </p>
         <form
           className="ws-form"
@@ -197,7 +197,7 @@ export function CollegeManagement({
                   admin.kind === "COLLEGE_ADMIN"
                     ? Number(admin.collegeId)
                     : null,
-                domain: admin.kind === "DOMAIN_ADMIN" ? admin.domain : null,
+                domain: null,
               })
             )
               setAdmin(newAdmin());
@@ -238,24 +238,12 @@ export function CollegeManagement({
               </select>
             </label>
           ) : (
-            <label>
-              Assigned domain
-              <select
-                aria-label="Assigned domain"
-                required
-                value={admin.domain}
-                onChange={(e) =>
-                  setAdmin((v) => ({ ...v, domain: e.target.value }))
-                }
-              >
-                <option value="">Select a domain</option>
-                {domains.map((d) => (
-                  <option key={d.code} value={d.code}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <p className="ws-notice">
+              One Domain Admin · All seven domains · All colleges. This account
+              can inspect student work and generate reports.{" "}
+              {grants.some((g) => g.kind === "DOMAIN_ADMIN" && g.active) &&
+                "An active Domain Admin already exists. Deactivate it before appointing a replacement."}
+            </p>
           )}
           {(["fullName", "username", "email", "password"] as const).map((k) => (
             <label key={k}>
@@ -309,7 +297,14 @@ export function CollegeManagement({
               }
             />
           </label>
-          <button disabled={busy} className="ws-primary">
+          <button
+            disabled={
+              busy ||
+              (admin.kind === "DOMAIN_ADMIN" &&
+                grants.some((g) => g.kind === "DOMAIN_ADMIN" && g.active))
+            }
+            className="ws-primary"
+          >
             Create administrator account
           </button>
         </form>
@@ -339,7 +334,7 @@ export function CollegeManagement({
                   <td>
                     {g.collegeId
                       ? colleges.find((c) => c.id === g.collegeId)?.name
-                      : domains.find((d) => d.code === g.domain)?.name}
+                      : "All seven domains · All colleges"}
                   </td>
                   <td>{g.active ? "Active" : "Inactive"}</td>
                   <td>
@@ -402,8 +397,16 @@ export function CollegeManagement({
               {action.type === "college"
                 ? action.data.name
                 : action.data.username}{" "}
-              · Set {action.type === "college" ? (editActive ? "active" : "inactive") : (action.data.active ? "inactive" : "active")}. Inactive
-              colleges cannot accept registration or access college work.
+              · Set{" "}
+              {action.type === "college"
+                ? editActive
+                  ? "active"
+                  : "inactive"
+                : action.data.active
+                  ? "inactive"
+                  : "active"}
+              . Inactive colleges cannot accept registration or access college
+              work.
             </p>
             {error && (
               <p role="alert" className="ws-error">

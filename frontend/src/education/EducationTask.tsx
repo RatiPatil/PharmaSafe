@@ -206,7 +206,8 @@ export function EducationTask({
                 : "Supporting PDF documents are optional."}
             </p>
           </section>
-          {student && !["SUBMITTED", "COMPLETED"].includes(data.status) && (
+          {data.archived&&<p role="status" className="ws-notice">This assignment is archived. Its submissions and documents are retained for reference. New responses and reviews are closed.</p>}
+          {student && !data.archived && !["SUBMITTED", "COMPLETED"].includes(data.status) && (
             <form
               className="ws-card ws-form"
               aria-label="Student work response"
@@ -373,7 +374,7 @@ export function EducationTask({
               documents remain available.
             </p>
           )}
-          {manager && data.status === "SUBMITTED" && (
+          {manager && !data.archived && data.status === "SUBMITTED" && (
             <section className="ws-card">
               <h2>Review student submission</h2>
               <p>

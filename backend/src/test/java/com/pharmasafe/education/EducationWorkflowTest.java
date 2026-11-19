@@ -77,11 +77,14 @@ class EducationWorkflowTest {
     jdbc.execute("SET REFERENTIAL_INTEGRITY FALSE");
     for (String table :
         List.of(
+            "edu_management_changes",
+            "edu_preferences",
             "edu_submission_documents",
             "edu_task_feedback",
             "edu_task_submissions",
             "edu_progress_reports",
             "edu_tasks",
+            "edu_work_orders",
             "edu_student_domains",
             "edu_students",
             "edu_college_admins",
@@ -162,7 +165,16 @@ class EducationWorkflowTest {
   }
 
   JsonNode register(String name, long c, Set<String> selected) throws Exception {
-    return send(null, "/api/education/register", registration(name, c, reserve(c), selected), 201);
+    return send(
+        null,
+        "/api/education/register",
+        registration(
+            name,
+            c,
+            reserve(c),
+            new java.util.HashSet<>(
+                domains.all.stream().map(EducationDomains.Domain::code).toList())),
+        201);
   }
 
   void approve(String who, String student, String domain) throws Exception {
@@ -253,7 +265,10 @@ class EducationWorkflowTest {
             null,
             "/api/education/register",
             registration(
-                "student.one", college, a, Set.of("ROLE_CASE_PROCESSOR", "ROLE_MEDICAL_REVIEWER")),
+                "student.one",
+                college,
+                a,
+                new HashSet<>(domains.all.stream().map(EducationDomains.Domain::code).toList())),
             201);
     assertEquals(a.path("studentCode"), created.path("studentCode"));
     send(
@@ -335,13 +350,13 @@ class EducationWorkflowTest {
     read("college.beta", "/api/education/tasks/" + a.path("id").asLong(), 403);
     read("student.beta", "/api/education/tasks/" + a.path("id").asLong(), 403);
     read("college.alpha", "/api/education/students?collegeId=" + otherCollege, 403);
-    read("domain.processor", "/api/education/tasks?domain=ROLE_MEDICAL_REVIEWER", 403);
+    read("domain.processor", "/api/education/tasks?domain=ROLE_MEDICAL_REVIEWER", 200);
     read("student.alpha", "/api/education/students", 403);
     send(
         "domain.processor",
         "/api/education/colleges",
-        Map.of("code", "BAD", "collegeName", "Unauthorized"),
-        403);
+        Map.of("code", "BAD", "collegeName", "Domain created college"),
+        201);
     var med =
         read("college.alpha", "/api/education/requests?domain=ROLE_MEDICAL_REVIEWER", 200)
             .path("content")
@@ -360,8 +375,8 @@ class EducationWorkflowTest {
             "status",
             "APPROVED",
             "reason",
-            "Domain administrators have read-only oversight"),
-        403);
+            "Domain administrator approved enrollment"),
+        200);
     read("student.alpha", "/api/cases", 403);
     users.saveAndFlush(new User("clinical.user", encoder.encode(PW), "ROLE_CASE_PROCESSOR"));
     read("clinical.user", "/api/education/overview", 403);
@@ -434,7 +449,12 @@ class EducationWorkflowTest {
     var student = register("student.login", college, Set.of("ROLE_PV_ANALYST"));
     send(null, "/api/auth/login", Map.of("username", "student.login", "password", PW), 200);
     var code = student.path("studentCode").asText();
-    assertEquals("ROLE_STUDENT", send(null, "/api/auth/login", Map.of("username", code, "password", PW), 200).path("user").path("role").asText());
+    assertEquals(
+        "ROLE_STUDENT",
+        send(null, "/api/auth/login", Map.of("username", code, "password", PW), 200)
+            .path("user")
+            .path("role")
+            .asText());
     send(null, "/api/auth/login", Map.of("username", code.toLowerCase(), "password", PW), 200);
     send(null, "/api/auth/login", Map.of("username", code, "password", "WrongPassword123!"), 401);
     var admins = read(admin, "/api/education/administrators", 200);
@@ -461,21 +481,455 @@ class EducationWorkflowTest {
     read(admin, "/api/administration/overview", 200);
   }
 
-  @Test void domainAdminSeesOnlyAssignedDomainAcrossCollegesAndExportsFilteredReports() throws Exception {
-    var alpha=register("student.domain.alpha",college,Set.of("ROLE_CASE_PROCESSOR"));
-    var beta=register("student.domain.beta",otherCollege,Set.of("ROLE_CASE_PROCESSOR"));
-    approve("college.alpha","student.domain.alpha","ROLE_CASE_PROCESSOR");approve("college.beta","student.domain.beta","ROLE_CASE_PROCESSOR");
-    assign("college.alpha",college,"ROLE_CASE_PROCESSOR",alpha.path("studentCode").asText(),false);
-    assign("college.beta",otherCollege,"ROLE_CASE_PROCESSOR",beta.path("studentCode").asText(),false);
-    var overview=read("domain.processor","/api/education/overview",200);assertEquals(7,overview.path("domains").size());
-    int allowed=0;for(var card:overview.path("domains")){if(card.path("authorized").asBoolean()){allowed++;assertEquals("ROLE_CASE_PROCESSOR",card.path("code").asText());assertEquals(2,card.path("stats").path("total").asInt());}else assertTrue(card.path("stats").isNull());}assertEquals(1,allowed);
-    assertEquals(1,read("domain.processor","/api/education/students?domain=ROLE_CASE_PROCESSOR&collegeId="+otherCollege,200).path("totalElements").asInt());
-    assertEquals(1,read("domain.processor","/api/education/tasks?domain=ROLE_CASE_PROCESSOR&collegeId="+college,200).path("totalElements").asInt());
-    send("domain.processor","/api/education/tasks",Map.of("collegeId",college,"domain","ROLE_CASE_PROCESSOR","stage","Case intake","title","Unauthorized assignment","description","Must be restricted to college administrators","instructions","Synthetic evidence","dueAt",Instant.now().plusSeconds(3600).toString(),"recipientMode","ALL_APPROVED"),403);
-    var report=send("domain.processor","/api/education/reports",Map.of("domain","ROLE_CASE_PROCESSOR","collegeId",college,"studentCode",alpha.path("studentCode").asText()),201);
-    byte[] pdf=mvc.perform(get("/api/education/reports/"+report.path("id").asLong()+"/pdf").with(as("domain.processor"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
-    try(var document=org.apache.pdfbox.Loader.loadPDF(pdf)){String text=new org.apache.pdfbox.text.PDFTextStripper().getText(document);assertTrue(text.contains(alpha.path("studentCode").asText()));assertFalse(text.contains(beta.path("studentCode").asText()));}
-    send("domain.processor","/api/education/reports",Map.of("domain","ROLE_MEDICAL_REVIEWER"),403);
-    read("college.beta","/api/education/reports/"+report.path("id").asLong()+"/pdf",403);
+  @Test
+  void oneDomainAdminSeesSevenDomainsAcrossCollegesAndExportsFilteredReports() throws Exception {
+    var alpha = register("student.domain.alpha", college, Set.of("ROLE_CASE_PROCESSOR"));
+    var beta = register("student.domain.beta", otherCollege, Set.of("ROLE_CASE_PROCESSOR"));
+    approve("college.alpha", "student.domain.alpha", "ROLE_CASE_PROCESSOR");
+    approve("college.beta", "student.domain.beta", "ROLE_CASE_PROCESSOR");
+    assign(
+        "college.alpha", college, "ROLE_CASE_PROCESSOR", alpha.path("studentCode").asText(), false);
+    assign(
+        "college.beta",
+        otherCollege,
+        "ROLE_CASE_PROCESSOR",
+        beta.path("studentCode").asText(),
+        false);
+    var overview = read("domain.processor", "/api/education/overview", 200);
+    assertEquals(7, overview.path("domains").size());
+    int allowed = 0;
+    for (var card : overview.path("domains")) {
+      assertTrue(card.path("authorized").asBoolean());
+      allowed++;
+      assertFalse(card.path("stats").isNull());
+      assertEquals(
+          card.path("code").asText().equals("ROLE_CASE_PROCESSOR") ? 2 : 0,
+          card.path("stats").path("total").asInt());
+    }
+    assertEquals(7, allowed);
+    send(
+        admin,
+        "/api/education/administrators",
+        Map.of(
+            "kind",
+            "DOMAIN_ADMIN",
+            "username",
+            "domain.second",
+            "fullName",
+            "Second Administrator",
+            "email",
+            "second@example.test",
+            "password",
+            PW,
+            "reason",
+            "Duplicate account must be refused"),
+        409);
+    read("domain.processor", "/api/cases", 403);
+    read("domain.processor", "/api/education/administrators", 403);
+    var collegeReport =
+        send(
+            "college.alpha",
+            "/api/education/reports",
+            Map.of(
+                "domain", "ROLE_CASE_PROCESSOR", "studentCode", alpha.path("studentCode").asText()),
+            201);
+    mvc.perform(
+            get("/api/education/reports/" + collegeReport.path("id").asLong() + "/pdf")
+                .with(as("domain.processor")))
+        .andExpect(status().isOk());
+    assertEquals(
+        1,
+        read(
+                "domain.processor",
+                "/api/education/reports?domain=ROLE_CASE_PROCESSOR&collegeId="
+                    + college
+                    + "&studentCode="
+                    + alpha.path("studentCode").asText(),
+                200)
+            .path("totalElements")
+            .asInt());
+    assertEquals(
+        1,
+        read(
+                "domain.processor",
+                "/api/education/students?domain=ROLE_CASE_PROCESSOR&collegeId=" + otherCollege,
+                200)
+            .path("totalElements")
+            .asInt());
+    assertEquals(
+        1,
+        read(
+                "domain.processor",
+                "/api/education/tasks?domain=ROLE_CASE_PROCESSOR&collegeId=" + college,
+                200)
+            .path("totalElements")
+            .asInt());
+    send(
+        "domain.processor",
+        "/api/education/tasks",
+        Map.of(
+            "collegeId",
+            college,
+            "domain",
+            "ROLE_CASE_PROCESSOR",
+            "stage",
+            "Case intake",
+            "title",
+            "Unauthorized assignment",
+            "description",
+            "Must be restricted to college administrators",
+            "instructions",
+            "Synthetic evidence",
+            "dueAt",
+            Instant.now().plusSeconds(3600).toString(),
+            "recipientMode",
+            "ALL_APPROVED"),
+        201);
+    var report =
+        send(
+            "domain.processor",
+            "/api/education/reports",
+            Map.of(
+                "domain",
+                "ROLE_CASE_PROCESSOR",
+                "collegeId",
+                college,
+                "studentCode",
+                alpha.path("studentCode").asText()),
+            201);
+    byte[] pdf =
+        mvc.perform(
+                get("/api/education/reports/" + report.path("id").asLong() + "/pdf")
+                    .with(as("domain.processor")))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsByteArray();
+    try (var document = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+      String text = new org.apache.pdfbox.text.PDFTextStripper().getText(document);
+      assertTrue(text.contains(alpha.path("studentCode").asText()));
+      assertFalse(text.contains(beta.path("studentCode").asText()));
+    }
+    send(
+        "domain.processor",
+        "/api/education/reports",
+        Map.of("domain", "ROLE_MEDICAL_REVIEWER"),
+        201);
+    send(
+        "domain.processor",
+        "/api/education/reports",
+        Map.of(
+            "domain", "ROLE_MEDICAL_REVIEWER", "studentCode", alpha.path("studentCode").asText()),
+        201);
+    read("college.beta", "/api/education/reports/" + report.path("id").asLong() + "/pdf", 403);
+  }
+
+  @Test
+  void singletonDomainAdminReplacementRequiresDeactivationAndRevokesOldAccess() throws Exception {
+    var grants = read(admin, "/api/education/administrators", 200);
+    JsonNode original = null;
+    for (var g : grants) if (g.path("kind").asText().equals("DOMAIN_ADMIN")) original = g;
+    assertNotNull(original);
+    var url = "/api/education/administrators/DOMAIN_ADMIN/" + original.path("id").asLong();
+    mvc.perform(
+            put(url)
+                .with(as(admin))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    body(
+                        Map.of(
+                            "expectedVersion",
+                            original.path("rowVersion").asLong(),
+                            "active",
+                            false,
+                            "reason",
+                            "Administrator handover"))))
+        .andExpect(status().isOk());
+    read("domain.processor", "/api/education/overview", 403);
+    var replacement = createAdmin("domain.replacement", "DOMAIN_ADMIN", college, "");
+    assertTrue(replacement.path("domain").isNull());
+    mvc.perform(
+            put(url)
+                .with(as(admin))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    body(
+                        Map.of(
+                            "expectedVersion",
+                            original.path("rowVersion").asLong() + 1,
+                            "active",
+                            true,
+                            "reason",
+                            "Must not activate a second administrator"))))
+        .andExpect(status().isConflict());
+    var overview = read("domain.replacement", "/api/education/overview", 200);
+    for (var d : overview.path("domains")) assertTrue(d.path("authorized").asBoolean());
+  }
+
+  @Test
+  void registrationRejectsPartialDomainsAndAdminCanManageOnlyAuthorizedStudents() throws Exception {
+    var id = reserve(college);
+    send(
+        null,
+        "/api/education/register",
+        registration("partial.student", college, id, Set.of("ROLE_CASE_PROCESSOR")),
+        400);
+    var input =
+        Map.of(
+            "collegeId",
+            college,
+            "domain",
+            "ROLE_CASE_PROCESSOR",
+            "fullName",
+            "Managed Student",
+            "username",
+            "managed.student",
+            "email",
+            "managed@example.test",
+            "password",
+            PW,
+            "reason",
+            "Verified enrollment by college coordinator");
+    send("college.beta", "/api/education/students", input, 403);
+    var student = send("college.alpha", "/api/education/students", input, 201);
+    long studentId = student.path("id").asLong();
+    assertEquals(
+        7,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM edu_student_domains WHERE student_id=?",
+            Integer.class,
+            studentId));
+    var edit =
+        Map.of(
+            "domain",
+            "ROLE_CASE_PROCESSOR",
+            "expectedVersion",
+            student.path("rowVersion").asLong(),
+            "fullName",
+            "Updated Student",
+            "email",
+            "updated@example.test",
+            "active",
+            true,
+            "reason",
+            "Verified profile correction");
+    mvc.perform(
+            put("/api/education/students/" + studentId)
+                .with(as("college.beta"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(edit)))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            put("/api/education/students/" + studentId)
+                .with(as("domain.processor"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(edit)))
+        .andExpect(status().isOk());
+    assertEquals(
+        "Updated Student",
+        read("managed.student", "/api/education/profile", 200).path("fullName").asText());
+    assertEquals(
+        1,
+        jdbc.queryForObject(
+            "SELECT count(*) FROM edu_management_changes WHERE record_kind='STUDENT' AND"
+                + " record_id=?",
+            Integer.class,
+            studentId));
+    mvc.perform(
+            put("/api/education/preferences")
+                .with(as("managed.student"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(Map.of("compactView", true, "reduceMotion", true))))
+        .andExpect(status().isOk());
+    assertTrue(
+        read("managed.student", "/api/education/preferences", 200)
+            .path("reduceMotion")
+            .asBoolean());
+    read(
+        "college.beta",
+        "/api/education/students/" + studentId + "?domain=ROLE_CASE_PROCESSOR",
+        403);
+  }
+
+  @Test
+  void domainCollegeOrdersSelectedAssignmentsEditingAndArchivingRetainEvidence() throws Exception {
+    var student = register("order.student", college, Set.of());
+    approve("college.alpha", "order.student", "ROLE_CASE_PROCESSOR");
+    var deadline = Instant.now().plusSeconds(86400).toString();
+    var input =
+        Map.of(
+            "collegeId",
+            college,
+            "domain",
+            "ROLE_CASE_PROCESSOR",
+            "stage",
+            "Case intake",
+            "title",
+            "Domain college order",
+            "description",
+            "Review source case evidence",
+            "instructions",
+            "Validate all four minimum criteria",
+            "dueAt",
+            deadline,
+            "requireDocument",
+            false);
+    send("college.alpha", "/api/education/orders", input, 403);
+    var order = send("domain.processor", "/api/education/orders", input, 201);
+    assertEquals(
+        0, read("college.beta", "/api/education/orders?domain=ROLE_CASE_PROCESSOR", 200).size());
+    var assign = new LinkedHashMap<String, Object>(input);
+    assign.put("sourceOrderId", order.path("id").asLong());
+    assign.put("recipientMode", "SELECTED");
+    assign.put("studentCodes", Set.of(student.path("studentCode").asText()));
+    var tampered = new LinkedHashMap<>(assign);
+    tampered.put("instructions", "Altered global instructions");
+    send("college.alpha", "/api/education/tasks", tampered, 400);
+    var task = send("college.alpha", "/api/education/tasks", assign, 201).get(0);
+    long taskId = task.path("id").asLong();
+    var orderEdit =
+        Map.of(
+            "expectedVersion",
+            order.path("rowVersion").asLong(),
+            "title",
+            "Changed order",
+            "description",
+            "Changed source evidence",
+            "instructions",
+            "Changed instructions",
+            "dueAt",
+            deadline,
+            "requireDocument",
+            false,
+            "archived",
+            false,
+            "reason",
+            "Original instructions must remain once dispatched");
+    mvc.perform(
+            put("/api/education/orders/" + order.path("id").asLong())
+                .with(as("domain.processor"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(orderEdit)))
+        .andExpect(status().isConflict());
+    var direct =
+        assign(
+                "domain.processor",
+                college,
+                "ROLE_CASE_PROCESSOR",
+                student.path("studentCode").asText(),
+                false)
+            .get(0);
+    var edit =
+        Map.of(
+            "expectedVersion",
+            direct.path("rowVersion").asLong(),
+            "title",
+            "Corrected task",
+            "description",
+            "Clarified source evidence",
+            "instructions",
+            "Validate original source criteria carefully",
+            "dueAt",
+            deadline,
+            "requireDocument",
+            false,
+            "archived",
+            false,
+            "reason",
+            "Clarify before student starts work");
+    mvc.perform(
+            put("/api/education/tasks/" + direct.path("id").asLong())
+                .with(as("college.alpha"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(edit)))
+        .andExpect(status().isOk());
+    var submitted =
+        submit("order.student", taskId, 0, "ROLE_CASE_PROCESSOR", "SUBMITTED", false, 201);
+    var archive = new LinkedHashMap<String, Object>();
+    archive.put("expectedVersion", submitted.path("rowVersion").asLong());
+    archive.put("title", task.path("title").asText());
+    archive.put("description", task.path("description").asText());
+    archive.put("instructions", task.path("instructions").asText());
+    archive.put("dueAt", deadline);
+    archive.put("requireDocument", false);
+    archive.put("archived", true);
+    archive.put("reason", "Withdraw assignment; retain submitted evidence");
+    mvc.perform(
+            put("/api/education/tasks/" + taskId)
+                .with(as("college.beta"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(archive)))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            put("/api/education/tasks/" + taskId)
+                .with(as("college.alpha"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(archive)))
+        .andExpect(status().isOk());
+    var detail = read("domain.processor", "/api/education/tasks/" + taskId, 200);
+    assertTrue(detail.path("archived").asBoolean());
+    assertEquals(1, detail.path("submissions").path("totalElements").asInt());
+    assertEquals(
+        1,
+        read("college.alpha", "/api/education/tasks?domain=ROLE_CASE_PROCESSOR", 200)
+            .path("totalElements")
+            .asInt());
+    assertTrue(
+        jdbc.queryForObject("SELECT count(*) FROM edu_management_changes", Integer.class) >= 3);
+  }
+
+  @Test
+  void studentNameEditsPreserveSessionsButAccessChangesRevokeThem() throws Exception {
+    register("session.student", college, Set.of());
+    var u = users.findByUsername("session.student").orElseThrow();
+    long before = u.getAuthVersion();
+    var student =
+        read("college.alpha", "/api/education/students?domain=ROLE_CASE_PROCESSOR", 200)
+            .path("content")
+            .get(0);
+    var payload =
+        new LinkedHashMap<String, Object>(
+            Map.of(
+                "domain",
+                "ROLE_CASE_PROCESSOR",
+                "expectedVersion",
+                student.path("rowVersion").asLong(),
+                "fullName",
+                "Updated Name",
+                "email",
+                u.getEmail(),
+                "active",
+                true,
+                "reason",
+                "Correct display name without interrupting work"));
+    mvc.perform(
+            put("/api/education/students/" + student.path("id").asLong())
+                .with(as("college.alpha"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(payload)))
+        .andExpect(status().isOk());
+    assertEquals(before, users.findByUsername("session.student").orElseThrow().getAuthVersion());
+    payload.put("expectedVersion", student.path("rowVersion").asLong() + 1);
+    payload.put("active", false);
+    payload.put("reason", "Revoke student access");
+    mvc.perform(
+            put("/api/education/students/" + student.path("id").asLong())
+                .with(as("college.alpha"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body(payload)))
+        .andExpect(status().isOk());
+    assertTrue(users.findByUsername("session.student").orElseThrow().getAuthVersion() > before);
+    read("session.student", "/api/education/overview", 403);
   }
 }

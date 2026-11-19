@@ -29,6 +29,9 @@ public class EduStudent {
   @Column(name = "created_at", nullable = false)
   public Instant createdAt;
 
+  @Column(name = "updated_at", nullable = false)
+  public Instant updatedAt;
+
   @Version
   @Column(name = "row_version", nullable = false)
   public long rowVersion;

@@ -80,7 +80,7 @@ public class EducationService {
       @NotBlank @Email @Size(max = 128) String email,
       @NotBlank @Size(min = 12, max = 72) String password,
       @NotBlank @Size(min = 12, max = 72) String confirmPassword,
-      @NotEmpty @Size(max = 7) Set<@NotBlank String> domains) {}
+      @NotEmpty @Size(min = 7, max = 7) Set<@NotBlank String> domains) {}
 
   public record Decision(
       @NotNull @PositiveOrZero Long expectedVersion,
@@ -95,9 +95,11 @@ public class EducationService {
       @NotBlank @Size(max = 5000) String description,
       @NotBlank @Size(max = 5000) String instructions,
       @NotNull Instant dueAt,
-      @NotBlank @Pattern(regexp = "INDIVIDUAL|ALL_APPROVED") String recipientMode,
+      @NotBlank @Pattern(regexp = "INDIVIDUAL|ALL_APPROVED|SELECTED") String recipientMode,
       @Size(max = 32) String studentCode,
-      boolean requireDocument) {}
+      boolean requireDocument,
+      @Positive Long sourceOrderId,
+      @Size(max = 100) Set<@Pattern(regexp = "ST-[0-9]{6,18}") String> studentCodes) {}
 
   public record Submit(
       @NotNull @PositiveOrZero Long expectedVersion,
@@ -175,8 +177,13 @@ public class EducationService {
     if (!root(a)) throw new AccessDeniedException("Main Super Admin access required");
   }
 
+  private void oversight(Actor a) {
+    if (!root(a) && !a.role.equals("ROLE_DOMAIN_ADMIN"))
+      throw new AccessDeniedException("Domain Admin access required");
+  }
+
   private void manager(Actor a) {
-    if (!root(a) && !a.role.equals("ROLE_COLLEGE_ADMIN"))
+    if (!root(a) && !a.role.equals("ROLE_COLLEGE_ADMIN") && !a.role.equals("ROLE_DOMAIN_ADMIN"))
       throw new AccessDeniedException("College Admin access required");
   }
 
@@ -326,6 +333,9 @@ public class EducationService {
     if (!d.password.equals(d.confirmPassword))
       throw new IllegalArgumentException("Passwords do not match");
     d.domains.forEach(domains::get);
+    if (d.domains.size() != 7
+        || !d.domains.containsAll(domains.all.stream().map(EducationDomains.Domain::code).toList()))
+      throw new IllegalArgumentException("Select all seven domains to register");
     var c = find(EduCollege.class, d.collegeId, true);
     if (!c.active) throw new IllegalArgumentException("College is inactive");
     var r =
@@ -344,6 +354,7 @@ public class EducationService {
     s.reservation = r;
     s.studentCode = r.studentCode();
     s.createdAt = Instant.now();
+    s.updatedAt = s.createdAt;
     save(s);
     for (String code : d.domains) {
       var m = new EduMembership();
@@ -367,7 +378,12 @@ public class EducationService {
   }
 
   public List<Map<String, Object>> colleges(String name) {
+    return colleges(name, null);
+  }
+
+  public List<Map<String, Object>> colleges(String name, String selectedDomain) {
     var a = actor(name);
+    if (selectedDomain != null && !selectedDomain.isBlank()) domain(a, selectedDomain);
     return list(
             "select c from EduCollege c"
                 + (a.college == null ? "" : " where c.id=:id")
@@ -377,14 +393,29 @@ public class EducationService {
             0,
             1000)
         .stream()
-        .map(this::collegeView)
+        .map(
+            c -> {
+              var v = new LinkedHashMap<>(collegeView(c));
+              v.put(
+                  "students",
+                  count(
+                      "select count(distinct m.student.id) from EduMembership m where"
+                          + " m.student.college.id=:c"
+                          + (selectedDomain == null || selectedDomain.isBlank()
+                              ? ""
+                              : " and m.domain=:d"),
+                      selectedDomain == null || selectedDomain.isBlank()
+                          ? Map.of("c", c.id)
+                          : Map.of("c", c.id, "d", selectedDomain)));
+              return (Map<String, Object>) v;
+            })
         .toList();
   }
 
   @Transactional
   public Map<String, Object> createCollege(String name, CollegeInput d) {
     var a = actor(name);
-    rootOnly(a);
+    oversight(a);
     if (count("select count(c) from EduCollege c where c.code=:code", Map.of("code", d.code)) > 0)
       throw new IllegalArgumentException("College code already exists");
     var c = new EduCollege();
@@ -400,9 +431,10 @@ public class EducationService {
   @Transactional
   public Map<String, Object> collegeState(String name, Long id, CollegeState d) {
     var a = actor(name);
-    rootOnly(a);
+    oversight(a);
     var c = find(EduCollege.class, id, true);
     version(c.rowVersion, d.expectedVersion);
+    var before = collegeView(c);
     c.name = d.collegeName.trim();
     c.active = d.active;
     em.flush();
@@ -410,6 +442,7 @@ public class EducationService {
         "COLLEGE_UPDATED",
         name,
         "college=" + c.code + "; active=" + c.active + "; reason=" + d.reason);
+    changeLog(name, "COLLEGE", id, before, collegeView(c), d.reason);
     return collegeView(c);
   }
 
@@ -473,18 +506,22 @@ public class EducationService {
           "user=" + u.getUsername() + "; college=" + c.code + "; reason=" + d.reason);
       return grantView(u, d.kind, g.id, c.id, null, true, g.rowVersion);
     }
-    domains.get(d.domain);
+    users.lockById(a.user.getId()).orElseThrow();
+    if (count("select count(g) from EduDomainAdmin g where g.active=true", Map.of()) > 0)
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "One active Domain Admin already exists. Deactivate it before appointing a replacement.");
     var u = newUser(d.username, d.fullName, d.email, d.password, "ROLE_DOMAIN_ADMIN");
     var g = new EduDomainAdmin();
     g.user = u;
-    g.domain = d.domain;
+    g.domain = null;
     g.active = true;
     g.assignedAt = Instant.now();
     save(g);
     audit.logAccountEvent(
         "DOMAIN_ADMIN_CREATED",
         name,
-        "user=" + u.getUsername() + "; domain=" + g.domain + "; reason=" + d.reason);
+        "user=" + u.getUsername() + "; scope=ALL_SEVEN_DOMAINS" + "; reason=" + d.reason);
     return grantView(u, d.kind, g.id, null, g.domain, true, g.rowVersion);
   }
 
@@ -500,6 +537,14 @@ public class EducationService {
     } else if (kind.equals("DOMAIN_ADMIN")) {
       var g = find(EduDomainAdmin.class, id, true);
       version(g.rowVersion, d.expectedVersion);
+      users.lockById(identity(name).getId()).orElseThrow();
+      if (d.active
+          && !g.active
+          && count("select count(x) from EduDomainAdmin x where x.active=true", Map.of()) > 0)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "One active Domain Admin already exists. Deactivate it before appointing a"
+                + " replacement.");
       g.active = d.active;
       u = g.user;
     } else throw new IllegalArgumentException("Invalid administrator kind");
@@ -540,9 +585,14 @@ public class EducationService {
       p.put("studentCode", f.studentCode.trim().toUpperCase(Locale.ROOT));
     }
     if (task && f.status != null && !f.status.isBlank()) {
-      clauses.add(alias + ".status=:status");
-      p.put("status", f.status);
+      if (f.status.equals("PENDING"))
+        clauses.add(alias + ".status in ('NOT_STARTED','RETURNED','SUBMITTED')");
+      else {
+        clauses.add(alias + ".status=:status");
+        p.put("status", f.status);
+      }
     }
+    if (task) clauses.add(alias + ".archived=false");
     return clauses.isEmpty() ? "" : " where " + String.join(" and ", clauses);
   }
 
@@ -574,7 +624,42 @@ public class EducationService {
                 + (w.isEmpty() ? " where " : " and ")
                 + "t.dueAt<:now and t.status<>'COMPLETED'",
             late);
+    var ep = new HashMap<String, Object>();
+    String ew = " where 1=1";
+    if (f.domain != null && !f.domain.isBlank()) {
+      ew += " and m.domain=:domain";
+      ep.put("domain", f.domain);
+    }
+    Long ec = a.college == null ? f.collegeId : a.college;
+    if (ec != null) {
+      ew += " and s.college.id=:college";
+      ep.put("college", ec);
+    }
+    if (a.student != null) {
+      ew += " and s.id=:student";
+      ep.put("student", a.student);
+    }
+    if (f.studentCode != null && !f.studentCode.isBlank()) {
+      ew += " and s.studentCode=:code";
+      ep.put("code", f.studentCode.trim().toUpperCase(Locale.ROOT));
+    }
+    long studentCount =
+        count("select count(distinct s.id) from EduMembership m join m.student s" + ew, ep);
+    var cp = new HashMap<String, Object>();
+    String cw = " where 1=1";
+    if (ec != null) {
+      cw += " and c.id=:college";
+      cp.put("college", ec);
+    } else if (f.studentCode != null && !f.studentCode.isBlank()) {
+      cw += " and c.id=:college";
+      cp.put("college", studentByCode(f.studentCode).college.id);
+    }
+    long collegeCount = count("select count(c) from EduCollege c" + cw, cp);
     return Map.of(
+        "students",
+        studentCount,
+        "colleges",
+        collegeCount,
         "total",
         total,
         "statusCounts",
@@ -654,6 +739,8 @@ public class EducationService {
     v.put("username", s.user.getUsername());
     v.put("email", s.user.getEmail());
     v.put("createdAt", s.createdAt);
+    v.put("rowVersion", s.rowVersion);
+    v.put("active", s.user.isEnabled());
     return v;
   }
 
@@ -672,6 +759,16 @@ public class EducationService {
               + "exists(select m.id from EduMembership m where m.student.id=s.id and"
               + " m.domain=:directoryDomain)";
     }
+    if (f.status != null && !f.status.isBlank()) {
+      w +=
+          (w.isEmpty() ? " where " : " and ")
+              + "exists(select t.id from EduTask t where t.student.id=s.id and t.archived=false"
+              + (d == null || d.isBlank() ? "" : " and t.domain=:directoryDomain")
+              + (f.status.equals("PENDING")
+                  ? " and t.status in ('NOT_STARTED','SUBMITTED','RETURNED'))"
+                  : " and t.status=:workStatus)");
+      if (!f.status.equals("PENDING")) p.put("workStatus", f.status);
+    }
     if (search != null && !search.isBlank()) {
       if (search.length() > 100) throw new IllegalArgumentException("Search is too long");
       p.put(
@@ -680,7 +777,8 @@ public class EducationService {
       w +=
           (w.isEmpty() ? " where " : " and ")
               + "(lower(s.studentCode) like :term escape '\\' or lower(s.user.fullName) like :term"
-              + " escape '\\' or lower(s.user.username) like :term escape '\\')";
+              + " escape '\\' or lower(s.user.username) like :term escape '\\' or"
+              + " lower(s.user.email) like :term escape '\\')";
     }
     var content =
         list(
@@ -815,6 +913,8 @@ public class EducationService {
     v.put("progress", t.progress);
     v.put("requireDocument", t.requireDocument);
     v.put("rowVersion", t.rowVersion);
+    v.put("archived", t.archived);
+    v.put("sourceOrderId", t.sourceOrder == null ? null : t.sourceOrder.id);
     v.put("assignedBy", t.assignedBy.getUsername());
     v.put("createdAt", t.createdAt);
     v.put("updatedAt", t.updatedAt);
@@ -854,6 +954,31 @@ public class EducationService {
       throw new IllegalArgumentException("Select a future deadline");
     var p = new HashMap<String, Object>(Map.of("c", c.id, "d", d.domain));
     String filter = "";
+    EduWorkOrder order = null;
+    if (d.sourceOrderId != null) {
+      order = find(EduWorkOrder.class, d.sourceOrderId, true);
+      college(a, order.college.id);
+      domain(a, order.domain);
+      if (order.archived
+          || !order.college.id.equals(c.id)
+          || !order.domain.equals(d.domain)
+          || !order.title.equals(d.title.trim())
+          || !order.description.equals(d.description.trim())
+          || !order.instructions.equals(d.instructions.trim())
+          || !order.stage.equals(d.stage)
+          || d.dueAt
+              .truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
+              .isAfter(order.dueAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS))
+          || order.requireDocument != d.requireDocument)
+        throw new IllegalArgumentException(
+            "Use the original college work instructions and a deadline no later than its due date");
+    }
+    if (d.recipientMode.equals("SELECTED")) {
+      if (d.studentCodes == null || d.studentCodes.isEmpty())
+        throw new IllegalArgumentException("Select at least one Student ID");
+      filter = " and m.student.studentCode in :codes";
+      p.put("codes", d.studentCodes);
+    }
     if (d.recipientMode.equals("INDIVIDUAL")) {
       if (d.studentCode == null || d.studentCode.isBlank())
         throw new IllegalArgumentException("Enter a Student ID");
@@ -875,12 +1000,16 @@ public class EducationService {
       throw new IllegalArgumentException("No approved students match this college and domain");
     if (recipients.size() > 500)
       throw new IllegalArgumentException("Select individual students for a cohort larger than 500");
+    if (d.recipientMode.equals("SELECTED") && recipients.size() != d.studentCodes.size())
+      throw new IllegalArgumentException(
+          "Every selected Student ID must have approved access in this college and domain");
     var result = new ArrayList<Map<String, Object>>();
     for (var m : recipients) {
       em.lock(m, LockModeType.PESSIMISTIC_WRITE);
       if (!m.status.equals("APPROVED"))
         throw new IllegalArgumentException("Student access changed. Refresh before assignment.");
       var t = new EduTask();
+      t.sourceOrder = order;
       t.college = c;
       t.student = m.student;
       t.assignedBy = a.user;
@@ -889,7 +1018,7 @@ public class EducationService {
       t.title = d.title.trim();
       t.description = d.description.trim();
       t.instructions = d.instructions.trim();
-      t.dueAt = d.dueAt;
+      t.dueAt = d.dueAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
       t.requireDocument = d.requireDocument;
       t.status = "NOT_STARTED";
       t.createdAt = Instant.now();
@@ -1027,6 +1156,7 @@ public class EducationService {
     var a = actor(name);
     if (!student(a)) throw new AccessDeniedException("Only the assigned student can submit work");
     var t = authorizedTask(a, id, true);
+    if (t.archived) throw new IllegalArgumentException("This work has been archived");
     membership(a, t.domain, true);
     version(t.rowVersion, d.expectedVersion);
     if (Set.of("SUBMITTED", "COMPLETED").contains(t.status))
@@ -1085,6 +1215,7 @@ public class EducationService {
     var a = actor(name);
     manager(a);
     var t = authorizedTask(a, id, true);
+    if (t.archived) throw new IllegalArgumentException("This work has been archived");
     version(t.rowVersion, d.expectedVersion);
     if (!t.status.equals("SUBMITTED"))
       throw new IllegalArgumentException("Only submitted work can be reviewed");
@@ -1237,7 +1368,7 @@ public class EducationService {
     scope(a, f, true);
     var p = new HashMap<String, Object>(Map.of("d", f.domain));
     String w = " where r.domain=:d";
-    if (!root(a)) {
+    if (!root(a) && !a.role.equals("ROLE_DOMAIN_ADMIN")) {
       w += " and r.generatedBy.id=:u";
       p.put("u", a.user.getId());
     }
@@ -1271,7 +1402,9 @@ public class EducationService {
   public Download reportPdf(String name, Long id) {
     var a = actor(name);
     var r = find(EduReport.class, id, false);
-    if (!root(a) && !r.generatedBy.getId().equals(a.user.getId()))
+    if (!root(a)
+        && !a.role.equals("ROLE_DOMAIN_ADMIN")
+        && !r.generatedBy.getId().equals(a.user.getId()))
       throw new AccessDeniedException("Report is outside your export history");
     scope(
         a,
@@ -1284,5 +1417,326 @@ public class EducationService {
     if (!hashBytes(r.pdfBytes).equals(r.sha256))
       throw new IllegalStateException("Stored report integrity check failed");
     return new Download(r.pdfBytes, r.fileName);
+  }
+
+  public record StudentCreate(
+      @NotNull @Positive Long collegeId,
+      @NotBlank String domain,
+      @NotBlank @Size(max = 128) String fullName,
+      @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{3,64}") String username,
+      @NotBlank @Email @Size(max = 128) String email,
+      @NotBlank @Size(min = 12, max = 72) String password,
+      @NotBlank @Size(max = 2000) String reason) {}
+
+  public record StudentEdit(
+      @NotNull @PositiveOrZero Long expectedVersion,
+      @NotBlank String domain,
+      @NotBlank @Size(max = 128) String fullName,
+      @NotBlank @Email @Size(max = 128) String email,
+      boolean active,
+      @NotBlank @Size(max = 2000) String reason) {}
+
+  public record WorkEdit(
+      @NotNull @PositiveOrZero Long expectedVersion,
+      @NotBlank @Size(max = 160) String title,
+      @NotBlank @Size(max = 5000) String description,
+      @NotBlank @Size(max = 5000) String instructions,
+      @NotNull Instant dueAt,
+      boolean requireDocument,
+      boolean archived,
+      @NotBlank @Size(max = 2000) String reason) {}
+
+  public record OrderInput(
+      @NotNull @Positive Long collegeId,
+      @NotBlank String domain,
+      @NotBlank String stage,
+      @NotBlank @Size(max = 160) String title,
+      @NotBlank @Size(max = 5000) String description,
+      @NotBlank @Size(max = 5000) String instructions,
+      @NotNull Instant dueAt,
+      boolean requireDocument) {}
+
+  public record Preferences(boolean compactView, boolean reduceMotion) {}
+
+  private void changeLog(
+      String name, String kind, Long id, Object before, Object after, String reason) {
+    var change = new EduManagementChange();
+    change.actorId = identity(name).getId();
+    change.recordKind = kind;
+    change.recordId = id;
+    change.beforeJson = encode(before);
+    change.afterJson = encode(after);
+    change.reason = reason;
+    change.createdAt = Instant.now();
+    save(change);
+    audit.logAccountEvent(
+        "EDUCATION_" + kind + "_CHANGED", name, "record=" + id + "; reason=" + reason);
+  }
+
+  @Transactional
+  public Map<String, Object> addStudent(String name, StudentCreate d) {
+    var a = actor(name);
+    manager(a);
+    college(a, d.collegeId);
+    domain(a, d.domain);
+    var reservation = reserve(new Reserve(d.collegeId));
+    var codes = new LinkedHashSet<String>();
+    domains.all.forEach(x -> codes.add(x.code()));
+    var result =
+        register(
+            new Register(
+                d.collegeId,
+                (String) reservation.get("reservationToken"),
+                d.fullName,
+                d.username,
+                d.email,
+                d.password,
+                d.password,
+                codes));
+    var s = studentByCode((String) result.get("studentCode"));
+    var m =
+        one(
+            "select m from EduMembership m where m.student.id=:s and m.domain=:d",
+            EduMembership.class,
+            Map.of("s", s.id, "d", d.domain));
+    decide(name, m.id, new Decision(m.rowVersion, "APPROVED", d.reason));
+    return studentView(s);
+  }
+
+  public Map<String, Object> studentProfile(String name, Long id, String domain) {
+    var a = actor(name);
+    var s = find(EduStudent.class, id, false);
+    college(a, s.college.id);
+    if (student(a) && !a.student.equals(id))
+      throw new AccessDeniedException("Only your own profile is available");
+    if (domain != null && !domain.isBlank()) domain(a, domain);
+    var v = studentView(s);
+    v.put("work", stats(a, new Filter(s.college.id, domain, s.studentCode, null)));
+    v.put(
+        "domains",
+        list(
+                "select m from EduMembership m where m.student.id=:s order by m.id",
+                EduMembership.class,
+                Map.of("s", id),
+                0,
+                7)
+            .stream()
+            .map(m -> Map.of("domain", m.domain, "status", m.status))
+            .toList());
+    return v;
+  }
+
+  public Map<String, Object> myProfile(String name) {
+    var a = actor(name);
+    return student(a)
+        ? studentProfile(name, a.student, null)
+        : Map.of(
+            "fullName",
+            Objects.requireNonNullElse(a.user.getFullName(), a.user.getUsername()),
+            "username",
+            a.user.getUsername(),
+            "email",
+            Objects.requireNonNullElse(a.user.getEmail(), ""),
+            "role",
+            a.role,
+            "college",
+            a.college == null ? "All colleges" : find(EduCollege.class, a.college, false).name);
+  }
+
+  @Transactional
+  public Map<String, Object> editStudent(String name, Long id, StudentEdit d) {
+    var a = actor(name);
+    manager(a);
+    domain(a, d.domain);
+    var s = find(EduStudent.class, id, true);
+    college(a, s.college.id);
+    version(s.rowVersion, d.expectedVersion);
+    var before = studentView(s);
+    var mail = d.email.trim().toLowerCase(Locale.ROOT);
+    var existing = users.findByEmailIgnoreCase(mail);
+    if (existing.isPresent() && !existing.get().getId().equals(s.user.getId()))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
+    boolean revoke =
+        !mail.equalsIgnoreCase(Objects.requireNonNullElse(s.user.getEmail(), ""))
+            || s.user.isEnabled() != d.active
+            || s.user.isApproved() != d.active;
+    s.user.setFullName(d.fullName.trim());
+    s.user.setEmail(mail);
+    s.user.setEnabled(d.active);
+    s.user.setAccountStatus(d.active ? "APPROVED" : "SUSPENDED");
+    if (revoke) s.user.revokeSessions();
+    s.updatedAt = Instant.now();
+    em.flush();
+    var after = studentView(s);
+    changeLog(name, "STUDENT", id, before, after, d.reason);
+    return after;
+  }
+
+  @Transactional
+  public Map<String, Object> editTask(String name, Long id, WorkEdit d) {
+    var a = actor(name);
+    manager(a);
+    var t = authorizedTask(a, id, true);
+    version(t.rowVersion, d.expectedVersion);
+    var before = taskView(t);
+    if (!d.archived) {
+      if (!t.status.equals("NOT_STARTED")
+          || t.progress != 0
+          || count("select count(s) from EduSubmission s where s.task.id=:t", Map.of("t", id)) > 0)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "Work with student activity is retained unchanged. Archive it and create replacement"
+                + " work instead.");
+      if (!d.dueAt.isAfter(Instant.now()))
+        throw new IllegalArgumentException("Select a future deadline");
+      if (t.sourceOrder != null
+          && (!d.title.trim().equals(t.sourceOrder.title)
+              || !d.description.trim().equals(t.sourceOrder.description)
+              || !d.instructions.trim().equals(t.sourceOrder.instructions)
+              || d.dueAt
+                  .truncatedTo(java.time.temporal.ChronoUnit.MILLIS)
+                  .isAfter(t.sourceOrder.dueAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS))
+              || d.requireDocument != t.sourceOrder.requireDocument))
+        throw new AccessDeniedException(
+            "College instructions must match the Domain Admin work order");
+      t.title = d.title.trim();
+      t.description = d.description.trim();
+      t.instructions = d.instructions.trim();
+      t.dueAt = d.dueAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+      t.requireDocument = d.requireDocument;
+    }
+    t.archived = d.archived;
+    t.lastChangedBy = a.user;
+    t.updatedAt = Instant.now();
+    em.flush();
+    var after = taskView(t);
+    changeLog(name, "TASK", id, before, after, d.reason);
+    return after;
+  }
+
+  private Map<String, Object> orderView(EduWorkOrder o) {
+    var v = new LinkedHashMap<String, Object>();
+    v.put("id", o.id);
+    v.put("collegeId", o.college.id);
+    v.put("collegeName", o.college.name);
+    v.put("domain", o.domain);
+    v.put("stage", o.stage);
+    v.put("title", o.title);
+    v.put("description", o.description);
+    v.put("instructions", o.instructions);
+    v.put("dueAt", o.dueAt);
+    v.put("requireDocument", o.requireDocument);
+    v.put("rowVersion", o.rowVersion);
+    v.put("archived", o.archived);
+    v.put(
+        "assignedStudents",
+        count("select count(t) from EduTask t where t.sourceOrder.id=:id", Map.of("id", o.id)));
+    return v;
+  }
+
+  public List<Map<String, Object>> orders(String name, Filter f) {
+    var a = actor(name);
+    manager(a);
+    scope(a, f, true);
+    var p = new HashMap<String, Object>(Map.of("d", f.domain));
+    String w = " where o.domain=:d and o.archived=false";
+    Long c = a.college == null ? f.collegeId : a.college;
+    if (c != null) {
+      w += " and o.college.id=:c";
+      p.put("c", c);
+    }
+    return list(
+            "select o from EduWorkOrder o" + w + " order by o.id desc",
+            EduWorkOrder.class,
+            p,
+            0,
+            500)
+        .stream()
+        .map(this::orderView)
+        .toList();
+  }
+
+  @Transactional
+  public Map<String, Object> addOrder(String name, OrderInput d) {
+    var a = actor(name);
+    oversight(a);
+    domain(a, d.domain);
+    var c = find(EduCollege.class, d.collegeId, true);
+    if (!c.active) throw new IllegalArgumentException("College is inactive");
+    if (!domains.get(d.domain).stages().contains(d.stage))
+      throw new IllegalArgumentException("Choose a domain stage");
+    if (!d.dueAt.isAfter(Instant.now()))
+      throw new IllegalArgumentException("Select a future deadline");
+    var o = new EduWorkOrder();
+    o.college = c;
+    o.createdBy = a.user;
+    o.domain = d.domain;
+    o.stage = d.stage;
+    o.title = d.title.trim();
+    o.description = d.description.trim();
+    o.instructions = d.instructions.trim();
+    o.dueAt = d.dueAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+    o.requireDocument = d.requireDocument;
+    o.createdAt = Instant.now();
+    save(o);
+    changeLog(name, "ORDER", o.id, Map.of(), orderView(o), "College work order created");
+    return orderView(o);
+  }
+
+  @Transactional
+  public Map<String, Object> editOrder(String name, Long id, WorkEdit d) {
+    var a = actor(name);
+    oversight(a);
+    var o = find(EduWorkOrder.class, id, true);
+    domain(a, o.domain);
+    version(o.rowVersion, d.expectedVersion);
+    var before = orderView(o);
+    if (!d.archived) {
+      if (count("select count(t) from EduTask t where t.sourceOrder.id=:id", Map.of("id", id)) > 0)
+        throw new ResponseStatusException(
+            HttpStatus.CONFLICT,
+            "Dispatched work instructions are retained. Archive and create a replacement order.");
+      if (!d.dueAt.isAfter(Instant.now()))
+        throw new IllegalArgumentException("Choose a future deadline");
+      o.title = d.title.trim();
+      o.description = d.description.trim();
+      o.instructions = d.instructions.trim();
+      o.dueAt = d.dueAt.truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+      o.requireDocument = d.requireDocument;
+    }
+    o.archived = d.archived;
+    o.lastChangedBy = a.user;
+    em.flush();
+    var after = orderView(o);
+    changeLog(name, "ORDER", id, before, after, d.reason);
+    return after;
+  }
+
+  public Preferences preferences(String name) {
+    var a = actor(name);
+    var found =
+        list(
+            "select p from EduPreference p where p.userId=:id",
+            EduPreference.class,
+            Map.of("id", a.user.getId()),
+            0,
+            1);
+    return found.isEmpty()
+        ? new Preferences(false, false)
+        : new Preferences(found.get(0).compactView, found.get(0).reduceMotion);
+  }
+
+  @Transactional
+  public Preferences preferences(String name, Preferences d) {
+    var a = actor(name);
+    var p = em.find(EduPreference.class, a.user.getId());
+    if (p == null) {
+      p = new EduPreference();
+      p.userId = a.user.getId();
+      em.persist(p);
+    }
+    p.compactView = d.compactView;
+    p.reduceMotion = d.reduceMotion;
+    return d;
   }
 }

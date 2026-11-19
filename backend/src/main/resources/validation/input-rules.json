@@ -1399,7 +1399,8 @@
     "education.recipientMode": {
       "enum": [
         "INDIVIDUAL",
-        "ALL_APPROVED"
+        "ALL_APPROVED",
+        "SELECTED"
       ]
     },
     "education.title": {

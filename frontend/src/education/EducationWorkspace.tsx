@@ -21,6 +21,13 @@ import { apiRequest, downloadPdf } from "../config/api";
 import { AccessDialog } from "../workspaces/AccessDialog";
 import { dateTime } from "../workspaces/model";
 import { EducationTask } from "./EducationTask";
+import {
+  CollegeTools,
+  StudentTools,
+  WorkOrders,
+  WorkEditor,
+  ProfileSettings,
+} from "./EducationManagement";
 import { CollegeManagement } from "./CollegeManagement";
 import { emptyPage, statuses } from "./types";
 import type {
@@ -54,11 +61,13 @@ const emptyAssignment = () => ({
   recipientMode: "INDIVIDUAL",
   studentCode: "",
   requireDocument: false,
+  sourceOrderId: null as number | null,
+  studentCodes: "",
 });
 function location() {
   const hash = window.location.hash.split("?")[0];
   const match = hash.match(
-    /^#\/education\/(ROLE_[A-Z_]+)\/(dashboard|students|requests|work|assign|reports)$/,
+    /^#\/education\/(ROLE_[A-Z_]+)\/(dashboard|students|requests|work|assign|reports|colleges|profile|settings)$/,
   );
   return {
     domain: match?.[1] || "",
@@ -130,14 +139,20 @@ export function EducationWorkspace() {
       request: Request;
       status: string;
     } | null>(null),
-    [reason, setReason] = useState("");
+    [reason, setReason] = useState(""),
+    [editingWork, setEditingWork] = useState<Task | null>(null);
+  const pendingOrder = useRef<ReturnType<typeof emptyAssignment> | null>(null);
   const dirtyRef = useRef(false),
     prior = useRef(window.location.hash),
     main = useRef<HTMLElement>(null);
   dirtyRef.current = dirty;
   const root = user?.role === "ROLE_ADMIN",
     student = user?.role === "ROLE_STUDENT",
-    manager = root || user?.role === "ROLE_COLLEGE_ADMIN";
+    manager =
+      root ||
+      user?.role === "ROLE_COLLEGE_ADMIN" ||
+      user?.role === "ROLE_DOMAIN_ADMIN";
+  const selectionScreen = !root && !student && route.section === "home";
   const domain = catalog?.domains.find((d) => d.code === route.domain);
   const card = overview?.domains.find((d) => d.code === route.domain);
   const title = root
@@ -153,6 +168,14 @@ export function EducationWorkspace() {
     window.confirm("Discard unsaved college workspace changes?");
   const go = (section: string, code = route.domain) => {
     if (!leave()) return;
+    if (section === "home") {
+      setCollegeId("");
+      setStudentCode("");
+      setStudentQuery("");
+      setStatus("");
+      setSearch("");
+      setSearchQuery("");
+    }
     setDirty(false);
     setSelected(null);
     setPage(0);
@@ -162,10 +185,30 @@ export function EducationWorkspace() {
     window.location.hash =
       section === "home"
         ? "/education"
-        : section === "colleges"
+        : section === "colleges" && !code
           ? "/education/colleges"
           : `/education/${code}/${section}`;
   };
+  useEffect(() => {
+    const c = new AbortController();
+    apiRequest<{ compactView: boolean; reduceMotion: boolean }>(
+      "/api/education/preferences",
+      "GET",
+      undefined,
+      c.signal,
+    )
+      .then((p) => {
+        if (!c.signal.aborted) {
+          document.body.classList.toggle("edu-compact", p.compactView);
+          document.body.classList.toggle("edu-reduced-motion", p.reduceMotion);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      c.abort();
+      document.body.classList.remove("edu-compact", "edu-reduced-motion");
+    };
+  }, []);
   useEffect(() => {
     document.body.classList.add("workspace-open");
     if (!window.location.hash.startsWith("#/education"))
@@ -188,7 +231,8 @@ export function EducationWorkspace() {
       setRoute(location());
       setPage(0);
       setSelected(null);
-      setAssignment(emptyAssignment());
+      setAssignment(pendingOrder.current || emptyAssignment());
+      pendingOrder.current = null;
       setDirty(false);
     };
     const before = (e: BeforeUnloadEvent) => {
@@ -235,7 +279,8 @@ export function EducationWorkspace() {
     Promise.all([
       apiRequest<Catalog>("/api/education/catalog", "GET", undefined, c.signal),
       apiRequest<College[]>(
-        "/api/education/colleges",
+        "/api/education/colleges" +
+          (route.domain ? "?domain=" + route.domain : ""),
         "GET",
         undefined,
         c.signal,
@@ -262,7 +307,7 @@ export function EducationWorkspace() {
         }
       });
     return () => c.abort();
-  }, [refresh, params]);
+  }, [refresh, params, route.domain]);
   useEffect(() => {
     if (!domain || !card?.authorized || selected !== null) return;
     const c = new AbortController();
@@ -276,12 +321,11 @@ export function EducationWorkspace() {
       p.set("status", accessStatus);
     }
     if (name === "students") {
-      p.delete("status");
       p.set("search", search);
     }
     let path = "";
-    if (["students", "requests", "work", "reports"].includes(name))
-      path = `/api/education/${name === "work" ? "tasks" : name}?${p}`;
+    if (["students", "requests", "work", "reports", "dashboard"].includes(name))
+      path = `/api/education/${name === "work" || name === "dashboard" ? "tasks" : name}?${p}`;
     if (!path) {
       setSectionLoading(false);
       return;
@@ -296,7 +340,7 @@ export function EducationWorkspace() {
         if (c.signal.aborted) return;
         if (name === "students") setStudents(v as Page<Student>);
         if (name === "requests") setRequests(v as Page<Request>);
-        if (name === "work") setTasks(v as Page<Task>);
+        if (name === "work" || name === "dashboard") setTasks(v as Page<Task>);
         if (name === "reports") setReports(v as Page<Report>);
       })
       .catch((e) => {
@@ -388,7 +432,7 @@ export function EducationWorkspace() {
   );
   return (
     <div
-      className="ws-shell edu-shell"
+      className={`ws-shell edu-shell ${selectionScreen ? "edu-selection" : ""}`}
       data-validation-context="education"
       data-testid="education-workspace"
     >
@@ -399,117 +443,166 @@ export function EducationWorkspace() {
           onClick={() => setMenu(false)}
         />
       )}
-      <aside
-        id="education-navigation"
-        className={`ws-sidebar ${menu ? "is-open" : ""}`}
-      >
-        <a
-          className="ws-brand"
-          href="#/education"
-          onClick={(e) => {
-            e.preventDefault();
-            go("home");
-          }}
+      {!selectionScreen && (
+        <aside
+          id="education-navigation"
+          className={`ws-sidebar ${menu ? "is-open" : ""}`}
         >
-          PharmaSafe<span>COLLEGE LEARNING</span>
-        </a>
-        <p>
-          {title}
-          {overview?.studentCode && (
-            <>
-              <br />
-              {overview.studentCode}
-            </>
-          )}
-        </p>
-        <nav aria-label="College workspace navigation">
-          <button
-            onClick={() => go("home")}
-            aria-current={route.section === "home" ? "page" : undefined}
-          >
-            <GraduationCap size={17} /> All seven domains
-          </button>
-          {root && (
-            <button
-              onClick={() => go("colleges")}
-              aria-current={route.section === "colleges" ? "page" : undefined}
-            >
-              <Building2 size={17} /> Colleges & administrators
-            </button>
-          )}
-          {domain &&
-            card?.authorized &&
-            [
-              "dashboard",
-              ...(!student ? ["students", "requests"] : []),
-              "work",
-              ...(manager ? ["assign"] : []),
-              "reports",
-            ].map((section) => (
-              <button
-                key={section}
-                onClick={() => go(section)}
-                aria-current={route.section === section ? "page" : undefined}
-              >
-                {{
-                  dashboard: "Domain dashboard",
-                  students: "Students",
-                  requests: "Access requests",
-                  work: student ? "My assigned work" : "Assigned work",
-                  assign: "Assign student work",
-                  reports: "Reports & PDFs",
-                }[section as "dashboard"] || section}
-              </button>
-            ))}
-        </nav>
-        <div className="ws-person">
-          {root && (
-            <a
-              href="#/workspace/admin/overview"
-              onClick={(e) => {
-                if (!leave()) e.preventDefault();
-              }}
-            >
-              Main Super Admin workspace <ArrowUpRight size={14} />
-            </a>
-          )}
-          <strong>{user?.fullName || user?.username}</strong>
-          <span>@{user?.username}</span>
-          <button
-            disabled={busy}
-            onClick={() => {
-              if (leave()) void logout();
+          <a
+            className="ws-brand"
+            href="#/education"
+            onClick={(e) => {
+              e.preventDefault();
+              go("home");
             }}
           >
-            <LogOut size={16} /> Sign out
-          </button>
-        </div>
-      </aside>
+            PharmaSafe<span>COLLEGE LEARNING</span>
+          </a>
+          <p>
+            {title}
+            {overview?.studentCode && (
+              <>
+                <br />
+                {overview.studentCode}
+              </>
+            )}
+          </p>
+          <nav aria-label="College workspace navigation">
+            <button
+              onClick={() => go("home")}
+              aria-current={route.section === "home" ? "page" : undefined}
+            >
+              <GraduationCap size={17} /> All seven domains
+            </button>
+            {root && (
+              <button
+                onClick={() => go("colleges", "")}
+                aria-current={route.section === "colleges" ? "page" : undefined}
+              >
+                <Building2 size={17} /> Colleges & administrators
+              </button>
+            )}
+            {domain &&
+              card?.authorized &&
+              [
+                "dashboard",
+                ...(!student && (root || user?.role === "ROLE_DOMAIN_ADMIN")
+                  ? ["colleges"]
+                  : []),
+                ...(!student ? ["students"] : []),
+                "work",
+                ...(manager ? ["assign"] : []),
+                "completed",
+                "pending",
+                "reports",
+                ...(user?.role !== "ROLE_DOMAIN_ADMIN" ? ["profile"] : []),
+                "settings",
+              ].map((section) => (
+                <button
+                  key={section}
+                  onClick={() => {
+                    if (section === "completed" || section === "pending") {
+                      setStatus(
+                        section === "completed" ? "COMPLETED" : "PENDING",
+                      );
+                      go("work");
+                    } else go(section);
+                  }}
+                  aria-current={route.section === section ? "page" : undefined}
+                >
+                  {
+                    (
+                      {
+                        dashboard: "Dashboard",
+                        colleges: "Colleges",
+                        students: "Students",
+                        work: student ? "My assigned work" : "Work Management",
+                        assign: "Assign student work",
+                        completed: "Completed Work",
+                        pending: "Pending Work",
+                        reports: "Reports & PDFs",
+                        profile: "Profile",
+                        settings: "Settings",
+                      } as Record<string, string>
+                    )[section]
+                  }
+                </button>
+              ))}
+          </nav>
+          <div className="ws-person">
+            {root && (
+              <a
+                href="#/workspace/admin/overview"
+                onClick={(e) => {
+                  if (!leave()) e.preventDefault();
+                }}
+              >
+                Main Super Admin workspace <ArrowUpRight size={14} />
+              </a>
+            )}
+            <strong>
+              {overview?.fullName || user?.fullName || user?.username}
+            </strong>
+            <span>@{user?.username}</span>
+            <button
+              disabled={busy}
+              onClick={() => {
+                if (leave()) void logout();
+              }}
+            >
+              <LogOut size={16} /> Sign out
+            </button>
+          </div>
+        </aside>
+      )}
       <div className="ws-main" inert={menu || undefined}>
         <header className="ws-topbar">
-          <button
-            className="ws-menu-toggle"
-            aria-label="Toggle college navigation"
-            aria-controls="education-navigation"
-            aria-expanded={menu}
-            onClick={() => setMenu((v) => !v)}
-          >
-            <Menu size={20} />
-          </button>
+          {!selectionScreen && (
+            <button
+              className="ws-menu-toggle"
+              aria-label="Toggle college navigation"
+              aria-controls="education-navigation"
+              aria-expanded={menu}
+              onClick={() => setMenu((v) => !v)}
+            >
+              <Menu size={20} />
+            </button>
+          )}
           <span>
             {title}
             {domain ? " / " + domain.name : ""}
           </span>
-          <button
-            disabled={busy}
-            onClick={() => {
-              if (!leave()) return;
-              setDirty(false);
-              reload();
-            }}
-          >
-            <RefreshCw size={15} /> Refresh college data
-          </button>
+          {!selectionScreen && (
+            <button
+              disabled={busy}
+              onClick={() => {
+                if (!leave()) return;
+                setDirty(false);
+                reload();
+              }}
+            >
+              <RefreshCw size={15} /> Refresh college data
+            </button>
+          )}
+          <div className="edu-selection-profile">
+            <strong>
+              {overview?.fullName || user?.fullName || user?.username}
+            </strong>
+            <span>
+              @{user?.username}
+              {overview?.collegeId
+                ? " · " +
+                  colleges.find((c) => c.id === overview.collegeId)?.name
+                : ""}
+            </span>
+            <button
+              onClick={() => {
+                if (leave()) void logout();
+              }}
+            >
+              Sign out
+            </button>
+          </div>
         </header>
         <main className="ws-content" ref={main} tabIndex={-1}>
           <div className="ws-heading">
@@ -519,7 +612,9 @@ export function EducationWorkspace() {
                 {route.section === "home"
                   ? title
                   : route.section === "colleges"
-                    ? "Colleges & administrators"
+                    ? domain
+                      ? domain.name + " · Colleges"
+                      : "Colleges & administrators"
                     : domain?.name || "Domain workspace"}
               </h1>
               <p>
@@ -555,20 +650,22 @@ export function EducationWorkspace() {
             </section>
           ) : route.section === "home" ? (
             <>
-              <section className="edu-hero ws-card">
-                <div>
-                  <p className="ws-eyebrow">ONE WORKSPACE · SEVEN DOMAINS</p>
-                  <h2>Welcome, {overview.fullName || overview.username}.</h2>
-                  <p>
-                    {student
-                      ? "Choose an approved domain to open your tasks. Pending and rejected selections show their approval status below."
-                      : user?.role === "ROLE_DOMAIN_ADMIN"
-                        ? "You can inspect your assigned domain across colleges. Other domain cards stay visible with access restricted."
-                        : "Choose a domain to manage students, assignments, progress and reports."}
-                  </p>
-                </div>
-                <BookOpenCheck size={64} />
-              </section>
+              {!selectionScreen && (
+                <section className="edu-hero ws-card">
+                  <div>
+                    <p className="ws-eyebrow">ONE WORKSPACE · SEVEN DOMAINS</p>
+                    <h2>Welcome, {overview.fullName || overview.username}.</h2>
+                    <p>
+                      {student
+                        ? "Choose an approved domain to open your tasks. Pending and rejected selections show their approval status below."
+                        : user?.role === "ROLE_DOMAIN_ADMIN"
+                          ? "Open any of the seven domains to inspect colleges, students, assigned work, progress and reports. Your educational oversight does not grant clinical or college-management authority."
+                          : "Choose a domain to manage students, assignments, progress and reports."}
+                    </p>
+                  </div>
+                  <BookOpenCheck size={64} />
+                </section>
+              )}
               <div className="edu-domain-grid">
                 {overview.domains.map((d, i) => {
                   const Icon = icons[i];
@@ -589,18 +686,33 @@ export function EducationWorkspace() {
                       <p>{d.description}</p>
                       {d.stats ? (
                         <div className="edu-card-stats">
+                          {!student && (
+                            <>
+                              <span>
+                                <strong>{d.stats.colleges || 0}</strong>Colleges
+                              </span>
+                              <span>
+                                <strong>{d.stats.students || 0}</strong>Students
+                              </span>
+                            </>
+                          )}
                           <span>
                             <strong>{d.stats.total}</strong>Tasks
                           </span>
-                          <span>
-                            <strong>
-                              {d.stats.statusCounts.COMPLETED || 0}
-                            </strong>
-                            Completed
-                          </span>
-                          <span>
-                            <strong>{d.stats.averageProgress}%</strong>Progress
-                          </span>
+                          {!selectionScreen && (
+                            <>
+                              <span>
+                                <strong>
+                                  {d.stats.statusCounts.COMPLETED || 0}
+                                </strong>
+                                Completed
+                              </span>
+                              <span>
+                                <strong>{d.stats.averageProgress}%</strong>
+                                Progress
+                              </span>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <p className="edu-lock">
@@ -625,7 +737,7 @@ export function EducationWorkspace() {
                 })}
               </div>
             </>
-          ) : route.section === "colleges" && root ? (
+          ) : route.section === "colleges" && root && !domain ? (
             <CollegeManagement
               colleges={colleges}
               domains={catalog?.domains || []}
@@ -699,6 +811,7 @@ export function EducationWorkspace() {
                         }
                       >
                         <option value="">All work statuses</option>
+                        <option value="PENDING">Pending work</option>
                         {Object.entries(statuses).map(([v, l]) => (
                           <option key={v} value={v}>
                             {l}
@@ -742,15 +855,41 @@ export function EducationWorkspace() {
               ) : route.section === "dashboard" ? (
                 <>
                   <div className="edu-metrics">
-                    {[
-                      ["Assigned tasks", card.stats?.total || 0],
-                      ["Completed", card.stats?.statusCounts.COMPLETED || 0],
-                      [
-                        "Awaiting review",
-                        card.stats?.statusCounts.SUBMITTED || 0,
-                      ],
-                      ["Overdue", card.stats?.overdue || 0],
-                    ].map(([label, value], i) => (
+                    {(student
+                      ? [
+                          ["Assigned tasks", card.stats?.total || 0],
+                          [
+                            "Completed",
+                            card.stats?.statusCounts.COMPLETED || 0,
+                          ],
+                          [
+                            "Awaiting review",
+                            card.stats?.statusCounts.SUBMITTED || 0,
+                          ],
+                          ["Overdue", card.stats?.overdue || 0],
+                        ]
+                      : [
+                          ...(root || user?.role === "ROLE_DOMAIN_ADMIN"
+                            ? [["Total Colleges", card.stats?.colleges || 0]]
+                            : []),
+                          ["Total Students", card.stats?.students || 0],
+                          ["Assigned tasks", card.stats?.total || 0],
+                          [
+                            "Completed",
+                            card.stats?.statusCounts.COMPLETED || 0,
+                          ],
+                          [
+                            "Pending Work",
+                            (card.stats?.statusCounts.NOT_STARTED || 0) +
+                              (card.stats?.statusCounts.RETURNED || 0) +
+                              (card.stats?.statusCounts.SUBMITTED || 0),
+                          ],
+                          [
+                            "In Progress Work",
+                            card.stats?.statusCounts.IN_PROGRESS || 0,
+                          ],
+                        ]
+                    ).map(([label, value], i) => (
                       <article
                         className={`edu-metric edu-accent-${i}`}
                         key={label}
@@ -769,6 +908,42 @@ export function EducationWorkspace() {
                     }}
                   />
                   <section className="ws-card">
+                    <h2>Recent student activity</h2>
+                    {!tasks.content.length ? (
+                      <p>No activity for the selected filters.</p>
+                    ) : (
+                      <div className="ws-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Work / Student</th>
+                              <th>Status</th>
+                              <th>Last updated</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {tasks.content.slice(0, 5).map((t) => (
+                              <tr key={t.id}>
+                                <td>
+                                  <button onClick={() => setSelected(t.id)}>
+                                    {t.title}
+                                  </button>
+                                  <small>
+                                    {t.studentName} · {t.studentCode}
+                                  </small>
+                                </td>
+                                <td>
+                                  {statuses[t.status]} · {t.progress}%
+                                </td>
+                                <td>{dateTime(t.updatedAt)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                  <section className="ws-card">
                     <h2>Domain workflow</h2>
                     <ol className="edu-stage-list">
                       {domain.stages.map((s) => (
@@ -786,11 +961,40 @@ export function EducationWorkspace() {
                     </button>
                   </section>
                 </>
+              ) : route.section === "colleges" ? (
+                <CollegeTools
+                  colleges={colleges}
+                  canManage={root || user?.role === "ROLE_DOMAIN_ADMIN"}
+                  onSaved={reload}
+                  onDirty={setDirty}
+                  onSelect={(id) => {
+                    setCollegeId(id);
+                    go("students");
+                  }}
+                />
+              ) : route.section === "profile" ||
+                route.section === "settings" ? (
+                <ProfileSettings settings={route.section === "settings"} />
               ) : sectionLoading ? (
                 <p role="status">Loading scoped domain records…</p>
               ) : route.section === "students" ? (
                 <section className="ws-card">
                   <h2>Student directory</h2>
+                  {manager && (
+                    <button onClick={() => go("requests")}>
+                      Access requests
+                    </button>
+                  )}
+                  {manager && (
+                    <StudentTools
+                      domain={domain}
+                      colleges={colleges}
+                      collegeId={collegeId || String(overview.collegeId || "")}
+                      students={students.content}
+                      onSaved={reload}
+                      onDirty={setDirty}
+                    />
+                  )}
                   <form
                     className="edu-search"
                     onSubmit={(e) => {
@@ -806,7 +1010,7 @@ export function EducationWorkspace() {
                         maxLength={100}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Student ID, name or username"
+                        placeholder="Student ID, name, email or username"
                       />
                     </label>
                     <button>Search directory</button>
@@ -817,6 +1021,7 @@ export function EducationWorkspace() {
                         <tr>
                           <th>Student</th>
                           <th>ID / college</th>
+                          <th>Account status</th>
                           <th>Selected domains</th>
                           <th>Progress</th>
                           <th>Work</th>
@@ -833,6 +1038,11 @@ export function EducationWorkspace() {
                             <td>
                               {s.studentCode}
                               <small>{s.collegeName}</small>
+                            </td>
+                            <td>
+                              <span className="ws-badge">
+                                {s.active === false ? "Inactive" : "Active"}
+                              </span>
                             </td>
                             <td>
                               {s.domains?.map((d) => (
@@ -964,6 +1174,13 @@ export function EducationWorkspace() {
                     Use a Student ID or create independent assignments for every
                     approved student in the selected college and domain.
                   </p>
+                  {assignment.sourceOrderId && (
+                    <p className="ws-notice">
+                      College work instructions are fixed. Choose the recipients
+                      and a future deadline no later than the college work
+                      deadline.
+                    </p>
+                  )}
                   <form
                     className="ws-form"
                     aria-label="Assign student work"
@@ -978,6 +1195,12 @@ export function EducationWorkspace() {
                       if (
                         await mutate("/api/education/tasks", {
                           ...assignment,
+                          studentCodes:
+                            assignment.recipientMode === "SELECTED"
+                              ? assignment.studentCodes
+                                  .split(/[\s,]+/)
+                                  .filter(Boolean)
+                              : null,
                           collegeId: c,
                           domain: domain.code,
                           stage: assignment.stage || domain.stages[0],
@@ -1000,6 +1223,7 @@ export function EducationWorkspace() {
                       <input
                         required
                         name="title"
+                        readOnly={!!assignment.sourceOrderId}
                         maxLength={160}
                         value={assignment.title}
                         onChange={(e) =>
@@ -1013,6 +1237,7 @@ export function EducationWorkspace() {
                     <label>
                       Domain stage
                       <select
+                        disabled={!!assignment.sourceOrderId}
                         aria-label="Domain stage"
                         value={assignment.stage || domain.stages[0]}
                         onChange={(e) =>
@@ -1042,11 +1267,31 @@ export function EducationWorkspace() {
                         <option value="INDIVIDUAL">
                           Individual student by ID
                         </option>
+                        <option value="SELECTED">
+                          Selected students by ID
+                        </option>
                         <option value="ALL_APPROVED">
                           All approved students in college/domain
                         </option>
                       </select>
                     </label>
+                    {assignment.recipientMode === "SELECTED" && (
+                      <label>
+                        Selected Student IDs
+                        <textarea
+                          required
+                          maxLength={3200}
+                          placeholder="ST-000001, ST-000002"
+                          value={assignment.studentCodes}
+                          onChange={(e) =>
+                            setAssignment((v) => ({
+                              ...v,
+                              studentCodes: e.target.value.toUpperCase(),
+                            }))
+                          }
+                        />
+                      </label>
+                    )}
                     {assignment.recipientMode === "INDIVIDUAL" && (
                       <label>
                         Student ID
@@ -1083,6 +1328,7 @@ export function EducationWorkspace() {
                     <label className="edu-checkbox">
                       <input
                         type="checkbox"
+                        disabled={!!assignment.sourceOrderId}
                         checked={assignment.requireDocument}
                         onChange={(e) =>
                           setAssignment((v) => ({
@@ -1097,6 +1343,7 @@ export function EducationWorkspace() {
                       Task description
                       <textarea
                         name="description"
+                        readOnly={!!assignment.sourceOrderId}
                         required
                         maxLength={5000}
                         value={assignment.description}
@@ -1112,6 +1359,7 @@ export function EducationWorkspace() {
                       Instructions and expected evidence
                       <textarea
                         name="instructions"
+                        readOnly={!!assignment.sourceOrderId}
                         required
                         maxLength={5000}
                         value={assignment.instructions}
@@ -1129,63 +1377,105 @@ export function EducationWorkspace() {
                   </form>
                 </section>
               ) : route.section === "work" ? (
-                <section className="ws-card">
-                  <h2>{student ? "My assigned work" : "Domain worklist"}</h2>
-                  <div className="ws-table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Task / stage</th>
-                          <th>Student / college</th>
-                          <th>Deadline</th>
-                          <th>Status</th>
-                          <th>Progress</th>
-                          <th>Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tasks.content.map((t) => (
-                          <tr key={t.id}>
-                            <td>
-                              {t.title}
-                              <small>{t.stage}</small>
-                            </td>
-                            <td>
-                              {t.studentName}
-                              <small>
-                                {t.studentCode} · {t.collegeName}
-                              </small>
-                            </td>
-                            <td>{dateTime(t.dueAt)}</td>
-                            <td>{statuses[t.status]}</td>
-                            <td>
-                              <progress
-                                value={t.progress}
-                                max={100}
-                                aria-label={`${t.title} progress`}
-                              />
-                              {t.progress}%
-                            </td>
-                            <td>
-                              <button
-                                onClick={() => {
-                                  setDirty(false);
-                                  setSelected(t.id);
-                                }}
-                              >
-                                Open student assignment
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {!tasks.content.length && (
-                    <p>No assigned tasks match this domain and filter.</p>
+                <>
+                  {manager && (
+                    <WorkOrders
+                      domain={domain}
+                      colleges={colleges}
+                      collegeId={collegeId || String(overview.collegeId || "")}
+                      canManage={root || user?.role === "ROLE_DOMAIN_ADMIN"}
+                      refresh={refresh}
+                      onSaved={reload}
+                      onDirty={setDirty}
+                      onAssign={(o) => {
+                        if (!leave()) return;
+                        setCollegeId(String(o.collegeId));
+                        pendingOrder.current = {
+                          title: o.title,
+                          description: o.description,
+                          instructions: o.instructions,
+                          stage: o.stage,
+                          dueAt: new Date(
+                            new Date(o.dueAt).getTime() -
+                              new Date(o.dueAt).getTimezoneOffset() * 60000,
+                          )
+                            .toISOString()
+                            .slice(0, 16),
+                          requireDocument: o.requireDocument,
+                          recipientMode: "INDIVIDUAL",
+                          studentCode: "",
+                          studentCodes: "",
+                          sourceOrderId: o.id,
+                        };
+                        dirtyRef.current = false;
+                        setDirty(false);
+                        go("assign");
+                      }}
+                    />
                   )}
-                  {pager}
-                </section>
+                  <section className="ws-card">
+                    <h2>{student ? "My assigned work" : "Domain worklist"}</h2>
+                    <div className="ws-table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Task / stage</th>
+                            <th>Student / college</th>
+                            <th>Deadline</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tasks.content.map((t) => (
+                            <tr key={t.id}>
+                              <td>
+                                {t.title}
+                                <small>{t.stage}</small>
+                              </td>
+                              <td>
+                                {t.studentName}
+                                <small>
+                                  {t.studentCode} · {t.collegeName}
+                                </small>
+                              </td>
+                              <td>{dateTime(t.dueAt)}</td>
+                              <td>{statuses[t.status]}</td>
+                              <td>
+                                <progress
+                                  value={t.progress}
+                                  max={100}
+                                  aria-label={`${t.title} progress`}
+                                />
+                                {t.progress}%
+                              </td>
+                              <td>
+                                <button
+                                  onClick={() => {
+                                    setDirty(false);
+                                    setSelected(t.id);
+                                  }}
+                                >
+                                  Open student assignment
+                                </button>
+                                {manager && (
+                                  <button onClick={() => setEditingWork(t)}>
+                                    Edit or remove work
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {!tasks.content.length && (
+                      <p>No assigned tasks match this domain and filter.</p>
+                    )}
+                    {pager}
+                  </section>
+                </>
               ) : route.section === "reports" ? (
                 <section className="ws-card">
                   <div className="ws-section-heading">
@@ -1276,6 +1566,14 @@ export function EducationWorkspace() {
           )}
         </main>
       </div>
+      {editingWork && (
+        <WorkEditor
+          work={editingWork}
+          path={"/api/education/tasks/" + editingWork.id}
+          onSaved={reload}
+          onClose={() => setEditingWork(null)}
+        />
+      )}
       {decision && (
         <AccessDialog
           title="Confirm student domain access"

@@ -15,7 +15,7 @@ public class EduDomainAdmin {
   @JoinColumn(name = "user_id")
   public User user;
 
-  @Column(name = "domain", length = 32, nullable = false)
+  @Column(name = "domain", length = 32)
   public String domain;
 
   @Column(nullable = false)

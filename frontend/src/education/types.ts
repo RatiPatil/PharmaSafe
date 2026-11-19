@@ -12,6 +12,8 @@ export type Domain = {
 };
 export type Stats = {
   total: number;
+  students?: number;
+  colleges?: number;
   averageProgress: number;
   overdue: number;
   statusCounts: Record<string, number>;
@@ -22,6 +24,7 @@ export type College = {
   name: string;
   active: boolean;
   rowVersion: number;
+  students?: number;
 };
 export type Catalog = { colleges: College[]; domains: Domain[] };
 export type Card = {
@@ -57,6 +60,8 @@ export type Student = {
   username: string;
   email: string;
   createdAt: string;
+  active?: boolean;
+  rowVersion: number;
   domains?: { domain: string; status: string }[];
   work?: Stats;
 };
@@ -108,6 +113,8 @@ export type Task = {
   assignedBy: string;
   createdAt: string;
   updatedAt: string;
+  archived?: boolean;
+  sourceOrderId?: number | null;
   submissions?: Page<Submission>;
 };
 export type Submission = {

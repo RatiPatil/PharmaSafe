@@ -56,6 +56,17 @@ public class EduTask {
   @Column(name = "updated_at", nullable = false)
   public Instant updatedAt;
 
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "source_order_id")
+  public EduWorkOrder sourceOrder;
+
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "last_changed_by")
+  public User lastChangedBy;
+
+  @Column(nullable = false)
+  public boolean archived;
+
   @Version
   @Column(name = "row_version", nullable = false)
   public long rowVersion;

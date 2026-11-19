@@ -512,4 +512,175 @@
   }
 }
 
-@media(max-width:480px){.edu-registration .pa-brand>span{display:none}.edu-registration .pa-brand small{max-width:130px;font-size:7px;letter-spacing:1px;line-height:1.5}.edu-registration .pa-header{gap:12px}.edu-registration .pa-nav-login{padding:8px 10px;gap:5px}}
+@media (max-width: 480px) {
+  .edu-registration .pa-brand > span {
+    display: none;
+  }
+  .edu-registration .pa-brand small {
+    max-width: 130px;
+    font-size: 7px;
+    letter-spacing: 1px;
+    line-height: 1.5;
+  }
+  .edu-registration .pa-header {
+    gap: 12px;
+  }
+  .edu-registration .pa-nav-login {
+    padding: 8px 10px;
+    gap: 5px;
+  }
+}
+
+/* Administrators choose a domain before opening sidebar navigation. */
+.edu-shell.edu-selection {
+  display: block;
+  height: 100dvh;
+  overflow: auto;
+  background: #f7f9fc;
+}
+.edu-selection .ws-main {
+  width: 100%;
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
+}
+.edu-selection .ws-topbar {
+  position: static;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: transparent;
+  border: 0;
+  padding: 24px 30px;
+  flex-wrap: wrap;
+}
+.edu-selection .ws-content {
+  max-width: 1200px;
+  width: 100%;
+  overflow: visible;
+  padding: 24px 30px 48px;
+}
+.edu-selection .ws-heading > div > p:last-child {
+  display: none;
+}
+.edu-selection-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  font-size: 12px;
+  color: #607387;
+}
+.edu-selection-profile strong {
+  font-size: 14px;
+  color: #17364f;
+}
+.edu-selection-profile button {
+  padding: 9px 14px;
+  border: 1px solid #d5dfeb;
+  border-radius: 8px;
+  background: #fff;
+  color: #234e70;
+}
+.edu-selection .edu-domain-card {
+  border: 1px solid #dce5ef;
+  box-shadow: 0 4px 18px #173b5506;
+  background: white;
+}
+.edu-selection .edu-domain-icon {
+  background: #edf3f8;
+  color: #315b7c;
+}
+.edu-card-stats {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.edu-management-tools {
+  padding: 20px 0;
+  border-bottom: 1px solid #e0e6ef;
+  margin-bottom: 20px;
+}
+.edu-management-tools .ws-actions {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.edu-check {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+}
+.edu-check input {
+  width: auto !important;
+  min-height: 0 !important;
+}
+.edu-profile {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  padding-top: 20px;
+}
+.edu-profile dt {
+  text-transform: capitalize;
+  font-size: 12px;
+  color: #607387;
+}
+.edu-profile dd {
+  margin: 6px 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.edu-compact .edu-shell td {
+  padding: 9px 12px;
+}
+.edu-reduced-motion .edu-shell * {
+  animation: none !important;
+  transition: none !important;
+}
+@media (max-width: 760px) {
+  .edu-selection .ws-topbar,
+  .edu-selection .ws-content {
+    padding: 20px;
+  }
+  .edu-selection-profile {
+    margin-left: 0;
+  }
+  .edu-profile {
+    grid-template-columns: 1fr;
+  }
+  .edu-selection .ws-heading h1 {
+    font-size: 25px;
+  }
+}
+.edu-shell .ws-topbar {
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .edu-shell .ws-topbar > .edu-selection-profile {
+    flex-basis: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .edu-shell .ws-topbar > .edu-selection-profile span {
+    overflow-wrap: anywhere;
+  }
+}
+.edu-shell input,
+.edu-shell select,
+.edu-shell textarea,
+.edu-registration input,
+.edu-registration select,
+.edu-registration textarea {
+  font-size: 16px;
+}
+.edu-shell input[readonly],
+.edu-shell textarea[readonly] {
+  background: #f7f9fc;
+  color: #607387;
+}
+@media (min-width: 1100px) {
+  .edu-shell .edu-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
