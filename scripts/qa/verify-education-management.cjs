@@ -38,6 +38,7 @@ module.exports = async function ({
         .getByRole("heading", { name: "Work status distribution", exact: true })
         .waitFor();
     }
+    await student.setViewportSize({ width: 1440, height: 1000 });
     await nav(student, "All seven domains").click();
     await student
       .getByRole("button", { name: "Open Case Processor", exact: true })
