@@ -56,8 +56,12 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   for(const width of [1440,768,390]){
    await publicPage.setViewportSize({width,height:1000});
    if(await publicPage.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Public home horizontal overflow '+width);
+   if(await publicPage.evaluate(()=>[...document.querySelectorAll('body *')].some(el=>['auto','scroll'].includes(getComputedStyle(el).overflowY)&&el.scrollHeight>el.clientHeight+1)))throw Error('Public home nested scroll panel '+width);
+   if(await publicPage.locator('.ph-workflow-steps li').count()!==4)throw Error('Home workflow information missing');
    await publicPage.screenshot({path:path.join(qaDirectory,'screens',`home-${width}.png`),fullPage:true});
   }
+  const gettingStarted=publicPage.getByText('How do I register as a student?',{exact:true});await gettingStarted.focus();await gettingStarted.press('Enter');await publicPage.waitForFunction(()=>document.querySelector('.ph-home-faq details[open]')!==null);
+  console.log('PASS informative home page with two account actions, keyboard-accessible getting-started guide and no nested scrollbars');
 
   for(const account of publicRoles){
    await publicPage.goto(origin+'/#/access/'+account.role+'/user');await publicPage.getByRole('heading',{name:account.name+' sign in',exact:true}).waitFor();
