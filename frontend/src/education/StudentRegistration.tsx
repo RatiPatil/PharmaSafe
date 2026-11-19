@@ -4,6 +4,8 @@ import {
   GraduationCap,
   CheckCircle2,
   ArrowRight,
+  Copy,
+  Clock3,
 } from "lucide-react";
 import { AccessDialog } from "../workspaces/AccessDialog";
 import { apiRequest } from "../config/api";
@@ -37,6 +39,13 @@ export function StudentRegistration() {
     [copyMessage, setCopyMessage] = useState(""),
     [attempt, setAttempt] = useState(0);
   const dirty = useRef(false);
+  const confirmationButton = useRef<HTMLButtonElement>(null);
+  function closeReceipt() {
+    setReceiptOpen(false);
+    requestAnimationFrame(() =>
+      confirmationButton.current?.focus({ preventScroll: true }),
+    );
+  }
   useEffect(() => {
     const c = new AbortController();
     apiRequest<Catalog>("/api/education/catalog", "GET", undefined, c.signal)
@@ -111,7 +120,14 @@ export function StudentRegistration() {
               Your college will review your access. Keep your Student ID for the
               common sign-in page.
             </p>
-            <button type="button" onClick={() => setReceiptOpen(true)}>
+            <button
+              ref={confirmationButton}
+              type="button"
+              onClick={() => {
+                setCopyMessage("");
+                setReceiptOpen(true);
+              }}
+            >
               View registration confirmation
             </button>
             <a className="pa-primary-link" href="#/login">
@@ -376,16 +392,22 @@ export function StudentRegistration() {
         <AccessDialog
           title="Registration Successful"
           eyebrow="STUDENT REGISTRATION"
-          onClose={() => setReceiptOpen(false)}
+          className="edu-success-dialog"
+          onClose={closeReceipt}
         >
           <div className="edu-registration-receipt">
-            <span className="edu-success-icon">
-              <CheckCircle2 size={44} />
-            </span>
-            <p>
-              Your registration was saved successfully. College Admin approval
-              is required before domain work becomes available.
-            </p>
+            <div className="edu-receipt-intro">
+              <span className="edu-success-icon">
+                <CheckCircle2 size={30} />
+              </span>
+              <div>
+                <h3>Keep your Student ID.</h3>
+                <p>
+                  Your registration is saved. Use this ID to sign in and follow
+                  your college’s approval.
+                </p>
+              </div>
+            </div>
             <dl>
               <div>
                 <dt>Student name</dt>
@@ -396,35 +418,51 @@ export function StudentRegistration() {
                 <dd>{success.collegeName}</dd>
               </div>
               <div className="edu-receipt-id">
-                <dt>Student ID</dt>
-                <dd>
+                <dt>Your Student ID</dt>
+                <dd className="edu-receipt-id-value">
                   <code tabIndex={0}>{success.studentCode}</code>
+                  <button
+                    type="button"
+                    className="edu-copy-id"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(
+                          success.studentCode,
+                        );
+                        setCopyMessage("Student ID copied.");
+                      } catch {
+                        setCopyMessage(
+                          "Copy is unavailable. Select the Student ID above to copy it manually.",
+                        );
+                      }
+                    }}
+                  >
+                    <Copy size={15} aria-hidden="true" />
+                    Copy Student ID
+                  </button>
                 </dd>
               </div>
-              <div>
+              <div className="edu-receipt-status">
                 <dt>Registration status</dt>
-                <dd>Awaiting College Admin approval</dd>
+                <dd>
+                  <Clock3 size={15} aria-hidden="true" />
+                  Awaiting College Admin approval
+                </dd>
               </div>
             </dl>
-            <button
-              type="button"
-              className="pa-primary-link"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(success.studentCode);
-                  setCopyMessage("Student ID copied.");
-                } catch {
-                  setCopyMessage(
-                    "Copy is unavailable. Select the Student ID above to copy it manually.",
-                  );
-                }
-              }}
-            >
-              Copy Student ID
-            </button>
-            {copyMessage && <p role="status">{copyMessage}</p>}
+            <p className="edu-copy-feedback" role="status" aria-live="polite">
+              {copyMessage ||
+                "Your ID is unique to you. Save a copy for future sign-ins."}
+            </p>
+            <div className="edu-receipt-next">
+              <strong>What happens next?</strong>
+              <p>
+                Your college reviews your access. Sign in to follow your
+                approval status; approved domains will open your assigned work.
+              </p>
+            </div>
             <div className="edu-receipt-actions">
-              <button onClick={() => setReceiptOpen(false)}>
+              <button type="button" onClick={closeReceipt}>
                 Close confirmation
               </button>
               <a className="pa-primary-link" href="#/login">
