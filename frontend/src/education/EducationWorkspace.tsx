@@ -20,6 +20,7 @@ import { useAuth } from "../context/AuthContext";
 import { apiRequest, downloadPdf } from "../config/api";
 import { AccessDialog } from "../workspaces/AccessDialog";
 import { dateTime } from "../workspaces/model";
+import { GrantStudentAccess } from "./GrantStudentAccess";
 import { EducationTask } from "./EducationTask";
 import {
   CollegeTools,
@@ -67,7 +68,7 @@ const emptyAssignment = () => ({
 function location() {
   const hash = window.location.hash.split("?")[0];
   const match = hash.match(
-    /^#\/education\/(ROLE_[A-Z_]+)\/(dashboard|students|requests|work|assign|reports|colleges|profile|settings)$/,
+    /^#\/education\/(ROLE_[A-Z_]+)\/(dashboard|students|requests|work|assign|reports|colleges|profile|settings|completed|pending)$/,
   );
   return {
     domain: match?.[1] || "",
@@ -141,6 +142,7 @@ export function EducationWorkspace() {
     } | null>(null),
     [reason, setReason] = useState(""),
     [editingWork, setEditingWork] = useState<Task | null>(null);
+  const [grantOpen, setGrantOpen] = useState(false);
   const pendingOrder = useRef<ReturnType<typeof emptyAssignment> | null>(null);
   const dirtyRef = useRef(false),
     prior = useRef(window.location.hash),
@@ -153,6 +155,7 @@ export function EducationWorkspace() {
       user?.role === "ROLE_COLLEGE_ADMIN" ||
       user?.role === "ROLE_DOMAIN_ADMIN";
   const selectionScreen = !root && !student && route.section === "home";
+  const workSection = ["work", "completed", "pending"].includes(route.section);
   const domain = catalog?.domains.find((d) => d.code === route.domain);
   const card = overview?.domains.find((d) => d.code === route.domain);
   const title = root
@@ -268,14 +271,15 @@ export function EducationWorkspace() {
       if (domainRequired && route.domain) p.set("domain", route.domain);
       if (collegeId) p.set("collegeId", collegeId);
       if (studentCode) p.set("studentCode", studentCode);
-      if (status) p.set("status", status);
+      if (route.section === "completed") p.set("status", "COMPLETED");
+      else if (route.section === "pending") p.set("status", "PENDING");
+      else if (status) p.set("status", status);
       return p;
     },
-    [route.domain, collegeId, studentCode, status],
+    [route.domain, route.section, collegeId, studentCode, status],
   );
   useEffect(() => {
     const c = new AbortController();
-    setError("");
     Promise.all([
       apiRequest<Catalog>("/api/education/catalog", "GET", undefined, c.signal),
       apiRequest<College[]>(
@@ -285,19 +289,32 @@ export function EducationWorkspace() {
         undefined,
         c.signal,
       ),
-      apiRequest<Overview>(
-        `/api/education/overview?${params(false)}`,
-        "GET",
-        undefined,
-        c.signal,
-      ),
     ])
-      .then(([catalog, cols, view]) => {
-        if (c.signal.aborted) return;
-        setCatalog(catalog);
-        setColleges(cols);
-        setOverview(view);
-        setLoading(false);
+      .then(([nextCatalog, cols]) => {
+        if (!c.signal.aborted) {
+          setCatalog(nextCatalog);
+          setColleges(cols);
+        }
+      })
+      .catch((e) => {
+        if (!c.signal.aborted) setError(e.message);
+      });
+    return () => c.abort();
+  }, [refresh, route.domain]);
+  useEffect(() => {
+    const c = new AbortController();
+    setError("");
+    apiRequest<Overview>(
+      `/api/education/overview?${params(false)}`,
+      "GET",
+      undefined,
+      c.signal,
+    )
+      .then((view) => {
+        if (!c.signal.aborted) {
+          setOverview(view);
+          setLoading(false);
+        }
       })
       .catch((e) => {
         if (!c.signal.aborted) {
@@ -307,7 +324,7 @@ export function EducationWorkspace() {
         }
       });
     return () => c.abort();
-  }, [refresh, params, route.domain]);
+  }, [refresh, params]);
   useEffect(() => {
     if (!domain || !card?.authorized || selected !== null) return;
     const c = new AbortController();
@@ -315,7 +332,7 @@ export function EducationWorkspace() {
     setError("");
     const p = params();
     p.set("page", String(page));
-    const name = route.section;
+    const name = workSection ? "work" : route.section;
     if (name === "requests") {
       p.delete("studentCode");
       p.set("status", accessStatus);
@@ -432,7 +449,7 @@ export function EducationWorkspace() {
   );
   return (
     <div
-      className={`ws-shell edu-shell ${selectionScreen ? "edu-selection" : ""}`}
+      className={`ws-shell edu-shell ${selectionScreen ? "edu-selection" : ""} ${user?.role === "ROLE_COLLEGE_ADMIN" ? "edu-college-view" : ""}`}
       data-validation-context="education"
       data-testid="education-workspace"
     >
@@ -502,10 +519,8 @@ export function EducationWorkspace() {
                   key={section}
                   onClick={() => {
                     if (section === "completed" || section === "pending") {
-                      setStatus(
-                        section === "completed" ? "COMPLETED" : "PENDING",
-                      );
-                      go("work");
+                      setStatus("");
+                      go(section);
                     } else go(section);
                   }}
                   aria-current={route.section === section ? "page" : undefined}
@@ -666,6 +681,25 @@ export function EducationWorkspace() {
                   <BookOpenCheck size={64} />
                 </section>
               )}
+              {user?.role === "ROLE_COLLEGE_ADMIN" && (
+                <div className="edu-access-banner">
+                  <div>
+                    <h2>Student access requests</h2>
+                    <p>
+                      Review new registrations before students start their
+                      domain work.
+                    </p>
+                  </div>
+                  <button
+                    className="ws-primary edu-grant-access"
+                    aria-label="Grant Student Access"
+                    onClick={() => setGrantOpen(true)}
+                  >
+                    Grant Student Access{" "}
+                    <span aria-hidden="true">{overview.pendingStudentApprovals || 0}</span>
+                  </button>
+                </div>
+              )}
               <div className="edu-domain-grid">
                 {overview.domains.map((d, i) => {
                   const Icon = icons[i];
@@ -688,9 +722,12 @@ export function EducationWorkspace() {
                         <div className="edu-card-stats">
                           {!student && (
                             <>
-                              <span>
-                                <strong>{d.stats.colleges || 0}</strong>Colleges
-                              </span>
+                              {user?.role !== "ROLE_COLLEGE_ADMIN" && (
+                                <span>
+                                  <strong>{d.stats.colleges || 0}</strong>
+                                  Colleges
+                                </span>
+                              )}
                               <span>
                                 <strong>{d.stats.students || 0}</strong>Students
                               </span>
@@ -791,7 +828,7 @@ export function EducationWorkspace() {
                           <input
                             aria-label="Student ID filter"
                             maxLength={32}
-                            placeholder="ST-000001"
+                            placeholder="COLLEGE-0001"
                             value={studentQuery}
                             onChange={(e) =>
                               setStudentQuery(e.target.value.toUpperCase())
@@ -805,10 +842,26 @@ export function EducationWorkspace() {
                       Work status filter
                       <select
                         aria-label="Work status filter"
-                        value={status}
-                        onChange={(e) =>
-                          updateFilter(() => setStatus(e.target.value))
+                        value={
+                          route.section === "completed"
+                            ? "COMPLETED"
+                            : route.section === "pending"
+                              ? "PENDING"
+                              : status
                         }
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          if (
+                            route.section === "completed" ||
+                            route.section === "pending"
+                          ) {
+                            if (!leave()) return;
+                            dirtyRef.current = false;
+                            setDirty(false);
+                            setStatus(next);
+                            go("work");
+                          } else updateFilter(() => setStatus(next));
+                        }}
                       >
                         <option value="">All work statuses</option>
                         <option value="PENDING">Pending work</option>
@@ -1108,7 +1161,9 @@ export function EducationWorkspace() {
                           <th>College</th>
                           <th>Status</th>
                           <th>Decision reason</th>
-                          {manager && <th>Actions</th>}
+                          {(root || user?.role === "ROLE_COLLEGE_ADMIN") && (
+                            <th>Actions</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
@@ -1125,7 +1180,7 @@ export function EducationWorkspace() {
                               <span className="ws-badge">{r.status}</span>
                             </td>
                             <td>{r.reason || "Awaiting review"}</td>
-                            {manager && (
+                            {(root || user?.role === "ROLE_COLLEGE_ADMIN") && (
                               <td>
                                 <div className="ws-actions">
                                   {r.status !== "APPROVED" && (
@@ -1281,7 +1336,7 @@ export function EducationWorkspace() {
                         <textarea
                           required
                           maxLength={3200}
-                          placeholder="ST-000001, ST-000002"
+                          placeholder="COLLEGE-0001, COLLEGE-0002"
                           value={assignment.studentCodes}
                           onChange={(e) =>
                             setAssignment((v) => ({
@@ -1298,7 +1353,7 @@ export function EducationWorkspace() {
                         <input
                           name="studentCode"
                           required
-                          pattern="ST-[0-9]{6,18}"
+                          pattern="(?:ST-[0-9]{6,18}|[A-Z0-9][A-Z0-9-]{2,15}-[0-9]{4,15})"
                           maxLength={32}
                           value={assignment.studentCode}
                           onChange={(e) =>
@@ -1376,7 +1431,7 @@ export function EducationWorkspace() {
                     </button>
                   </form>
                 </section>
-              ) : route.section === "work" ? (
+              ) : workSection ? (
                 <>
                   {manager && (
                     <WorkOrders
@@ -1566,6 +1621,12 @@ export function EducationWorkspace() {
           )}
         </main>
       </div>
+      {grantOpen && user?.role === "ROLE_COLLEGE_ADMIN" && (
+        <GrantStudentAccess
+          onClose={() => setGrantOpen(false)}
+          onSaved={reload}
+        />
+      )}
       {editingWork && (
         <WorkEditor
           work={editingWork}

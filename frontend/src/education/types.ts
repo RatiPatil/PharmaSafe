@@ -41,6 +41,7 @@ export type Overview = {
   username: string;
   collegeId: number | null;
   assignedDomain: string | null;
+  pendingStudentApprovals?:number;
   studentCode: string | null;
   domains: Card[];
   updatedAt: string;

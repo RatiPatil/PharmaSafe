@@ -8,7 +8,9 @@ const db=new PGlite(),directory=join(dirname(fileURLToPath(import.meta.url)),'..
 try{
  for(const f of readdirSync(directory).filter(f=>/^V\d+__.*\.sql$/.test(f)).sort((a,b)=>Number(a.match(/^V(\d+)/)[1])-Number(b.match(/^V(\d+)/)[1]))){
   if(f.startsWith('V22__'))await db.exec("INSERT INTO users(username,password_hash,role) VALUES('legacy-domain-a','hash','ROLE_DOMAIN_ADMIN'),('legacy-domain-b','hash','ROLE_DOMAIN_ADMIN'); INSERT INTO edu_domain_admins(user_id,domain,active,assigned_at) SELECT id,CASE WHEN username='legacy-domain-a' THEN 'ROLE_CASE_PROCESSOR' ELSE 'ROLE_MEDICAL_REVIEWER' END,TRUE,CURRENT_TIMESTAMP FROM users WHERE username IN ('legacy-domain-a','legacy-domain-b') ORDER BY id");
+  if(f.startsWith('V24__'))await db.exec("INSERT INTO users(username,password_hash,role) VALUES('legacy-student','hash','ROLE_STUDENT'); INSERT INTO edu_colleges(code,name,active,created_at) VALUES('LEGACY','Legacy College',TRUE,CURRENT_TIMESTAMP); INSERT INTO edu_student_id_reservations(college_id,token_hash,expires_at) SELECT id,repeat('f',64),CURRENT_TIMESTAMP+INTERVAL '1 hour' FROM edu_colleges WHERE code='LEGACY'; BEGIN; INSERT INTO edu_students(user_id,college_id,reservation_id,student_code,created_at) SELECT u.id,r.college_id,r.id,r.student_code,CURRENT_TIMESTAMP FROM users u CROSS JOIN edu_student_id_reservations r WHERE u.username='legacy-student' AND r.token_hash=repeat('f',64); INSERT INTO edu_student_domains(student_id,domain,status,requested_at) SELECT s.id,d.domain,'PENDING',CURRENT_TIMESTAMP FROM edu_students s CROSS JOIN (SELECT DISTINCT domain FROM edu_domain_stages)d; COMMIT;");
   await db.exec(readFileSync(join(directory,f),'utf8'));
+  if(f.startsWith('V24__'))assert.match((await db.query("SELECT student_code FROM edu_students s JOIN users u ON u.id=s.user_id WHERE u.username='legacy-student'")).rows[0].student_code,/^ST-[0-9]+$/);
   if(f.startsWith('V22__')){
    const migrated=(await db.query('SELECT a.domain,a.active,u.username FROM edu_domain_admins a JOIN users u ON u.id=a.user_id ORDER BY a.id')).rows;
    assert.equal(migrated.length,2);assert.equal(migrated[0].active,true);assert.equal(migrated[1].active,false);assert.ok(migrated.every(g=>g.domain===null));
@@ -25,16 +27,21 @@ try{
  await db.exec(`INSERT INTO edu_domain_admins(user_id,domain,active,assigned_at) VALUES(${await uid('edu-domain')},NULL,TRUE,CURRENT_TIMESTAMP)`);
  await assert.rejects(db.exec(`INSERT INTO edu_domain_admins(user_id,domain,active,assigned_at) VALUES(${await uid('legacy-domain-b')},NULL,TRUE,CURRENT_TIMESTAMP)`),e=>e.code==='23505');
  await db.exec(`INSERT INTO edu_student_id_reservations(college_id,token_hash,expires_at) VALUES(${ca},repeat('a',64),CURRENT_TIMESTAMP+INTERVAL '1 hour'),(${cb},repeat('b',64),CURRENT_TIMESTAMP+INTERVAL '1 hour')`);
- const reservations=(await db.query('SELECT id,college_id,student_code FROM edu_student_id_reservations ORDER BY id')).rows;
+ await db.exec("UPDATE edu_student_id_reservations r SET student_code=c.code||'-'||lpad(r.id::text,4,'0') FROM edu_colleges c WHERE c.id=r.college_id AND r.student_code IS NULL");
+ const reservations=(await db.query("SELECT id,college_id,student_code FROM edu_student_id_reservations WHERE token_hash IN (repeat('a',64),repeat('b',64)) ORDER BY id")).rows;
  const student=(u,r,c)=>`INSERT INTO edu_students(user_id,college_id,reservation_id,student_code,created_at) VALUES(${u},${c},${r.id},'${r.student_code}',CURRENT_TIMESTAMP)`;
  await assert.rejects(db.exec(student(await uid('edu-clinical'),reservations[0],ca)),e=>e.code==='23514');
  await assert.rejects(db.exec(student(await uid('edu-student'),reservations[0],cb)),e=>e.code==='23514'||e.code==='23503');
- await db.exec('BEGIN;'+student(await uid('edu-student'),reservations[0],ca)+';'+student(await uid('edu-other'),reservations[1],cb)+";INSERT INTO edu_student_domains(student_id,domain,status,requested_at) SELECT s.id,d.domain,'PENDING',CURRENT_TIMESTAMP FROM edu_students s CROSS JOIN (SELECT DISTINCT domain FROM edu_domain_stages)d;COMMIT;");
+ await db.exec('BEGIN;'+student(await uid('edu-student'),reservations[0],ca)+';'+student(await uid('edu-other'),reservations[1],cb)+";INSERT INTO edu_student_domains(student_id,domain,status,requested_at) SELECT s.id,d.domain,'PENDING',CURRENT_TIMESTAMP FROM edu_students s CROSS JOIN (SELECT DISTINCT domain FROM edu_domain_stages)d WHERE NOT EXISTS(SELECT 1 FROM edu_student_domains m WHERE m.student_id=s.id AND m.domain=d.domain);COMMIT;");
  const studentId=(await db.query(`SELECT id FROM edu_students WHERE college_id=${ca}`)).rows[0].id,otherId=(await db.query(`SELECT id FROM edu_students WHERE college_id=${cb}`)).rows[0].id;
  await assert.rejects(db.exec(`UPDATE edu_students SET college_id=${cb} WHERE id=${studentId}`),e=>e.code==='23514');
 
  await assert.rejects(db.exec(`UPDATE edu_student_domains SET status='APPROVED',reviewer_id=${await uid('edu-beta')},reason='Wrong college',reviewed_at=CURRENT_TIMESTAMP WHERE student_id=${studentId}`),e=>e.code==='23514');
  await assert.rejects(db.exec(`UPDATE edu_student_domains SET status='APPROVED',reviewer_id=${await uid('edu-clinical')},reason='Clinical user cannot approve',reviewed_at=CURRENT_TIMESTAMP WHERE student_id=${studentId}`),e=>e.code==='23514');
+ await assert.rejects(db.exec(`UPDATE edu_student_domains SET status='APPROVED',reviewer_id=${await uid('edu-domain')},reason='Domain cannot grant college access',reviewed_at=CURRENT_TIMESTAMP WHERE student_id=${studentId}`),e=>e.code==='23514');
+ await db.exec(`INSERT INTO edu_college_student_sequences(college_id,last_value) VALUES(${ca},1)`);
+ await assert.rejects(db.exec(`UPDATE edu_college_student_sequences SET last_value=0 WHERE college_id=${ca}`),e=>e.code==='23514');
+ await assert.rejects(db.exec(`DELETE FROM edu_college_student_sequences WHERE college_id=${ca}`),e=>e.code==='23514');
  const task=(student=studentId,college=ca,actor,stage='Case intake')=>`INSERT INTO edu_tasks(college_id,student_id,assigned_by,domain,stage,title,description,instructions,due_at,status,progress,created_at,updated_at) VALUES(${college},${student},${actor},'ROLE_CASE_PROCESSOR','${stage}','Synthetic assignment','Source review exercise','Verify source evidence',CURRENT_TIMESTAMP+INTERVAL '1 day','NOT_STARTED',0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`;
  await assert.rejects(db.exec(task(studentId,ca,await uid('edu-alpha'))),e=>e.code==='23514');
  await db.exec(`UPDATE edu_student_domains SET status='APPROVED',reviewer_id=${await uid('edu-root')},reason='Enrollment verified',reviewed_at=CURRENT_TIMESTAMP`);
@@ -54,6 +61,7 @@ try{
  await assert.rejects(db.exec(report(await uid('edu-beta'))),e=>e.code==='23514');await assert.rejects(db.exec(report(await uid('edu-other'))),e=>e.code==='23514');await db.exec(report(await uid('edu-student')));await db.exec(report(await uid('edu-domain')).replace("'ROLE_CASE_PROCESSOR'","'ROLE_MEDICAL_REVIEWER'"));
  await assert.rejects(db.exec(`DELETE FROM edu_student_domains WHERE student_id=${studentId} AND domain='ROLE_MEDICAL_REVIEWER'`),e=>e.code==='23514');
  await db.exec("INSERT INTO users(username,password_hash,role) VALUES('partial-student','hash','ROLE_STUDENT');INSERT INTO edu_student_id_reservations(college_id,token_hash,expires_at) VALUES("+ca+",repeat('c',64),CURRENT_TIMESTAMP+INTERVAL '1 hour')");
+ await db.exec("UPDATE edu_student_id_reservations r SET student_code=c.code||'-'||lpad(r.id::text,4,'0') FROM edu_colleges c WHERE c.id=r.college_id AND r.student_code IS NULL");
  const partial=(await db.query("SELECT id,student_code FROM edu_student_id_reservations WHERE token_hash=repeat('c',64)")).rows[0];
  await assert.rejects(db.exec(student(await uid('partial-student'),partial,ca)),e=>e.code==='23514');
  const order=actor=>`INSERT INTO edu_work_orders(college_id,created_by,domain,stage,title,description,instructions,due_at,created_at) VALUES(${ca},${actor},'ROLE_CASE_PROCESSOR','Case intake','Synthetic assignment','Source review exercise','Verify source evidence',CURRENT_TIMESTAMP+INTERVAL '2 days',CURRENT_TIMESTAMP)`;
@@ -66,5 +74,5 @@ try{
  for(const table of ['edu_work_orders','edu_tasks','edu_students','edu_colleges','edu_management_changes'])await assert.rejects(db.exec(`DELETE FROM ${table}`),e=>e.code==='23514');
  for(const table of ['edu_task_submissions','edu_task_feedback','edu_submission_documents','edu_progress_reports'])await assert.rejects(db.exec(`DELETE FROM ${table}`),e=>e.code==='23514');
  await assert.rejects(db.exec("UPDATE users SET role='ROLE_CASE_PROCESSOR' WHERE username='edu-student'"),e=>e.code==='23514');
- console.log('PASS V23 mandatory seven-domain enrollment and single active all-domain admin upgrade and college workflow schema: college-bound unique Student IDs, fixed enrollment and task recipients, seven-domain stage integrity, scoped approvals/assignment/report authors, current revisions, composite FKs and immutable submissions/feedback/documents/reports');
+ console.log('PASS V24 college-sequenced IDs and mandatory seven-domain enrollment and single active all-domain admin upgrade and college workflow schema: college-bound unique Student IDs, fixed enrollment and task recipients, seven-domain stage integrity, scoped approvals/assignment/report authors, current revisions, composite FKs and immutable submissions/feedback/documents/reports');
 }finally{await db.close();}

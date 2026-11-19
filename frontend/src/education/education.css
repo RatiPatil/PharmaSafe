@@ -684,3 +684,235 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+/* Refined, consistent educational workspaces without altering Super Admin layouts. */
+.edu-selection .edu-domain-grid {
+  align-items: stretch;
+  gap: 22px;
+}
+.edu-selection .edu-domain-card {
+  position: relative;
+  border-radius: 18px;
+  padding: 26px;
+  overflow: hidden;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.edu-selection .edu-domain-card:before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--edu-color), transparent);
+  opacity: 0.65;
+}
+.edu-selection .edu-domain-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px #16365212;
+  border-color: #c7d7e7;
+}
+.edu-selection .edu-domain-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #edf5fa, #f8fbfd);
+  box-shadow: inset 0 0 0 1px #dce7ef;
+  color: var(--edu-color);
+}
+.edu-selection .edu-domain-card h2 {
+  font-size: 19px;
+  letter-spacing: -0.3px;
+  margin-top: 20px;
+}
+.edu-selection .edu-domain-card > p {
+  line-height: 1.75;
+  min-height: 4em;
+}
+.edu-selection .edu-domain-card > button {
+  min-height: 44px;
+  border-radius: 10px;
+  transition:
+    background 0.18s,
+    border-color 0.18s;
+}
+.edu-selection .edu-domain-card > button:hover {
+  background: #eff5fa;
+  border-color: #a6bfd4;
+}
+.edu-college-view.edu-selection .edu-card-stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.edu-access-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin: 8px 0 28px;
+  padding: 22px 26px;
+  background: #fff;
+  border: 1px solid #dce7ef;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px #173b5505;
+}
+.edu-access-banner h2 {
+  font-size: 17px;
+  margin: 0 0 5px;
+}
+.edu-access-banner p {
+  color: #607387;
+  margin: 0;
+  font-size: 13px;
+}
+.edu-grant-access {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 10px;
+}
+.edu-grant-access span {
+  background: #ffffff24;
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+.edu-registration-receipt {
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.edu-success-icon {
+  display: inline-flex;
+  background: #eaf7f1;
+  color: #268168;
+  padding: 18px;
+  border-radius: 50%;
+  margin: 8px 0 14px;
+}
+.edu-registration-receipt > p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #607387;
+}
+.edu-registration-receipt dl {
+  display: grid;
+  gap: 16px;
+  text-align: left;
+  padding: 22px;
+  background: #f8fafc;
+  border: 1px solid #e0e8f0;
+  border-radius: 14px;
+  margin: 22px 0;
+}
+.edu-registration-receipt dt {
+  font-size: 12px;
+  color: #607387;
+}
+.edu-registration-receipt dd {
+  margin: 5px 0 0;
+  color: #17364f;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.edu-receipt-id {
+  padding: 15px;
+  background: #edf5fb;
+  border: 1px solid #cadcea;
+  border-radius: 10px;
+}
+.edu-receipt-id code {
+  font-size: clamp(18px, 3vw, 26px);
+  user-select: all;
+}
+.edu-receipt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+.edu-access-review table td {
+  vertical-align: top;
+}
+.edu-access-review td small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.edu-review-heading,
+.edu-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.edu-empty-state {
+  text-align: center;
+  padding: 36px 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+.edu-access-review textarea {
+  min-height: 105px;
+}
+.edu-shell .access-dialog,
+.edu-registration .access-dialog {
+  border-radius: 20px;
+  border-color: #dce7ef;
+  box-shadow: 0 28px 90px #102a432b;
+  animation: edu-modal-in 0.18s ease-out;
+}
+.edu-shell .ws-primary,
+.edu-shell button,
+.edu-registration button {
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.edu-shell button:focus-visible,
+.edu-registration button:focus-visible {
+  outline: 3px solid #5b9dbd;
+  outline-offset: 3px;
+}
+@keyframes edu-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 760px) {
+  .edu-access-banner {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 20px;
+  }
+  .edu-grant-access {
+    justify-content: center;
+  }
+  .edu-selection .edu-domain-card {
+    padding: 22px;
+  }
+  .edu-registration-receipt dl {
+    padding: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edu-shell *,
+  .edu-registration * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .edu-selection .edu-domain-card:hover {
+    transform: none;
+  }
+}

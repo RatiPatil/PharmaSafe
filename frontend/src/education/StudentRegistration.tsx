@@ -5,21 +5,23 @@ import {
   CheckCircle2,
   ArrowRight,
 } from "lucide-react";
+import { AccessDialog } from "../workspaces/AccessDialog";
 import { apiRequest } from "../config/api";
 import { passwordPolicy } from "../config/inputValidation";
 import type { Catalog } from "./types";
 import "../components/PublicAccess.css";
 import "./education.css";
-type Reservation = {
+type RegistrationResult = {
   studentCode: string;
-  reservationToken: string;
-  expiresAt: string;
+  fullName: string;
+  collegeName: string;
+  registrationStatus: string;
+  message?: string;
 };
 export function StudentRegistration() {
   const [catalog, setCatalog] = useState<Catalog | null>(null),
     [collegeId, setCollegeId] = useState(""),
     [selected, setSelected] = useState<string[]>([]),
-    [reservation, setReservation] = useState<Reservation | null>(null),
     [values, setValues] = useState({
       fullName: "",
       username: "",
@@ -29,12 +31,12 @@ export function StudentRegistration() {
     }),
     [show, setShow] = useState(false),
     [busy, setBusy] = useState(false),
-    [reserving, setReserving] = useState(false),
     [error, setError] = useState(""),
-    [success, setSuccess] = useState(""),
+    [success, setSuccess] = useState<RegistrationResult | null>(null),
+    [receiptOpen, setReceiptOpen] = useState(false),
+    [copyMessage, setCopyMessage] = useState(""),
     [attempt, setAttempt] = useState(0);
-  const generation = useRef(0),
-    dirty = useRef(false);
+  const dirty = useRef(false);
   useEffect(() => {
     const c = new AbortController();
     apiRequest<Catalog>("/api/education/catalog", "GET", undefined, c.signal)
@@ -69,32 +71,6 @@ export function StudentRegistration() {
       window.removeEventListener("hashchange", hash);
     };
   }, []);
-  async function reserve(id: string) {
-    const current = ++generation.current;
-    setCollegeId(id);
-    setReservation(null);
-    setError("");
-    if (!id) {
-      setReserving(false);
-      return;
-    }
-    setReserving(true);
-    try {
-      const r = await apiRequest<Reservation>(
-        "/api/education/student-id",
-        "POST",
-        { collegeId: Number(id) },
-      );
-      if (current === generation.current) setReservation(r);
-    } catch (e) {
-      if (current === generation.current)
-        setError(
-          e instanceof Error ? e.message : "Student ID generation failed",
-        );
-    } finally {
-      if (current === generation.current) setReserving(false);
-    }
-  }
   return (
     <div className="pa-site edu-registration">
       <header className="pa-header">
@@ -118,7 +94,7 @@ export function StudentRegistration() {
           <p className="pa-eyebrow">COLLEGE & DOMAIN ACCESS</p>
           <h1>Build your safety expertise.</h1>
           <p>
-            Register with your college, reserve your Student ID and select all
+            Register with your college, complete your details and select all
             seven domains. Your college reviews each domain request.
           </p>
         </div>
@@ -128,17 +104,18 @@ export function StudentRegistration() {
           </p>
         )}
         {success ? (
-          <section className="pa-card pa-success" role="status">
-            <CheckCircle2 size={40} />
-            <h2>Student registration saved</h2>
-            <p>Your Student ID</p>
-            <strong className="edu-student-id">{success}</strong>
+          <section className="pa-card pa-success">
+            <CheckCircle2 size={48} />
+            <h2>Registration submitted</h2>
             <p>
-              Sign in to track approvals. Domain work opens after your College
-              Admin approves access.
+              Your college will review your access. Keep your Student ID for the
+              common sign-in page.
             </p>
+            <button type="button" onClick={() => setReceiptOpen(true)}>
+              View registration confirmation
+            </button>
             <a className="pa-primary-link" href="#/login">
-              Sign in <ArrowRight size={17} />
+              Continue to sign in <ArrowRight size={16} />
             </a>
           </section>
         ) : !catalog ? (
@@ -180,7 +157,7 @@ export function StudentRegistration() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 setError("");
-                if (!reservation || selected.length !== 7) {
+                if (!collegeId || selected.length !== 7) {
                   setError("Select all seven domains before registering.");
                   return;
                 }
@@ -195,16 +172,23 @@ export function StudentRegistration() {
                 }
                 setBusy(true);
                 try {
-                  const result = await apiRequest<{ studentCode: string }>(
+                  const result = await apiRequest<RegistrationResult>(
                     "/api/education/register",
                     "POST",
                     {
                       ...values,
                       collegeId: Number(collegeId),
-                      reservationToken: reservation.reservationToken,
                       domains: selected,
                     },
                   );
+                  if (
+                    !result.studentCode ||
+                    !result.fullName ||
+                    !result.collegeName
+                  )
+                    throw new Error(
+                      "Registration confirmation is incomplete. Contact your college before trying again.",
+                    );
                   dirty.current = false;
                   setValues({
                     fullName: "",
@@ -214,13 +198,13 @@ export function StudentRegistration() {
                     confirmPassword: "",
                   });
                   setSelected([]);
-                  setSuccess(result.studentCode);
+                  setSuccess(result);
+                  setReceiptOpen(true);
+                  setCopyMessage("");
                 } catch (e) {
                   const message =
                     e instanceof Error ? e.message : "Registration failed";
                   setError(message);
-                  if (message.toLowerCase().includes("reservation"))
-                    setReservation(null);
                 } finally {
                   setBusy(false);
                 }
@@ -237,8 +221,11 @@ export function StudentRegistration() {
                       aria-label="College"
                       required
                       value={collegeId}
-                      disabled={reserving || !catalog.colleges.length}
-                      onChange={(e) => void reserve(e.target.value)}
+                      disabled={!catalog.colleges.length}
+                      onChange={(e) => {
+                        setCollegeId(e.target.value);
+                        setError("");
+                      }}
                     >
                       <option value="">
                         {catalog.colleges.length
@@ -252,28 +239,7 @@ export function StudentRegistration() {
                       ))}
                     </select>
                   </label>
-                  <div className="edu-id-reservation" role="status">
-                    <span>Automatically generated Student ID</span>
-                    <strong>
-                      {reserving
-                        ? "Generating…"
-                        : reservation?.studentCode || "Choose a college first"}
-                    </strong>
-                    {reservation && (
-                      <small>
-                        Reserved for 20 minutes. This becomes your permanent ID
-                        when registration is saved.
-                      </small>
-                    )}
-                    {collegeId && !reserving && (
-                      <button
-                        type="button"
-                        onClick={() => void reserve(collegeId)}
-                      >
-                        Generate a fresh Student ID
-                      </button>
-                    )}
-                  </div>
+
                   {(["fullName", "username", "email"] as const).map((key) => (
                     <label key={key}>
                       {
@@ -396,9 +362,7 @@ export function StudentRegistration() {
                 </p>
                 <button
                   type="submit"
-                  disabled={
-                    busy || reserving || !reservation || selected.length !== 7
-                  }
+                  disabled={busy || !collegeId || selected.length !== 7}
                 >
                   {busy ? "Saving registration…" : "Register student"}
                   <ArrowRight size={16} />
@@ -408,6 +372,68 @@ export function StudentRegistration() {
           </>
         )}
       </main>
+      {success && receiptOpen && (
+        <AccessDialog
+          title="Registration Successful"
+          eyebrow="STUDENT REGISTRATION"
+          onClose={() => setReceiptOpen(false)}
+        >
+          <div className="edu-registration-receipt">
+            <span className="edu-success-icon">
+              <CheckCircle2 size={44} />
+            </span>
+            <p>
+              Your registration was saved successfully. College Admin approval
+              is required before domain work becomes available.
+            </p>
+            <dl>
+              <div>
+                <dt>Student name</dt>
+                <dd>{success.fullName}</dd>
+              </div>
+              <div>
+                <dt>College</dt>
+                <dd>{success.collegeName}</dd>
+              </div>
+              <div className="edu-receipt-id">
+                <dt>Student ID</dt>
+                <dd>
+                  <code tabIndex={0}>{success.studentCode}</code>
+                </dd>
+              </div>
+              <div>
+                <dt>Registration status</dt>
+                <dd>Awaiting College Admin approval</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              className="pa-primary-link"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(success.studentCode);
+                  setCopyMessage("Student ID copied.");
+                } catch {
+                  setCopyMessage(
+                    "Copy is unavailable. Select the Student ID above to copy it manually.",
+                  );
+                }
+              }}
+            >
+              Copy Student ID
+            </button>
+            {copyMessage && <p role="status">{copyMessage}</p>}
+            <div className="edu-receipt-actions">
+              <button onClick={() => setReceiptOpen(false)}>
+                Close confirmation
+              </button>
+              <a className="pa-primary-link" href="#/login">
+                Continue to sign in <ArrowRight size={16} />
+              </a>
+            </div>
+          </div>
+        </AccessDialog>
+      )}
     </div>
   );
 }

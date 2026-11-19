@@ -23,7 +23,10 @@ public class EduReservation {
   @Column(nullable = false)
   public boolean consumed;
 
+  @Column(name = "student_code", length = 32)
+  public String studentCode;
+
   public String studentCode() {
-    return "ST-" + String.format(java.util.Locale.ROOT, "%06d", id);
+    return studentCode;
   }
 }

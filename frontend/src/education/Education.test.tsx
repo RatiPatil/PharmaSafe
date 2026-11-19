@@ -51,11 +51,15 @@ beforeEach(() => {
         : path === "/api/education/student-id"
           ? {
               studentCode: "ST-000123",
-              reservationToken: "synthetic-reservation",
               expiresAt: "2026-12-01T12:00:00Z",
             }
           : path === "/api/education/register"
-            ? { studentCode: "ST-000123" }
+            ? {
+                studentCode: "SYN-A-0001",
+                fullName: "Synthetic Student",
+                collegeName: "Synthetic College Alpha",
+                registrationStatus: "PENDING_COLLEGE_APPROVAL",
+              }
             : path.startsWith("/api/education/overview")
               ? {
                   role: m.user.role,
@@ -82,7 +86,7 @@ beforeEach(() => {
               : { content: [], totalElements: 0, totalPages: 0, page: 0 },
   );
 });
-it("requires all seven domains after reserving a college-bound Student ID", async () => {
+it("requires all seven domains without exposing or reserving a Student ID", async () => {
   window.history.replaceState(null, "", "/#/students/register");
   render(<StudentRegistration />);
   await screen.findByRole("option", {
@@ -94,10 +98,10 @@ it("requires all seven domains after reserving a college-bound Student ID", asyn
   fireEvent.change(screen.getByLabelText("College", { exact: true }), {
     target: { value: "4" },
   });
-  await screen.findByText("ST-000123");
-  expect(m.api).toHaveBeenCalledWith("/api/education/student-id", "POST", {
-    collegeId: 4,
-  });
+  expect(screen.queryByText("ST-000123")).not.toBeInTheDocument();
+  expect(
+    m.api.mock.calls.some(([path]) => path === "/api/education/student-id"),
+  ).toBe(false);
   expect(
     screen.getByRole("button", { name: "Register student" }),
   ).toBeDisabled();
@@ -119,14 +123,14 @@ it("requires all seven domains after reserving a college-bound Student ID", asyn
     screen.getByRole("button", { name: "Register student" }),
   ).toBeEnabled();
 });
-it("saves selected domains and the reserved identifier without hardcoded colleges", async () => {
+it("shows the backend-confirmed college identifier only after successful registration", async () => {
   window.history.replaceState(null, "", "/#/students/register");
   render(<StudentRegistration />);
   await screen.findByLabelText("College", { exact: true });
   fireEvent.change(screen.getByLabelText("College", { exact: true }), {
     target: { value: "4" },
   });
-  await screen.findByText("ST-000123");
+  expect(screen.queryByText("SYN-A-0001")).not.toBeInTheDocument();
   for (const [label, value] of Object.entries({
     "Student full name": "Synthetic Student",
     Username: "student.new",
@@ -144,13 +148,14 @@ it("saves selected domains and the reserved identifier without hardcoded college
       }),
     );
   fireEvent.submit(screen.getByRole("form", { name: "Student registration" }));
-  await screen.findByRole("heading", { name: "Student registration saved" });
+  await screen.findByRole("heading", { name: "Registration Successful" });
+  expect(await screen.findByText("SYN-A-0001")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Copy Student ID" })).toBeVisible();
   expect(m.api).toHaveBeenCalledWith(
     "/api/education/register",
     "POST",
     expect.objectContaining({
       collegeId: 4,
-      reservationToken: "synthetic-reservation",
       domains: domains.map((d) => d.code),
     }),
   );
@@ -246,5 +251,124 @@ it("keeps Domain Admin college management inside the selected domain", async () 
   });
   expect(window.location.hash).toBe(
     "#/education/" + domains[0].code + "/colleges",
+  );
+});
+
+it("College Admin grants access separately from seven cards without college counts", async () => {
+  m.user.role = "ROLE_COLLEGE_ADMIN";
+  const base = m.api.getMockImplementation()!;
+  const pending = {
+    id: 91,
+    fullName: "Pending Student",
+    email: "pending@example.test",
+    studentCode: "SYN-A-0001",
+    createdAt: "2026-11-19T10:00:00Z",
+    pendingDomains: domains.map((d) => ({
+      domain: d.code,
+      name: d.name,
+      rowVersion: 0,
+    })),
+  };
+  m.api.mockImplementation(async (path: string, ...args: unknown[]) =>
+    path.startsWith("/api/education/student-access?")
+      ? { content: [pending], totalElements: 1, totalPages: 1, page: 0 }
+      : path.endsWith("/91/decision")
+        ? { updatedDomains: 7 }
+        : base(path, ...args),
+  );
+  const { container } = render(<EducationWorkspace />);
+  await screen.findByRole("button", {
+    name: "Grant Student Access",
+    exact: true,
+  });
+  expect(container.querySelectorAll(".edu-domain-card")).toHaveLength(7);
+  for (const card of container.querySelectorAll(".edu-domain-card"))
+    expect(card.textContent).not.toContain("Colleges");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Grant Student Access", exact: true }),
+  );
+  await screen.findByText("pending@example.test");
+  fireEvent.click(screen.getByRole("button", { name: "Approve student" }));
+  expect(
+    m.api.mock.calls.some(([p]) => String(p).endsWith("/91/decision")),
+  ).toBe(false);
+  fireEvent.change(screen.getByLabelText("Decision reason"), {
+    target: { value: "Enrollment verified by college" },
+  });
+  fireEvent.submit(
+    screen.getByRole("form", { name: "Confirm student access" }),
+  );
+  await screen.findByText(
+    "Approved 7 pending domain requests for Pending Student.",
+  );
+  expect(m.api).toHaveBeenCalledWith(
+    "/api/education/student-access/91/decision",
+    "POST",
+    expect.objectContaining({
+      status: "APPROVED",
+      expectedVersions: Object.fromEntries(domains.map((d) => [d.code, 0])),
+    }),
+  );
+});
+
+it("failed registration keeps the draft and never displays a success or invented ID", async () => {
+  const base = m.api.getMockImplementation()!;
+  m.api.mockImplementation(async (path: string, ...args: unknown[]) => {
+    if (path === "/api/education/register")
+      throw new Error("Email already registered");
+    return base(path, ...args);
+  });
+  render(<StudentRegistration />);
+  await screen.findByRole("option", {
+    name: "Synthetic College Alpha · SYN-A",
+  });
+  fireEvent.change(screen.getByLabelText("College", { exact: true }), {
+    target: { value: "4" },
+  });
+  for (const [label, value] of Object.entries({
+    "Student full name": "Synthetic Student",
+    Username: "student.new",
+    "Official email address": "student.new@example.test",
+    Password: "SyntheticPassword123!",
+    "Confirm password": "SyntheticPassword123!",
+  }))
+    fireEvent.change(screen.getByLabelText(label, { exact: true }), {
+      target: { value },
+    });
+  for (const d of domains)
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: new RegExp(d.name.replace("/", "\\/")),
+      }),
+    );
+  fireEvent.submit(screen.getByRole("form", { name: "Student registration" }));
+  await screen.findByText("Email already registered");
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Student full name")).toHaveValue(
+    "Synthetic Student",
+  );
+  expect(screen.queryByText("SYN-A-0001")).not.toBeInTheDocument();
+});
+
+it("completed work uses a refreshable domain URL and server-side status filter", async () => {
+  m.user.role = "ROLE_DOMAIN_ADMIN";
+  window.history.replaceState(
+    null,
+    "",
+    "/#/education/ROLE_CASE_PROCESSOR/completed",
+  );
+  render(<EducationWorkspace />);
+  await waitFor(() =>
+    expect(
+      m.api.mock.calls.some(
+        ([p]) =>
+          String(p).startsWith("/api/education/tasks?") &&
+          String(p).includes("status=COMPLETED") &&
+          String(p).includes("domain=ROLE_CASE_PROCESSOR"),
+      ),
+    ).toBe(true),
+  );
+  expect(window.location.hash).toBe(
+    "#/education/ROLE_CASE_PROCESSOR/completed",
   );
 });

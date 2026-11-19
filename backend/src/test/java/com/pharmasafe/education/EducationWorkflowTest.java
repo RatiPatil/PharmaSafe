@@ -90,6 +90,7 @@ class EducationWorkflowTest {
             "edu_college_admins",
             "edu_domain_admins",
             "edu_student_id_reservations",
+            "edu_college_student_sequences",
             "edu_colleges",
             "audit_events",
             "users")) jdbc.update("DELETE FROM " + table);
@@ -251,10 +252,11 @@ class EducationWorkflowTest {
   }
 
   @Test
-  void studentIdsAreReservedUniqueCollegeBoundAndSingleUse() throws Exception {
+  void studentIdsAreHiddenUntilCommittedCollegeBoundAndSingleUse() throws Exception {
     var a = reserve(college);
     var b = reserve(college);
-    assertNotEquals(a.path("studentCode"), b.path("studentCode"));
+    assertFalse(a.has("studentCode"));
+    assertFalse(b.has("studentCode"));
     send(
         null,
         "/api/education/register",
@@ -270,7 +272,7 @@ class EducationWorkflowTest {
                 a,
                 new HashSet<>(domains.all.stream().map(EducationDomains.Domain::code).toList())),
             201);
-    assertEquals(a.path("studentCode"), created.path("studentCode"));
+    assertEquals("SYN-A-0001", created.path("studentCode").asText());
     send(
         null,
         "/api/education/register",
@@ -285,6 +287,124 @@ class EducationWorkflowTest {
   }
 
   @Test
+  void collegeWideDecisionsAreScopedVersionedAndAtomic() throws Exception {
+    register("student.bulk", college, Set.of());
+    register("student.other", otherCollege, Set.of());
+    var pending = read("college.alpha", "/api/education/student-access", 200);
+    assertEquals(1, pending.path("totalElements").asInt());
+    var entry = pending.path("content").get(0);
+    assertEquals(7, entry.path("pendingDomains").size());
+    var versions = new HashMap<String, Long>();
+    entry
+        .path("pendingDomains")
+        .forEach(d -> versions.put(d.path("domain").asText(), d.path("rowVersion").asLong()));
+    var decision =
+        Map.of(
+            "status",
+            "APPROVED",
+            "reason",
+            "College verified student enrollment",
+            "expectedVersions",
+            versions);
+    String path = "/api/education/student-access/" + entry.path("id").asLong() + "/decision";
+    read("domain.processor", "/api/education/student-access", 403);
+    send("domain.processor", path, decision, 403);
+    send(admin, path, decision, 403);
+    send("college.beta", path, decision, 403);
+    var stale = new HashMap<>(versions);
+    stale.put(stale.keySet().iterator().next(), 999L);
+    send(
+        "college.alpha",
+        path,
+        Map.of(
+            "status",
+            "APPROVED",
+            "reason",
+            "Stale approval must be atomic",
+            "expectedVersions",
+            stale),
+        409);
+    assertEquals(
+        7,
+        read("college.alpha", "/api/education/student-access", 200)
+            .path("content")
+            .get(0)
+            .path("pendingDomains")
+            .size());
+    assertEquals(7, send("college.alpha", path, decision, 200).path("updatedDomains").asInt());
+    assertEquals(
+        0,
+        read("college.alpha", "/api/education/student-access", 200).path("totalElements").asInt());
+    send("college.alpha", path, decision, 409);
+    var other = read("college.beta", "/api/education/student-access", 200).path("content").get(0);
+    var otherVersions = new HashMap<String, Long>();
+    other
+        .path("pendingDomains")
+        .forEach(d -> otherVersions.put(d.path("domain").asText(), d.path("rowVersion").asLong()));
+    send(
+        "college.beta",
+        "/api/education/student-access/" + other.path("id").asLong() + "/decision",
+        Map.of(
+            "status",
+            "REJECTED",
+            "reason",
+            "Enrollment could not be verified",
+            "expectedVersions",
+            otherVersions),
+        200);
+    assertEquals(
+        0,
+        read("college.beta", "/api/education/student-access", 200).path("totalElements").asInt());
+  }
+
+  @Test
+  void simultaneousSuccessfulRegistrationsGetUniqueCollegeSequences() throws Exception {
+    var pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+    try {
+      var jobs = new ArrayList<java.util.concurrent.Callable<String>>();
+      for (int i = 0; i < 4; i++) {
+        final String name = "student.concurrent" + i;
+        jobs.add(
+            () -> {
+              var form =
+                  new LinkedHashMap<>(
+                      registration(
+                          name,
+                          college,
+                          json.createObjectNode(),
+                          new HashSet<>(
+                              domains.all.stream().map(EducationDomains.Domain::code).toList())));
+              form.remove("reservationToken");
+              return send(null, "/api/education/register", form, 201).path("studentCode").asText();
+            });
+      }
+      var ids = new HashSet<String>();
+      for (var result : pool.invokeAll(jobs)) ids.add(result.get());
+      assertEquals(Set.of("SYN-A-0001", "SYN-A-0002", "SYN-A-0003", "SYN-A-0004"), ids);
+      var invalid =
+          new LinkedHashMap<>(
+              registration(
+                  "student.concurrent0",
+                  college,
+                  json.createObjectNode(),
+                  new HashSet<>(domains.all.stream().map(EducationDomains.Domain::code).toList())));
+      invalid.remove("reservationToken");
+      send(null, "/api/education/register", invalid, 409);
+      assertEquals(
+          4L,
+          jdbc.queryForObject(
+              "SELECT last_value FROM edu_college_student_sequences WHERE college_id=?",
+              Long.class,
+              college));
+      assertEquals(
+          "SYN-B-0001",
+          register("student.beta.sequence", otherCollege, Set.of()).path("studentCode").asText());
+    } finally {
+      pool.shutdownNow();
+    }
+  }
+
+  @Test
   void allSevenDomainsSupportApprovalAssignmentEvidenceFeedbackAndPdf() throws Exception {
     Set<String> all = new HashSet<>();
     domains.all.forEach(d -> all.add(d.code()));
@@ -294,6 +414,19 @@ class EducationWorkflowTest {
       approve("college.alpha", "student.all", d.code());
       var a = assign("college.alpha", college, d.code(), code, true).get(0);
       long id = a.path("id").asLong();
+      assertEquals(
+          1,
+          read("college.alpha", "/api/education/tasks?domain=" + d.code() + "&status=PENDING", 200)
+              .path("totalElements")
+              .asInt());
+      assertEquals(
+          1,
+          read(
+                  "college.alpha",
+                  "/api/education/students?domain=" + d.code() + "&status=PENDING",
+                  200)
+              .path("totalElements")
+              .asInt());
       submit("student.all", id, 0, d.code(), "SUBMITTED", false, 400);
       var result = submit("student.all", id, 0, d.code(), "SUBMITTED", true, 201);
       assertEquals("SUBMITTED", result.path("status").asText());
@@ -310,6 +443,19 @@ class EducationWorkflowTest {
           200);
       var detail = read("student.all", "/api/education/tasks/" + id, 200);
       assertEquals("COMPLETED", detail.path("status").asText());
+      assertEquals(
+          0,
+          read("college.alpha", "/api/education/tasks?domain=" + d.code() + "&status=PENDING", 200)
+              .path("totalElements")
+              .asInt());
+      assertEquals(
+          1,
+          read(
+                  "college.alpha",
+                  "/api/education/tasks?domain=" + d.code() + "&status=COMPLETED",
+                  200)
+              .path("totalElements")
+              .asInt());
       assertEquals(1, detail.path("submissions").path("content").get(0).path("feedback").size());
       var report = send("student.all", "/api/education/reports", Map.of("domain", d.code()), 201);
       byte[] pdf =
@@ -375,8 +521,8 @@ class EducationWorkflowTest {
             "status",
             "APPROVED",
             "reason",
-            "Domain administrator approved enrollment"),
-        200);
+            "Domain administrator cannot replace college approval"),
+        403);
     read("student.alpha", "/api/cases", 403);
     users.saveAndFlush(new User("clinical.user", encoder.encode(PW), "ROLE_CASE_PROCESSOR"));
     read("clinical.user", "/api/education/overview", 403);

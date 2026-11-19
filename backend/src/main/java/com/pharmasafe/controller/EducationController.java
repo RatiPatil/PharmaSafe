@@ -251,6 +251,20 @@ public class EducationController {
     return service.preferences(a.getName(), d);
   }
 
+  @GetMapping("/student-access")
+  public Map<String, Object> pendingAccess(
+      Authentication a, @RequestParam(defaultValue = "0") int page) {
+    return service.pendingStudentAccess(a.getName(), page);
+  }
+
+  @PostMapping("/student-access/{id}/decision")
+  public Map<String, Object> decideAccess(
+      Authentication a,
+      @PathVariable Long id,
+      @Valid @RequestBody EducationService.StudentAccessDecision d) {
+    return service.decideStudentAccess(a.getName(), id, d);
+  }
+
   private ResponseEntity<byte[]> download(EducationService.Download d) {
     return ResponseEntity.ok()
         .contentType(MediaType.APPLICATION_PDF)

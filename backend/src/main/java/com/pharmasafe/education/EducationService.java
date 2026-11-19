@@ -74,7 +74,7 @@ public class EducationService {
 
   public record Register(
       @NotNull @Positive Long collegeId,
-      @NotBlank @Size(max = 64) String reservationToken,
+      @Size(max = 64) String reservationToken,
       @NotBlank @Size(max = 128) String fullName,
       @NotBlank @Pattern(regexp = "[A-Za-z0-9._-]{3,64}") String username,
       @NotBlank @Email @Size(max = 128) String email,
@@ -99,7 +99,9 @@ public class EducationService {
       @Size(max = 32) String studentCode,
       boolean requireDocument,
       @Positive Long sourceOrderId,
-      @Size(max = 100) Set<@Pattern(regexp = "ST-[0-9]{6,18}") String> studentCodes) {}
+      @Size(max = 100)
+          Set<@Pattern(regexp = "(?:ST-[0-9]{6,18}|[A-Z0-9][A-Z0-9-]{2,15}-[0-9]{4,15})") String>
+              studentCodes) {}
 
   public record Submit(
       @NotNull @PositiveOrZero Long expectedVersion,
@@ -267,7 +269,7 @@ public class EducationService {
     }
     if (f.status != null
         && !f.status.isBlank()
-        && !Set.of("NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "RETURNED", "COMPLETED")
+        && !Set.of("NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "RETURNED", "COMPLETED", "PENDING")
             .contains(f.status)) throw new IllegalArgumentException("Select a valid work status");
   }
 
@@ -309,12 +311,15 @@ public class EducationService {
     r.tokenHash = UserAccessService.hash(token);
     r.expiresAt = Instant.now().plusSeconds(1200);
     save(r);
-    return Map.of(
-        "studentCode", r.studentCode(), "reservationToken", token, "expiresAt", r.expiresAt);
+    return Map.of("reservationToken", token, "expiresAt", r.expiresAt);
   }
 
   private User newUser(
       String username, String fullName, String email, String password, String role) {
+    if (username.trim().matches("(?i)(?:ST-[0-9]{6,18}|[A-Z0-9][A-Z0-9-]{2,15}-[0-9]{4,15})")
+        && users.findStudentLoginName(username.trim()).isPresent())
+      throw new IllegalArgumentException(
+          "Choose a username different from the reserved Student ID format");
     UserAccessService.validatePassword(password);
     String normalized = username.trim().toLowerCase(Locale.ROOT),
         mail = email.trim().toLowerCase(Locale.ROOT);
@@ -338,16 +343,39 @@ public class EducationService {
       throw new IllegalArgumentException("Select all seven domains to register");
     var c = find(EduCollege.class, d.collegeId, true);
     if (!c.active) throw new IllegalArgumentException("College is inactive");
-    var r =
-        one(
-            "select r from EduReservation r where r.tokenHash=:token",
-            EduReservation.class,
-            Map.of("token", UserAccessService.hash(d.reservationToken)));
+    EduReservation r;
+    if (d.reservationToken == null || d.reservationToken.isBlank()) {
+      r = new EduReservation();
+      r.college = c;
+      r.tokenHash = UserAccessService.hash(UUID.randomUUID().toString());
+      r.expiresAt = Instant.now().plusSeconds(1200);
+      save(r);
+    } else
+      r =
+          one(
+              "select r from EduReservation r where r.tokenHash=:token",
+              EduReservation.class,
+              Map.of("token", UserAccessService.hash(d.reservationToken)));
     em.lock(r, LockModeType.PESSIMISTIC_WRITE);
     if (r.consumed || !r.college.id.equals(c.id) || r.expiresAt.isBefore(Instant.now()))
       throw new IllegalArgumentException(
           "Student ID reservation expired or changed college. Generate a new ID.");
     var u = newUser(d.username, d.fullName, d.email, d.password, "ROLE_STUDENT");
+    var sequence = em.find(EduStudentSequence.class, c.id, LockModeType.PESSIMISTIC_WRITE);
+    if (sequence == null) {
+      sequence = new EduStudentSequence();
+      sequence.collegeId = c.id;
+      save(sequence);
+    }
+    String generated;
+    do {
+      if (sequence.lastValue >= 999999999999999L)
+        throw new IllegalStateException("Student identifier sequence is exhausted");
+      sequence.lastValue++;
+      generated = c.code + "-" + String.format(java.util.Locale.ROOT, "%04d", sequence.lastValue);
+    } while (users.existsByUsername(generated.toLowerCase(java.util.Locale.ROOT)));
+    r.studentCode = generated;
+    em.flush();
     var s = new EduStudent();
     s.user = u;
     s.college = c;
@@ -373,6 +401,12 @@ public class EducationService {
     return Map.of(
         "studentCode",
         s.studentCode,
+        "fullName",
+        u.getFullName(),
+        "collegeName",
+        c.name,
+        "registrationStatus",
+        "PENDING_COLLEGE_APPROVAL",
         "message",
         "Registration saved. Sign in to track your college's domain approvals.");
   }
@@ -585,8 +619,7 @@ public class EducationService {
       p.put("studentCode", f.studentCode.trim().toUpperCase(Locale.ROOT));
     }
     if (task && f.status != null && !f.status.isBlank()) {
-      if (f.status.equals("PENDING"))
-        clauses.add(alias + ".status in ('NOT_STARTED','RETURNED','SUBMITTED')");
+      if (f.status.equals("PENDING")) clauses.add(alias + ".status <> 'COMPLETED'");
       else {
         clauses.add(alias + ".status=:status");
         p.put("status", f.status);
@@ -709,6 +742,15 @@ public class EducationService {
     v.put("assignedDomain", a.domain);
     v.put("studentCode", student(a) ? find(EduStudent.class, a.student, false).studentCode : null);
     v.put("domains", cards);
+    v.put(
+        "pendingStudentApprovals",
+        a.role.equals("ROLE_COLLEGE_ADMIN")
+            ? count(
+                "select count(distinct m.student.id) from EduMembership m where"
+                    + " m.student.college.id=:c and m.student.user.enabled=true and"
+                    + " m.status='PENDING'",
+                Map.of("c", a.college))
+            : 0);
     v.put("updatedAt", Instant.now());
     return v;
   }
@@ -765,7 +807,7 @@ public class EducationService {
               + "exists(select t.id from EduTask t where t.student.id=s.id and t.archived=false"
               + (d == null || d.isBlank() ? "" : " and t.domain=:directoryDomain")
               + (f.status.equals("PENDING")
-                  ? " and t.status in ('NOT_STARTED','SUBMITTED','RETURNED'))"
+                  ? " and t.status <> 'COMPLETED')"
                   : " and t.status=:workStatus)");
       if (!f.status.equals("PENDING")) p.put("workStatus", f.status);
     }
@@ -871,6 +913,8 @@ public class EducationService {
   public Map<String, Object> decide(String name, Long id, Decision d) {
     var a = actor(name);
     manager(a);
+    if (a.role.equals("ROLE_DOMAIN_ADMIN"))
+      throw new AccessDeniedException("Student approval belongs to the associated College Admin");
     var m = find(EduMembership.class, id, true);
     college(a, m.student.college.id);
     if (!m.student.college.active) throw new IllegalArgumentException("College is inactive");
@@ -1499,7 +1543,8 @@ public class EducationService {
             "select m from EduMembership m where m.student.id=:s and m.domain=:d",
             EduMembership.class,
             Map.of("s", s.id, "d", d.domain));
-    decide(name, m.id, new Decision(m.rowVersion, "APPROVED", d.reason));
+    if (!a.role.equals("ROLE_DOMAIN_ADMIN"))
+      decide(name, m.id, new Decision(m.rowVersion, "APPROVED", d.reason));
     return studentView(s);
   }
 
@@ -1738,5 +1783,98 @@ public class EducationService {
     p.compactView = d.compactView;
     p.reduceMotion = d.reduceMotion;
     return d;
+  }
+
+  public record StudentAccessDecision(
+      @NotBlank @Pattern(regexp = "APPROVED|REJECTED") String status,
+      @NotBlank @Size(max = 2000) String reason,
+      @NotEmpty @Size(max = 7)
+          Map<@NotBlank String, @NotNull @PositiveOrZero Long> expectedVersions) {}
+
+  private void collegeApprover(Actor a) {
+    if (!a.role.equals("ROLE_COLLEGE_ADMIN"))
+      throw new AccessDeniedException(
+          "Only the student's College Admin may grant college-wide student access");
+  }
+
+  public Map<String, Object> pendingStudentAccess(String name, int page) {
+    var a = actor(name);
+    collegeApprover(a);
+    var p = Map.<String, Object>of("c", a.college);
+    String w =
+        " where s.college.id=:c and s.user.enabled=true and exists(select m.id from EduMembership m"
+            + " where m.student.id=s.id and m.status='PENDING')";
+    var content =
+        list(
+                "select s from EduStudent s" + w + " order by s.createdAt desc,s.id desc",
+                EduStudent.class,
+                p,
+                Math.max(0, page) * 20,
+                20)
+            .stream()
+            .map(
+                s -> {
+                  var v = studentView(s);
+                  v.put(
+                      "pendingDomains",
+                      list(
+                              "select m from EduMembership m where m.student.id=:s and"
+                                  + " m.status='PENDING' order by m.domain",
+                              EduMembership.class,
+                              Map.of("s", s.id),
+                              0,
+                              7)
+                          .stream()
+                          .map(
+                              m ->
+                                  Map.of(
+                                      "domain",
+                                      m.domain,
+                                      "name",
+                                      domains.get(m.domain).name(),
+                                      "rowVersion",
+                                      m.rowVersion))
+                          .toList());
+                  return v;
+                })
+            .toList();
+    return paged(content, count("select count(s) from EduStudent s" + w, p), page);
+  }
+
+  @Transactional
+  public Map<String, Object> decideStudentAccess(String name, Long id, StudentAccessDecision d) {
+    var a = actor(name);
+    collegeApprover(a);
+    var s = find(EduStudent.class, id, true);
+    college(a, s.college.id);
+    var members =
+        list(
+            "select m from EduMembership m where m.student.id=:s and m.status='PENDING' order by"
+                + " m.id",
+            EduMembership.class,
+            Map.of("s", id),
+            0,
+            7);
+    if (members.isEmpty() || members.size() != d.expectedVersions.size())
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Student access changed. Refresh before deciding.");
+    for (var m : members) {
+      em.lock(m, LockModeType.PESSIMISTIC_WRITE);
+      version(m.rowVersion, d.expectedVersions.get(m.domain));
+    }
+    for (var m : members) decide(name, m.id, new Decision(m.rowVersion, d.status, d.reason));
+    audit.logAccountEvent(
+        "COLLEGE_STUDENT_ACCESS_DECIDED",
+        name,
+        "student="
+            + s.studentCode
+            + "; status="
+            + d.status
+            + "; domains="
+            + members.size()
+            + "; reason="
+            + d.reason);
+    return Map.of(
+        "studentCode", s.studentCode, "status", d.status, "updatedDomains", members.size());
   }
 }
