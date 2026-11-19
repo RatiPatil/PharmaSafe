@@ -154,7 +154,15 @@ export function EducationWorkspace() {
       root ||
       user?.role === "ROLE_COLLEGE_ADMIN" ||
       user?.role === "ROLE_DOMAIN_ADMIN";
-  const selectionScreen = !root && !student && route.section === "home";
+  const selectionScreen = !root && route.section === "home";
+  const dataSection = [
+    "dashboard",
+    "students",
+    "work",
+    "completed",
+    "pending",
+    "reports",
+  ].includes(route.section);
   const workSection = ["work", "completed", "pending"].includes(route.section);
   const domain = catalog?.domains.find((d) => d.code === route.domain);
   const card = overview?.domains.find((d) => d.code === route.domain);
@@ -269,6 +277,11 @@ export function EducationWorkspace() {
     (domainRequired = true) => {
       const p = new URLSearchParams();
       if (domainRequired && route.domain) p.set("domain", route.domain);
+      if (!dataSection) {
+        if (["requests", "assign"].includes(route.section) && collegeId)
+          p.set("collegeId", collegeId);
+        return p;
+      }
       if (collegeId) p.set("collegeId", collegeId);
       if (studentCode) p.set("studentCode", studentCode);
       if (route.section === "completed") p.set("status", "COMPLETED");
@@ -276,7 +289,7 @@ export function EducationWorkspace() {
       else if (status) p.set("status", status);
       return p;
     },
-    [route.domain, route.section, collegeId, studentCode, status],
+    [route.domain, route.section, dataSection, collegeId, studentCode, status],
   );
   useEffect(() => {
     const c = new AbortController();
@@ -449,7 +462,7 @@ export function EducationWorkspace() {
   );
   return (
     <div
-      className={`ws-shell edu-shell ${selectionScreen ? "edu-selection" : ""} ${user?.role === "ROLE_COLLEGE_ADMIN" ? "edu-college-view" : ""}`}
+      className={`ws-shell edu-shell ${selectionScreen ? "edu-selection" : ""} ${user?.role === "ROLE_COLLEGE_ADMIN" ? "edu-college-view" : ""} ${student ? "edu-student-view" : ""} ${root ? "edu-root-view" : ""}`}
       data-validation-context="education"
       data-testid="education-workspace"
     >
@@ -587,7 +600,7 @@ export function EducationWorkspace() {
             {title}
             {domain ? " / " + domain.name : ""}
           </span>
-          {!selectionScreen && (
+          {(!selectionScreen || student) && (
             <button
               disabled={busy}
               onClick={() => {
@@ -681,6 +694,27 @@ export function EducationWorkspace() {
                   <BookOpenCheck size={64} />
                 </section>
               )}
+              {student && (
+                <section
+                  className="edu-student-welcome"
+                  aria-label="Your learning workspace"
+                >
+                  <div>
+                    <p className="ws-eyebrow">YOUR LEARNING, CONNECTED</p>
+                    <h2>
+                      Welcome back, {overview.fullName || overview.username}.
+                    </h2>
+                    <p>
+                      Choose an approved domain to continue your assignments,
+                      share evidence and follow your progress. Pending domains
+                      become available after your college approves access.
+                    </p>
+                  </div>
+                  <span className="edu-student-emblem">
+                    <BookOpenCheck size={42} />
+                  </span>
+                </section>
+              )}
               {user?.role === "ROLE_COLLEGE_ADMIN" && (
                 <div className="edu-access-banner">
                   <div>
@@ -696,7 +730,9 @@ export function EducationWorkspace() {
                     onClick={() => setGrantOpen(true)}
                   >
                     Grant Student Access{" "}
-                    <span aria-hidden="true">{overview.pendingStudentApprovals || 0}</span>
+                    <span aria-hidden="true">
+                      {overview.pendingStudentApprovals || 0}
+                    </span>
                   </button>
                 </div>
               )}
@@ -712,7 +748,10 @@ export function EducationWorkspace() {
                         <span className="edu-domain-icon">
                           <Icon size={23} />
                         </span>
-                        <span className="ws-badge">
+                        <span
+                          className="ws-badge edu-card-status"
+                          data-status={d.status}
+                        >
                           {d.status.replaceAll("_", " ")}
                         </span>
                       </div>
@@ -736,7 +775,7 @@ export function EducationWorkspace() {
                           <span>
                             <strong>{d.stats.total}</strong>Tasks
                           </span>
-                          {!selectionScreen && (
+                          {(!selectionScreen || student) && (
                             <>
                               <span>
                                 <strong>
@@ -790,105 +829,119 @@ export function EducationWorkspace() {
             </section>
           ) : (
             <>
-              {selected === null && (
-                <section className="edu-filter-bar ws-card">
-                  <h2>Workspace filters</h2>
-                  <div className="edu-filter-grid">
-                    {!overview.collegeId && (
-                      <label>
-                        College filter
-                        <select
-                          aria-label="College filter"
-                          value={collegeId}
-                          onChange={(e) =>
-                            updateFilter(() => setCollegeId(e.target.value))
+              {selected === null &&
+                (dataSection ||
+                  (["assign", "requests"].includes(route.section) &&
+                    !overview.collegeId)) && (
+                  <section
+                    className="edu-filter-bar ws-card"
+                    aria-label={
+                      dataSection ? "Workspace filters" : "College context"
+                    }
+                  >
+                    <h2>
+                      {dataSection ? "Workspace filters" : "College context"}
+                    </h2>
+                    <div className="edu-filter-grid">
+                      {!overview.collegeId && (
+                        <label>
+                          College filter
+                          <select
+                            aria-label="College filter"
+                            value={collegeId}
+                            onChange={(e) =>
+                              updateFilter(() => setCollegeId(e.target.value))
+                            }
+                          >
+                            <option value="">All authorized colleges</option>
+                            {colleges.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                                {c.active ? "" : " (inactive)"}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {dataSection && !student && (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            updateFilter(() =>
+                              setStudentCode(studentQuery.trim().toUpperCase()),
+                            );
+                          }}
+                        >
+                          <label>
+                            Student ID filter
+                            <input
+                              aria-label="Student ID filter"
+                              maxLength={32}
+                              placeholder="COLLEGE-0001"
+                              value={studentQuery}
+                              onChange={(e) =>
+                                setStudentQuery(e.target.value.toUpperCase())
+                              }
+                            />
+                          </label>
+                          <button>Apply Student ID</button>
+                        </form>
+                      )}
+                      {dataSection && (
+                        <label>
+                          Work status filter
+                          <select
+                            aria-label="Work status filter"
+                            value={
+                              route.section === "completed"
+                                ? "COMPLETED"
+                                : route.section === "pending"
+                                  ? "PENDING"
+                                  : status
+                            }
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (
+                                route.section === "completed" ||
+                                route.section === "pending"
+                              ) {
+                                if (!leave()) return;
+                                dirtyRef.current = false;
+                                setDirty(false);
+                                setStatus(next);
+                                go("work");
+                              } else updateFilter(() => setStatus(next));
+                            }}
+                          >
+                            <option value="">All work statuses</option>
+                            <option value="PENDING">Pending work</option>
+                            {Object.entries(statuses).map(([v, l]) => (
+                              <option key={v} value={v}>
+                                {l}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {dataSection && (
+                        <button
+                          onClick={() =>
+                            updateFilter(() => {
+                              setStudentCode("");
+                              setStudentQuery("");
+                              setCollegeId("");
+                              setStatus("");
+                              setSearch("");
+                              setSearchQuery("");
+                            })
                           }
                         >
-                          <option value="">All authorized colleges</option>
-                          {colleges.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                              {c.active ? "" : " (inactive)"}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                    {!student && (
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          updateFilter(() =>
-                            setStudentCode(studentQuery.trim().toUpperCase()),
-                          );
-                        }}
-                      >
-                        <label>
-                          Student ID filter
-                          <input
-                            aria-label="Student ID filter"
-                            maxLength={32}
-                            placeholder="COLLEGE-0001"
-                            value={studentQuery}
-                            onChange={(e) =>
-                              setStudentQuery(e.target.value.toUpperCase())
-                            }
-                          />
-                        </label>
-                        <button>Apply Student ID</button>
-                      </form>
-                    )}
-                    <label>
-                      Work status filter
-                      <select
-                        aria-label="Work status filter"
-                        value={
-                          route.section === "completed"
-                            ? "COMPLETED"
-                            : route.section === "pending"
-                              ? "PENDING"
-                              : status
-                        }
-                        onChange={(e) => {
-                          const next = e.target.value;
-                          if (
-                            route.section === "completed" ||
-                            route.section === "pending"
-                          ) {
-                            if (!leave()) return;
-                            dirtyRef.current = false;
-                            setDirty(false);
-                            setStatus(next);
-                            go("work");
-                          } else updateFilter(() => setStatus(next));
-                        }}
-                      >
-                        <option value="">All work statuses</option>
-                        <option value="PENDING">Pending work</option>
-                        {Object.entries(statuses).map(([v, l]) => (
-                          <option key={v} value={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      onClick={() =>
-                        updateFilter(() => {
-                          setStudentCode("");
-                          setStudentQuery("");
-                          setCollegeId("");
-                          setStatus("");
-                          setSearch("");
-                          setSearchQuery("");
-                        })
-                      }
-                    >
-                      Clear workspace filters
-                    </button>
-                  </div>
-                </section>
-              )}
+                          Clear workspace filters
+                        </button>
+                      )}
+                    </div>
+                  </section>
+                )}
               {selected !== null ? (
                 <EducationTask
                   key={selected}

@@ -174,6 +174,15 @@ it("student sees all seven domains but pending domains remain inaccessible", asy
     screen.queryByRole("button", { name: "Colleges & administrators" }),
   ).not.toBeInTheDocument();
   expect(screen.getByText("ST-000123")).toBeVisible();
+  expect(
+    screen.queryByRole("navigation", { name: "College workspace navigation" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Toggle college navigation" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("region", { name: "Your learning workspace" }),
+  ).toBeVisible();
 });
 it("Domain Admin gets seven authorized domain workspaces", async () => {
   m.user.role = "ROLE_DOMAIN_ADMIN";
@@ -372,3 +381,79 @@ it("completed work uses a refreshable domain URL and server-side status filter",
     "#/education/ROLE_CASE_PROCESSOR/completed",
   );
 });
+
+for (const role of [
+  "ROLE_STUDENT",
+  "ROLE_COLLEGE_ADMIN",
+  "ROLE_DOMAIN_ADMIN",
+]) {
+  it(
+    role +
+      " keeps workspace filters out of profile and settings while preserving data filters",
+    async () => {
+      m.user.role = role;
+      const base = m.api.getMockImplementation()!;
+      m.api.mockImplementation(async (path: string, ...args: unknown[]) =>
+        path === "/api/education/preferences"
+          ? { compactView: false, reduceMotion: false }
+          : path === "/api/education/profile"
+            ? {
+                fullName: "Synthetic Student",
+                email: "synthetic@example.test",
+                username: "student.one",
+                rowVersion: 0,
+              }
+            : base(path, ...args),
+      );
+      window.history.replaceState(
+        null,
+        "",
+        `/#/education/${domains[0].code}/work`,
+      );
+      render(<EducationWorkspace />);
+      await screen.findByLabelText("Work status filter");
+      fireEvent.change(screen.getByLabelText("Work status filter"), {
+        target: { value: "IN_PROGRESS" },
+      });
+      if (role !== "ROLE_DOMAIN_ADMIN") {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Profile", exact: true }),
+        );
+        await screen.findByRole("heading", { name: "My profile", exact: true });
+        expect(
+          screen.queryByRole("region", { name: "Workspace filters" }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByLabelText("Work status filter"),
+        ).not.toBeInTheDocument();
+        await waitFor(() =>
+          expect(
+            m.api.mock.calls
+              .filter(([p]) => String(p).startsWith("/api/education/overview?"))
+              .at(-1)?.[0],
+          ).not.toContain("status="),
+        );
+      }
+      fireEvent.click(
+        screen.getByRole("button", { name: "Settings", exact: true }),
+      );
+      await screen.findByRole("heading", {
+        name: "Workspace settings",
+        exact: true,
+      });
+      expect(
+        screen.queryByLabelText("Work status filter"),
+      ).not.toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name:
+            role === "ROLE_STUDENT" ? "My assigned work" : "Work Management",
+          exact: true,
+        }),
+      );
+      expect(await screen.findByLabelText("Work status filter")).toHaveValue(
+        "IN_PROGRESS",
+      );
+    },
+  );
+}

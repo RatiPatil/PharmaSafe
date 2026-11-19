@@ -916,3 +916,33 @@
     transform: none;
   }
 }
+
+/* Student entry shares the seven-domain selection layout, with student-only work. */
+.edu-student-welcome{display:flex;align-items:center;justify-content:space-between;gap:28px;margin:0 0 28px;padding:30px 34px;border:1px solid #dce8e7;border-radius:18px;background:linear-gradient(120deg,#eef6f4,#f3f6fc);color:#173b51}
+.edu-student-welcome h2{font-size:24px;letter-spacing:-.6px;margin:0 0 12px;font-weight:600}
+.edu-student-welcome p:last-child{font-size:13px;line-height:1.85;color:#617b88;max-width:720px;margin:0}
+.edu-student-welcome .ws-eyebrow{color:#4d7b75;font-size:9px;margin-bottom:14px}
+.edu-student-emblem{display:grid;place-items:center;flex-shrink:0;width:78px;height:78px;border:1px solid #d7e7e3;background:#ffffff94;border-radius:22px;color:#548b80}
+.edu-student-view.edu-selection .edu-card-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;border-top:1px solid #e7edf3;padding-top:20px}
+.edu-student-view .edu-card-stats strong{font-size:24px;font-weight:650;letter-spacing:-.5px;color:var(--edu-color)}
+.edu-student-view.edu-selection .edu-domain-card .ws-badge{font-size:10px;border-radius:7px;letter-spacing:.2px}
+.edu-shell:not(.edu-root-view) .ws-sidebar nav button{transition:background-color .18s,color .18s,box-shadow .18s}
+.edu-shell:not(.edu-root-view) .ws-sidebar nav button:hover{background:#ffffff10}
+.edu-shell:not(.edu-root-view) .ws-sidebar nav button[aria-current=page]{box-shadow:inset 3px 0 #a7d5ce;background:#315f74}
+.edu-shell:not(.edu-root-view) .edu-filter-bar{background:#fafcfd;border-color:#e2e9ef;border-radius:15px}
+.edu-shell:not(.edu-root-view) .edu-filter-bar h2{font-size:13px;color:#4d687c;margin-bottom:16px}
+@media(prefers-reduced-motion:no-preference){
+.edu-shell:not(.edu-root-view) .ws-card,.edu-student-welcome{animation:edu-view-enter .22s ease-out both}
+.edu-shell:not(.edu-root-view) .ws-table-wrap tbody tr{transition:background-color .16s}
+.edu-shell:not(.edu-root-view) .ws-table-wrap tbody tr:hover{background:#f6fafc}
+}
+@keyframes edu-view-enter{from{opacity:0;translate:0 5px}to{opacity:1;translate:0 0}}
+@media(max-width:760px){.edu-student-welcome{padding:24px;gap:18px;align-items:start}.edu-student-welcome h2{font-size:21px}.edu-student-emblem{width:52px;height:52px;border-radius:15px}.edu-student-emblem svg{width:29px}.edu-student-view.edu-selection .edu-card-stats{gap:8px}.edu-student-view .edu-card-stats strong{font-size:22px}}
+@media(max-width:480px){.edu-student-emblem{display:none}.edu-student-welcome{padding:22px}.edu-student-view.edu-selection .ws-topbar{gap:14px}.edu-student-view .edu-selection-profile{margin-left:0}}
+@media(prefers-reduced-motion:reduce){.edu-shell:not(.edu-root-view) .ws-card,.edu-student-welcome{animation:none;translate:none}}
+.edu-reduced-motion .edu-shell .ws-card,.edu-reduced-motion .edu-student-welcome{animation:none!important;translate:none!important}
+.edu-student-welcome>div{min-width:0;overflow-wrap:anywhere}
+.edu-student-view .edu-selection-profile strong{overflow-wrap:anywhere;max-width:300px}
+.edu-student-view .edu-card-status[data-status=APPROVED]{color:#287359;background:#edf7f1}
+.edu-student-view .edu-card-status[data-status=PENDING]{color:#8b6727;background:#fff6e4}
+.edu-student-view .edu-card-status[data-status=REJECTED]{color:#a14c4b;background:#fff0ef}

@@ -29,6 +29,17 @@ module.exports=async function({browser,origin,admin,password,qaDirectory}){
 
  await student.getByRole('button',{name:'Refresh college data',exact:true}).click();await student.waitForFunction(()=>document.querySelectorAll('.edu-domain-card button:enabled').length===7);if(await student.locator('.edu-domain-card button:enabled').count()!==7)throw Error('Student approved domains did not persist');
  console.log('PASS multi-domain registration, unique Student IDs, common student login and seven college approvals');
+ if(await student.locator('#education-navigation').count()||await student.getByRole('button',{name:'Toggle college navigation',exact:true}).count())throw Error('Student entry must be sidebar-free');
+ if(await student.locator('.edu-domain-card').count()!==7)throw Error('Student needs all seven domain cards');
+ for(const width of [1440,768,390,320]){await student.setViewportSize({width,height:900});if(await student.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw Error('Student selection overflow '+width);await student.screenshot({path:path.join(qaDirectory,'screens','student-selection-'+width+'.png'),fullPage:true});}
+ await student.setViewportSize({width:1440,height:1000});await open(student,'Case Processor');
+ await student.getByLabel('Work status filter',{exact:true}).selectOption('IN_PROGRESS');
+ await nav(student,'Profile').click();await student.getByRole('heading',{name:'My profile',exact:true}).waitFor();if(await student.getByLabel('Work status filter',{exact:true}).count())throw Error('Profile must not show work filters');
+ await nav(student,'Settings').click();await student.getByRole('heading',{name:'Workspace settings',exact:true}).waitFor();if(await student.getByLabel('Work status filter',{exact:true}).count())throw Error('Settings must not show work filters');
+ await nav(student,'My assigned work').click();if(await student.getByLabel('Work status filter',{exact:true}).inputValue()!=='IN_PROGRESS')throw Error('Related data filters were lost');await student.getByRole('button',{name:'Clear workspace filters',exact:true}).click();
+ await nav(student,'All seven domains').click();await student.locator('.edu-domain-card').last().waitFor();
+ console.log('PASS sidebar-free student seven-domain entry at four sizes; student Profile/Settings exclude workspace filters and returning to work restores the selected filter');
+
  for(const p of [domainAdmin,collegeAdmin]){
   await open(p,'Case Processor');
   for(const [label,section] of [['Dashboard','dashboard'],['Students','students'],['Work Management','work'],['Assign student work','assign'],['Completed Work','completed'],['Pending Work','pending'],['Reports & PDFs','reports'],['Settings','settings']]){
