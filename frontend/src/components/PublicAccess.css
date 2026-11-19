@@ -80,3 +80,7 @@
 .cp-team-launch,.cp-sidebar-link{display:inline-flex;align-items:center;gap:8px;padding:11px 15px;border:1px solid #d3dfec;border-radius:9px;color:#214e75;text-decoration:none;font-weight:600;font-size:13px}.ws-sidebar .cp-sidebar-link{color:#c9dfed;border-color:#55728666;font-size:12px;margin-top:12px}
 
 .pa-team-picker{margin-bottom:24px}.pa-team-picker h2{font-size:22px;margin-bottom:12px}.pa-team-picker p{line-height:1.7;margin-bottom:16px}.pa-team-picker form{display:flex;align-items:end;gap:16px;flex-wrap:wrap}.pa-team-picker label{display:grid;gap:8px;flex:1;min-width:180px}.pa-team-picker input{padding:12px;border:1px solid #ccdbea;border-radius:9px}.pa-team-picker button{padding:13px 20px;border-radius:9px;background:#244e73;color:white}
+/* Shared access navigation stays consistent outside the landing page. */
+.pa-header .pa-nav-register{padding:9px 0;color:#176b72}
+.pa-header .pa-nav-login{background:#214e75;color:white;border-color:#214e75}
+.pa-site a:focus-visible{outline:3px solid #4a9ba6;outline-offset:4px}
