@@ -423,6 +423,36 @@ class EducationWorkflowTest {
     assign("college.alpha", college, "ROLE_CASE_PROCESSOR", two, false);
     assign("college.beta", otherCollege, "ROLE_MEDICAL_REVIEWER", other, false);
     assign("college.beta", otherCollege, "ROLE_PV_ANALYST", other, false);
+    var rootPreview = read(admin, "/api/education/report-preview", 200);
+    assertEquals(5, rootPreview.path("summary").path("total").asInt());
+    assertEquals(2, rootPreview.path("summary").path("colleges").asInt());
+    assertEquals(7, rootPreview.path("domains").size());
+    assertEquals(
+        3,
+        read(admin, "/api/education/report-options", 200)
+            .path("students")
+            .path("totalElements")
+            .asInt());
+    assertEquals(
+        1,
+        read(
+                admin,
+                "/api/education/report-preview?collegeId="
+                    + otherCollege
+                    + "&studentCode="
+                    + other
+                    + "&domains=ROLE_PV_ANALYST",
+                200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    var rootReport = send(admin, "/api/education/reports", Map.of(), 201);
+    assertEquals(7, rootReport.path("domains").size());
+    mvc.perform(
+            get("/api/education/reports/" + rootReport.path("id").asLong() + "/pdf")
+                .with(as(admin)))
+        .andExpect(status().isOk());
+    read("college.alpha", "/api/education/reports/" + rootReport.path("id").asLong() + "/pdf", 403);
     assertEquals(
         3,
         read("college.alpha", "/api/education/report-preview", 200)
@@ -591,6 +621,15 @@ class EducationWorkflowTest {
         .andExpect(status().isOk());
     jdbc.update("UPDATE edu_domain_admins SET domain='ROLE_CASE_PROCESSOR' WHERE active=TRUE");
     read("domain.processor", "/api/education/report-preview?domains=ROLE_MEDICAL_REVIEWER", 403);
+    assertEquals(
+        2,
+        read(admin, "/api/education/report-preview?domains=ROLE_MEDICAL_REVIEWER", 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    mvc.perform(
+            get("/api/education/reports/" + report.path("id").asLong() + "/pdf").with(as(admin)))
+        .andExpect(status().isOk());
     read("domain.processor", "/api/education/reports/" + report.path("id").asLong() + "/pdf", 403);
     assertEquals(
         0,

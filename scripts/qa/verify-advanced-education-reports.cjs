@@ -1,5 +1,5 @@
 const fs=require('node:fs');const path=require('node:path');
-module.exports=async function({browser,origin,password,collegeAdmin,otherAdmin,domainAdmin,one,two,alpha,beta,raw,qaDirectory}){
+module.exports=async function({browser,origin,password,admin,collegeAdmin,otherAdmin,domainAdmin,one,two,alpha,beta,raw,qaDirectory}){
  const nav=(p,label)=>p.getByRole('navigation',{name:'College workspace navigation'}).getByRole('button',{name:label,exact:true});
  await otherAdmin.getByRole('button',{name:'Grant Student Access',exact:true}).click();let dialog=otherAdmin.getByRole('dialog',{name:'Grant Student Access',exact:true});await dialog.getByRole('row').filter({hasText:two}).getByRole('button',{name:'Approve student',exact:true}).click();dialog=otherAdmin.getByRole('dialog',{name:'Confirm student access',exact:true});await dialog.getByLabel('Decision reason',{exact:true}).fill('Synthetic college verified student report eligibility');await dialog.getByRole('button',{name:'Confirm approval',exact:true}).click();dialog=otherAdmin.getByRole('dialog',{name:'Grant Student Access',exact:true});await dialog.getByText('All caught up',{exact:true}).waitFor();await dialog.getByRole('button',{name:'Close grant student access',exact:true}).click();
  for(const [p,c,code,domain,stage,title]of [[collegeAdmin,alpha,one,'ROLE_MEDICAL_REVIEWER','Clinical source review','Synthetic medical reporting work'],[otherAdmin,beta,two,'ROLE_CASE_PROCESSOR','Case intake','Synthetic beta case work'],[otherAdmin,beta,two,'ROLE_PV_ANALYST','Dataset definition','Synthetic beta analysis work']]){
@@ -10,6 +10,15 @@ module.exports=async function({browser,origin,password,collegeAdmin,otherAdmin,d
  async function total(p,n){await p.waitForFunction(n=>Number(document.querySelector('.edu-report-summary strong')?.textContent)===n,n);}
  async function action(p,label,n){const response=p.waitForResponse(r=>r.url().includes('/api/education/report-preview?')&&r.request().method()==='GET');await p.getByRole('button',{name:label,exact:true}).click();if(!(await response).ok())throw Error('Report preview failed');await total(p,n);}
  async function pdf(p,name){const [download]=await Promise.all([p.waitForEvent('download'),p.getByRole('button',{name:'Generate progress PDF',exact:true}).click()]);const dest=path.join(qaDirectory,'documents',name);await download.saveAs(dest);if(!fs.readFileSync(dest).subarray(0,4).equals(Buffer.from('%PDF')))throw Error('Invalid advanced report PDF');}
+ await admin.getByRole('button',{name:'Reports across domains',exact:true}).click();
+ await admin.getByRole('heading',{name:'Super Admin reports across all colleges',exact:true}).waitFor();
+ await total(admin,4);await pdf(admin,'super-admin-all-colleges-all-domains.pdf');
+ await admin.getByLabel('Report college',{exact:true}).selectOption(String(beta.id));await admin.getByRole('option',{name:new RegExp(two)}).waitFor({state:'attached'});await action(admin,'Apply Filters',2);
+ await admin.getByLabel('Report student',{exact:true}).selectOption(two);await admin.getByLabel('Report domain: PV Analyst',{exact:true}).check();await action(admin,'Apply Filters',1);await pdf(admin,'super-admin-college-student-domain.pdf');
+ await action(admin,'Reset Filters',4);await admin.reload();await admin.getByRole('heading',{name:'Super Admin reports across all colleges',exact:true}).waitFor();await total(admin,4);
+ for(const width of [1440,768,390]){await admin.setViewportSize({width,height:900});if(await admin.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw Error('Super Admin report overflow '+width);}await admin.setViewportSize({width:1440,height:1000});
+ await nav(admin,'Colleges & administrators').click();await admin.getByRole('form',{name:'Create college',exact:true}).waitFor();
+ console.log('PASS Super Admin global and college/student/domain reports, two PDF exports, reset, direct reload, responsive layout and retained college management');
  await open(collegeAdmin);await total(collegeAdmin,2);if(await collegeAdmin.getByLabel('Report college',{exact:true}).count())throw Error('College Administration must not choose another college');if(await collegeAdmin.locator('select[aria-label="Report student"] option').filter({hasText:two}).count())throw Error('Foreign student option leaked');
  await pdf(collegeAdmin,'college-all-domains.pdf');
  await collegeAdmin.getByLabel('Report student',{exact:true}).selectOption(one);await action(collegeAdmin,'Apply Filters',2);

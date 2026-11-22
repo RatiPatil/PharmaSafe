@@ -1325,7 +1325,7 @@ public class EducationService {
       selected.add(f.domain);
     }
     if (selected.isEmpty()) {
-      if (student(a) || root(a)) throw new IllegalArgumentException("Select a domain");
+      if (student(a)) throw new IllegalArgumentException("Select a domain");
       domains.all.stream()
           .map(EducationDomains.Domain::code)
           .filter(d -> a.domain == null || a.domain.equals(d))

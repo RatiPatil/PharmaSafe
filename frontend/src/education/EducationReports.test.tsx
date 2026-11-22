@@ -50,3 +50,11 @@ it('exports only applied filters, retaining a saved PDF in history',async()=>{
  expect(m.api).toHaveBeenCalledWith('/api/education/reports','POST',{collegeId:null,studentCode:null,domains:['ROLE_CASE_PROCESSOR'],status:null});
  expect(m.pdf).toHaveBeenCalledWith('/api/education/reports/8/pdf','progress.pdf');
 });
+
+it('provides Super Admin global reporting with all-college selection', async()=>{
+ render(<EducationReports collegeOnly={false} superAdmin/>);
+ await screen.findByRole('heading',{name:'Super Admin reports across all colleges'});
+ await screen.findByRole('option',{name:'Alpha Student · ALPHA-0001 · College Alpha'});
+ expect(screen.getByLabelText('Report college')).toHaveValue('');
+ expect(screen.getByLabelText('All authorized domains')).toBeChecked();
+});

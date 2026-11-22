@@ -26,12 +26,14 @@ type Selection = {
 type Preview = { summary: Stats; records: Page<Task>; domains: string[] };
 export function EducationReports({
   collegeOnly,
+  superAdmin = false,
   initialDomain = "",
   initialCollege = "",
   initialStudent = "",
   initialStatus = "",
 }: {
   collegeOnly: boolean;
+  superAdmin?: boolean;
   initialDomain?: string;
   initialCollege?: string;
   initialStudent?: string;
@@ -174,7 +176,9 @@ export function EducationReports({
             <h2>
               {collegeOnly
                 ? "College progress reports"
-                : "College-wise progress reports"}
+                : superAdmin
+                  ? "Super Admin reports across all colleges"
+                  : "College-wise progress reports"}
             </h2>
             <p>
               Combine student and domain filters to inspect current assignments

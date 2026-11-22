@@ -160,7 +160,7 @@ export function EducationWorkspace() {
       root ||
       user?.role === "ROLE_COLLEGE_ADMIN" ||
       user?.role === "ROLE_DOMAIN_ADMIN";
-  const advancedReports = !root && !student && route.section === "reports";
+  const advancedReports = manager && route.section === "reports";
   const globalReports = advancedReports && !route.domain;
   const selectionScreen = !root && (route.section === "home" || globalReports);
   const dataSection =
@@ -625,7 +625,7 @@ export function EducationWorkspace() {
               <RefreshCw size={15} /> Refresh college data
             </button>
           )}
-          {!root && !student && (
+          {manager && (
             <button
               className="edu-report-launch"
               onClick={() => go(globalReports ? "home" : "reports", "")}
@@ -846,6 +846,7 @@ export function EducationWorkspace() {
             />
           ) : globalReports ? (
             <EducationReports
+              superAdmin={root}
               collegeOnly={user?.role === "ROLE_COLLEGE_ADMIN"}
             />
           ) : !domain || !card?.authorized ? (
@@ -1614,6 +1615,7 @@ export function EducationWorkspace() {
               ) : advancedReports ? (
                 <EducationReports
                   key={route.domain}
+                  superAdmin={root}
                   collegeOnly={user?.role === "ROLE_COLLEGE_ADMIN"}
                   initialDomain={route.domain}
                   initialCollege={collegeId}
