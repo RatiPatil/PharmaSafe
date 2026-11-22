@@ -744,7 +744,7 @@ export function WorkOrders({
     <section className="ws-card">
       <h2>College work orders</h2>
       <p>
-        Domain Admin creates college work. College Admin assigns its original
+        Domain Admin creates college work. College Administration assigns its original
         instructions to individual students, selected students or the approved
         cohort.
       </p>
@@ -994,7 +994,7 @@ export function ProfileSettings({ settings }: { settings: boolean }) {
                         {
                           ROLE_ADMIN: "Super Admin",
                           ROLE_DOMAIN_ADMIN: "Domain Admin",
-                          ROLE_COLLEGE_ADMIN: "College Admin",
+                          ROLE_COLLEGE_ADMIN: "College Administration",
                           ROLE_STUDENT: "Student",
                         } as Record<string, string>
                       )[String(profile[k])] || "Administrator"

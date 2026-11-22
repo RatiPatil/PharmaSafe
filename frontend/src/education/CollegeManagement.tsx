@@ -179,7 +179,7 @@ export function CollegeManagement({
       <section className="ws-card">
         <h2>College & Domain administrators</h2>
         <p>
-          College Admins manage one college across all seven domains. Domain
+          College administration accounts manage one college across all seven domains. Domain
           Admin oversees all seven domains across colleges. Only one Domain
           Admin can be active. These educational authorities do not grant
           clinical employee privileges.
@@ -212,7 +212,7 @@ export function CollegeManagement({
                 setAdmin((v) => ({ ...v, kind: e.target.value }))
               }
             >
-              <option value="COLLEGE_ADMIN">College Admin</option>
+              <option value="COLLEGE_ADMIN">College Administration</option>
               <option value="DOMAIN_ADMIN">Domain Admin</option>
             </select>
           </label>
@@ -328,7 +328,7 @@ export function CollegeManagement({
                   </td>
                   <td>
                     {g.kind === "COLLEGE_ADMIN"
-                      ? "College Admin"
+                      ? "College Administration"
                       : "Domain Admin"}
                   </td>
                   <td>

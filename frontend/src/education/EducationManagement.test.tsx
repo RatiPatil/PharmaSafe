@@ -57,7 +57,7 @@ it("creates actual college work from accessible controls", async () => {
     ),
   );
 });
-it("keeps college changes unavailable in the College Admin view", () => {
+it("keeps college changes unavailable in the College Administration view", () => {
   render(
     <CollegeTools
       colleges={[college]}

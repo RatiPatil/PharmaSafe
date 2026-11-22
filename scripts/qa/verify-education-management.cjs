@@ -23,6 +23,8 @@ module.exports = async function ({
           .count()
       )
         await nav(p, "All seven domains").click();
+      else if(await p.getByRole("button",{name:"All seven domains",exact:true}).count())
+        await p.getByRole("button",{name:"All seven domains",exact:true}).click();
       await p.locator(".edu-domain-card").last().waitFor();
       if (await p.locator("#education-navigation").count())
         throw Error("No sidebar is permitted on admin domain selection");

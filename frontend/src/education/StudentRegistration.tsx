@@ -446,7 +446,7 @@ export function StudentRegistration() {
                 <dt>Registration status</dt>
                 <dd>
                   <Clock3 size={15} aria-hidden="true" />
-                  Awaiting College Admin approval
+                  Awaiting College Administration approval
                 </dd>
               </div>
             </dl>

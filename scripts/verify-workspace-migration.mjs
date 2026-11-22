@@ -113,7 +113,7 @@ for (const populated of [false, true]) {
   await assert.rejects(db.exec(pvInsert('pv-unreviewed','pv-evidence-author',"(SELECT id FROM cases WHERE case_number='RECEIPT-A')")),e=>e.code==='23514');
   await assert.rejects(db.exec("UPDATE pv_analysis_records SET title='Changed evidence'"),e=>e.code==='23514');
   await assert.rejects(db.exec('DELETE FROM pv_analysis_records'),e=>e.code==='23514');
-  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V24, seven public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
+  console.log(`PASS ${populated?'populated upgrade':'fresh install'}: V1–V25, seven public roles and separate administrative authorities, FK integrity${populated?', preserved users/case/patient links':''}`);
  } finally { await db.close(); }
 }
 

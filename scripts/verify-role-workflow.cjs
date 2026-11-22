@@ -51,7 +51,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await publicPage.getByRole('button',{name:'Request access as Medical Reviewer',exact:true}).waitFor();
   await publicPage.goto(origin+'/#/home');
   await publicPage.getByRole('heading',{name:/Safer decisions/}).waitFor();
-  if(await publicPage.locator('#account-types').count()||await publicPage.getByRole('navigation',{name:'Public site'}).getByRole('link').count()!==2)throw Error('Home must show only Login and Student registration, without role cards');
+  if(await publicPage.locator('#account-types').count()||await publicPage.getByRole('navigation',{name:'Public site'}).getByRole('link').count()!==3)throw Error('Home must show both login choices and student registration, without role cards');
   fs.mkdirSync(path.join(qaDirectory,'screens'),{recursive:true});
   for(const width of [1440,768,390]){
    await publicPage.setViewportSize({width,height:1000});

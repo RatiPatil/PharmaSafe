@@ -58,10 +58,10 @@ export function HomeContent() {
               <LockKeyhole size={18} />
             </span>
             <div>
-              <strong>One login. The right workspace.</strong>
+              <strong>Choose the right login.</strong>
               <p>
-                Sign in to continue, or choose Student registration to join your
-                college.
+                User Login is for students, domain administrators and safety teams.
+                College administrators use College Administration Login.
               </p>
             </div>
           </div>
@@ -194,7 +194,7 @@ export function HomeContent() {
           <details>
             <summary>I already have an account. How do I sign in?</summary>
             <p>
-              Use Login at the top of this page. Enter your username or official
+              Use User Login at the top of this page. College administrators use the separate College Administration Login. Enter your username or official
               email and password. Students can also use their Student ID. Your
               account opens its authorised workspace automatically.
             </p>
@@ -211,7 +211,7 @@ export function HomeContent() {
           <details>
             <summary>When can I start my college assignments?</summary>
             <p>
-              Your College Admin reviews your registration before granting
+              Your College Administration reviews your registration before granting
               domain access. Sign in to track your approval status. After
               approval, open an available domain to see work assigned to you.
             </p>

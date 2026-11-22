@@ -20,6 +20,7 @@ import { useAuth } from "../context/AuthContext";
 import { apiRequest, downloadPdf } from "../config/api";
 import { AccessDialog } from "../workspaces/AccessDialog";
 import { dateTime } from "../workspaces/model";
+import { EducationReports } from "./EducationReports";
 import { GrantStudentAccess } from "./GrantStudentAccess";
 import { EducationTask } from "./EducationTask";
 import {
@@ -73,7 +74,12 @@ function location() {
   return {
     domain: match?.[1] || "",
     section:
-      match?.[2] || (hash === "#/education/colleges" ? "colleges" : "home"),
+      match?.[2] ||
+      (hash === "#/education/colleges"
+        ? "colleges"
+        : hash === "#/education/reports"
+          ? "reports"
+          : "home"),
   };
 }
 function WorkChart({
@@ -154,15 +160,18 @@ export function EducationWorkspace() {
       root ||
       user?.role === "ROLE_COLLEGE_ADMIN" ||
       user?.role === "ROLE_DOMAIN_ADMIN";
-  const selectionScreen = !root && route.section === "home";
-  const dataSection = [
-    "dashboard",
-    "students",
-    "work",
-    "completed",
-    "pending",
-    "reports",
-  ].includes(route.section);
+  const advancedReports = !root && !student && route.section === "reports";
+  const globalReports = advancedReports && !route.domain;
+  const selectionScreen = !root && (route.section === "home" || globalReports);
+  const dataSection =
+    [
+      "dashboard",
+      "students",
+      "work",
+      "completed",
+      "pending",
+      "reports",
+    ].includes(route.section) && !advancedReports;
   const workSection = ["work", "completed", "pending"].includes(route.section);
   const domain = catalog?.domains.find((d) => d.code === route.domain);
   const card = overview?.domains.find((d) => d.code === route.domain);
@@ -172,7 +181,7 @@ export function EducationWorkspace() {
       ? "Student dashboard"
       : user?.role === "ROLE_DOMAIN_ADMIN"
         ? "Domain Admin dashboard"
-        : "College Admin dashboard";
+        : "College Administration dashboard";
   const reload = useCallback(() => setRefresh((v) => v + 1), []);
   const leave = () =>
     !dirtyRef.current ||
@@ -196,8 +205,8 @@ export function EducationWorkspace() {
     window.location.hash =
       section === "home"
         ? "/education"
-        : section === "colleges" && !code
-          ? "/education/colleges"
+        : ["colleges", "reports"].includes(section) && !code
+          ? `/education/${section}`
           : `/education/${code}/${section}`;
   };
   useEffect(() => {
@@ -354,7 +363,10 @@ export function EducationWorkspace() {
       p.set("search", search);
     }
     let path = "";
-    if (["students", "requests", "work", "reports", "dashboard"].includes(name))
+    if (
+      !advancedReports &&
+      ["students", "requests", "work", "reports", "dashboard"].includes(name)
+    )
       path = `/api/education/${name === "work" || name === "dashboard" ? "tasks" : name}?${p}`;
     if (!path) {
       setSectionLoading(false);
@@ -387,6 +399,7 @@ export function EducationWorkspace() {
       });
     return () => c.abort();
   }, [
+    advancedReports,
     domain?.code,
     card?.authorized,
     selected,
@@ -612,6 +625,14 @@ export function EducationWorkspace() {
               <RefreshCw size={15} /> Refresh college data
             </button>
           )}
+          {!root && !student && (
+            <button
+              className="edu-report-launch"
+              onClick={() => go(globalReports ? "home" : "reports", "")}
+            >
+              {globalReports ? "All seven domains" : "Reports across domains"}
+            </button>
+          )}
           <div className="edu-selection-profile">
             <strong>
               {overview?.fullName || user?.fullName || user?.username}
@@ -639,11 +660,13 @@ export function EducationWorkspace() {
               <h1>
                 {route.section === "home"
                   ? title
-                  : route.section === "colleges"
-                    ? domain
-                      ? domain.name + " · Colleges"
-                      : "Colleges & administrators"
-                    : domain?.name || "Domain workspace"}
+                  : globalReports
+                    ? "Reports & insights"
+                    : route.section === "colleges"
+                      ? domain
+                        ? domain.name + " · Colleges"
+                        : "Colleges & administrators"
+                      : domain?.name || "Domain workspace"}
               </h1>
               <p>
                 {student
@@ -820,6 +843,10 @@ export function EducationWorkspace() {
               refresh={refresh}
               onSaved={reload}
               onDirty={setDirty}
+            />
+          ) : globalReports ? (
+            <EducationReports
+              collegeOnly={user?.role === "ROLE_COLLEGE_ADMIN"}
             />
           ) : !domain || !card?.authorized ? (
             <section className="ws-card">
@@ -1584,6 +1611,15 @@ export function EducationWorkspace() {
                     {pager}
                   </section>
                 </>
+              ) : advancedReports ? (
+                <EducationReports
+                  key={route.domain}
+                  collegeOnly={user?.role === "ROLE_COLLEGE_ADMIN"}
+                  initialDomain={route.domain}
+                  initialCollege={collegeId}
+                  initialStudent={studentCode}
+                  initialStatus={status}
+                />
               ) : route.section === "reports" ? (
                 <section className="ws-card">
                   <div className="ws-section-heading">
@@ -1668,8 +1704,15 @@ export function EducationWorkspace() {
           )}
           {overview && (
             <p className="edu-refresh">
-              Updated {dateTime(overview.updatedAt)}. Statistics refresh every
-              15 seconds while this page is visible. Unsaved work is preserved.
+              {advancedReports ? (
+                "Report results reflect your last applied selection. Use Apply Filters to refresh; saved PDFs retain their original snapshot."
+              ) : (
+                <>
+                  Updated {dateTime(overview.updatedAt)}. Statistics refresh
+                  every 15 seconds while this page is visible. Unsaved work is
+                  preserved.
+                </>
+              )}
             </p>
           )}
         </main>

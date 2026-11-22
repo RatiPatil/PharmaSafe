@@ -3,8 +3,8 @@ module.exports = async function verifyRoleLoginLayout(page, origin, roles) {
   await page.goto(`${origin}/#/home`);
   await page.getByRole('heading',{name:/Safer decisions.*Stronger together/}).waitFor();
   const nav=page.getByRole('navigation',{name:'Public site'});
-  if(await nav.getByRole('link').count()!==2||await page.locator('#account-types').count())throw Error('Home must have only Login and Student registration, without role cards');
-  if(await nav.getByRole('link',{name:'Login',exact:true}).getAttribute('href')!=='#/login'||await nav.getByRole('link',{name:'Student registration',exact:true}).getAttribute('href')!=='#/students/register')throw Error('Home actions must use common login and student registration');
+  if(await nav.getByRole('link').count()!==3||await page.locator('#account-types').count())throw Error('Home must show separate user/college logins and student registration, without role cards');
+  if(await nav.getByRole('link',{name:'College Administration Login',exact:true}).getAttribute('href')!=='#/login/college-administration'||await nav.getByRole('link',{name:'User Login',exact:true}).getAttribute('href')!=='#/login'||await nav.getByRole('link',{name:'Student registration',exact:true}).getAttribute('href')!=='#/students/register')throw Error('Home actions must use common login and student registration');
   const viewports = [[1920,880],[1440,900],[1366,768],[1280,590],[1024,640],[800,600],[390,844],[320,700]];
   for (const [width,height] of viewports) {
     await page.setViewportSize({width,height});

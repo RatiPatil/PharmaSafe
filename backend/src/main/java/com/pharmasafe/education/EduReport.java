@@ -25,8 +25,13 @@ public class EduReport {
   @JoinColumn(name = "student_id")
   public EduStudent student;
 
-  @Column(name = "domain", length = 32, nullable = false)
+  @Column(name = "domain", length = 32, nullable = true)
   public String domain;
+
+  @ElementCollection(fetch = FetchType.EAGER)
+  @CollectionTable(name = "edu_report_domains", joinColumns = @JoinColumn(name = "report_id"))
+  @Column(name = "domain", length = 32, nullable = false)
+  public java.util.Set<String> selectedDomains = new java.util.LinkedHashSet<>();
 
   @Column(name = "filter_status", length = 16, nullable = true)
   public String filterStatus;

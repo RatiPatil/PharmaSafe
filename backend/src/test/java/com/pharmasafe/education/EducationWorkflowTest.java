@@ -82,6 +82,7 @@ class EducationWorkflowTest {
             "edu_submission_documents",
             "edu_task_feedback",
             "edu_task_submissions",
+            "edu_report_domains",
             "edu_progress_reports",
             "edu_tasks",
             "edu_work_orders",
@@ -402,6 +403,250 @@ class EducationWorkflowTest {
     } finally {
       pool.shutdownNow();
     }
+  }
+
+  @Test
+  void advancedReportsCombineCollegeStudentAndMultipleDomainsWithoutLeakingData() throws Exception {
+    var a = register("student.alpha.one", college, Set.of());
+    var b = register("student.alpha.two", college, Set.of());
+    var c = register("student.beta.one", otherCollege, Set.of());
+    for (var d : domains.all) {
+      approve("college.alpha", "student.alpha.one", d.code());
+      approve("college.alpha", "student.alpha.two", d.code());
+      approve("college.beta", "student.beta.one", d.code());
+    }
+    String one = a.path("studentCode").asText(),
+        two = b.path("studentCode").asText(),
+        other = c.path("studentCode").asText();
+    assign("college.alpha", college, "ROLE_CASE_PROCESSOR", one, false);
+    assign("college.alpha", college, "ROLE_MEDICAL_REVIEWER", one, false);
+    assign("college.alpha", college, "ROLE_CASE_PROCESSOR", two, false);
+    assign("college.beta", otherCollege, "ROLE_MEDICAL_REVIEWER", other, false);
+    assign("college.beta", otherCollege, "ROLE_PV_ANALYST", other, false);
+    assertEquals(
+        3,
+        read("college.alpha", "/api/education/report-preview", 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        2,
+        read("college.alpha", "/api/education/report-preview?studentCode=" + one, 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        1,
+        read(
+                "college.alpha",
+                "/api/education/report-preview?studentCode=" + one + "&domains=ROLE_CASE_PROCESSOR",
+                200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        2,
+        read("college.alpha", "/api/education/report-preview?domains=ROLE_CASE_PROCESSOR", 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        3,
+        read(
+                "college.alpha",
+                "/api/education/report-preview?domains=ROLE_CASE_PROCESSOR&domains=ROLE_MEDICAL_REVIEWER",
+                200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        5,
+        read("domain.processor", "/api/education/report-preview", 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        3,
+        read("domain.processor", "/api/education/report-preview?collegeId=" + college, 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        2,
+        read(
+                "domain.processor",
+                "/api/education/report-preview?collegeId=" + college + "&studentCode=" + one,
+                200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        1,
+        read(
+                "domain.processor",
+                "/api/education/report-preview?collegeId="
+                    + college
+                    + "&studentCode="
+                    + one
+                    + "&domains=ROLE_MEDICAL_REVIEWER",
+                200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        2,
+        read(
+                "domain.processor",
+                "/api/education/report-preview?collegeId="
+                    + college
+                    + "&domains=ROLE_CASE_PROCESSOR",
+                200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        1,
+        read("domain.processor", "/api/education/report-preview?domains=ROLE_PV_ANALYST", 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    assertEquals(
+        2,
+        read("domain.processor", "/api/education/report-preview?domains=ROLE_MEDICAL_REVIEWER", 200)
+            .path("summary")
+            .path("total")
+            .asInt());
+    read("college.alpha", "/api/education/report-preview?collegeId=" + otherCollege, 403);
+    read("college.alpha", "/api/education/report-options?collegeId=" + otherCollege, 403);
+    read("college.alpha", "/api/education/report-preview?studentCode=" + other, 403);
+    read(
+        "domain.processor",
+        "/api/education/report-preview?collegeId=" + otherCollege + "&studentCode=" + one,
+        400);
+    read("domain.processor", "/api/education/report-preview?domains=ROLE_ADMIN", 400);
+    read("student.alpha.one", "/api/education/report-options", 403);
+    read("student.alpha.one", "/api/education/report-preview", 403);
+    read("domain.processor", "/api/education/report-preview?collegeId=9223372036854775807", 404);
+    read("domain.processor", "/api/education/report-preview?page=-1", 400);
+    var options = read("college.alpha", "/api/education/report-options", 200);
+    assertEquals(2, options.path("students").path("totalElements").asInt());
+    assertFalse(options.toString().contains(other));
+    var betaOptions =
+        read("domain.processor", "/api/education/report-options?collegeId=" + otherCollege, 200);
+    assertEquals(1, betaOptions.path("students").path("totalElements").asInt());
+    assertEquals(
+        other, betaOptions.path("students").path("content").get(0).path("studentCode").asText());
+    var report =
+        send(
+            "college.alpha",
+            "/api/education/reports",
+            Map.of(
+                "studentCode",
+                one,
+                "domains",
+                Set.of("ROLE_CASE_PROCESSOR", "ROLE_MEDICAL_REVIEWER")),
+            201);
+    assertEquals(2, report.path("domains").size());
+    assertTrue(report.path("domain").isNull());
+    byte[] pdf =
+        mvc.perform(
+                get("/api/education/reports/" + report.path("id").asLong() + "/pdf")
+                    .with(as("college.alpha")))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsByteArray();
+    try (var doc = org.apache.pdfbox.Loader.loadPDF(pdf)) {
+      String text = new org.apache.pdfbox.text.PDFTextStripper().getText(doc);
+      assertTrue(text.contains(one));
+      assertFalse(text.contains(other));
+      assertFalse(text.contains(two));
+      assertTrue(text.contains("Case Processor"));
+      assertTrue(text.contains("Medical Reviewer"));
+    }
+    assertEquals(
+        1,
+        read(
+                "domain.processor",
+                "/api/education/reports?collegeId=" + college + "&studentCode=" + one,
+                200)
+            .path("totalElements")
+            .asInt());
+    assertEquals(
+        0,
+        read("domain.processor", "/api/education/reports?domains=ROLE_CASE_PROCESSOR", 200)
+            .path("totalElements")
+            .asInt());
+    read("college.beta", "/api/education/reports/" + report.path("id").asLong() + "/pdf", 403);
+    read("student.alpha.two", "/api/education/reports/" + report.path("id").asLong() + "/pdf", 403);
+    var studentReport =
+        send(
+            "student.alpha.one",
+            "/api/education/reports",
+            Map.of("domain", "ROLE_CASE_PROCESSOR"),
+            201);
+    mvc.perform(
+            get("/api/education/reports/" + studentReport.path("id").asLong() + "/pdf")
+                .with(as("college.alpha")))
+        .andExpect(status().isOk());
+    jdbc.update("UPDATE edu_domain_admins SET domain='ROLE_CASE_PROCESSOR' WHERE active=TRUE");
+    read("domain.processor", "/api/education/report-preview?domains=ROLE_MEDICAL_REVIEWER", 403);
+    read("domain.processor", "/api/education/reports/" + report.path("id").asLong() + "/pdf", 403);
+    assertEquals(
+        0,
+        read("domain.processor", "/api/education/reports", 200)
+            .path("content")
+            .findValues("id")
+            .stream()
+            .filter(n -> n.asLong() == report.path("id").asLong())
+            .count());
+  }
+
+  @Test
+  void loginPortalsSeparateCollegeAdministrationWithoutChangingLegacyOrOtherAccounts()
+      throws Exception {
+    for (var user : List.of("college.alpha", admin, "domain.processor")) {
+      String right = user.equals("college.alpha") ? "COLLEGE_ADMIN" : "USER",
+          wrong = user.equals("college.alpha") ? "USER" : "COLLEGE_ADMIN";
+      mvc.perform(
+              post("/api/auth/login")
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(body(Map.of("username", user, "password", PW, "loginPortal", wrong))))
+          .andExpect(status().isForbidden());
+      mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+      var result =
+          send(
+              null,
+              "/api/auth/login",
+              Map.of("username", user, "password", PW, "loginPortal", right),
+              200);
+      assertTrue(result.path("success").asBoolean());
+    }
+    send(
+        null,
+        "/api/auth/login",
+        Map.of("username", "college.alpha", "password", PW, "loginPortal", "OTHER"),
+        400);
+    send(
+        null,
+        "/api/auth/login",
+        Map.of(
+            "username",
+            "college.alpha",
+            "password",
+            PW,
+            "loginPortal",
+            "COLLEGE_ADMIN",
+            "applicationRole",
+            "ROLE_CASE_PROCESSOR",
+            "loginMode",
+            "USER"),
+        400);
+    assertTrue(
+        send(null, "/api/auth/login", Map.of("username", "college.alpha", "password", PW), 200)
+            .path("success")
+            .asBoolean());
   }
 
   @Test

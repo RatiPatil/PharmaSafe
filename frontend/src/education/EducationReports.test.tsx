@@ -1,0 +1,52 @@
+import {render,screen,fireEvent,waitFor} from '@testing-library/react';
+import {beforeEach,it,expect,vi} from 'vitest';
+import {EducationReports} from './EducationReports';
+const m=vi.hoisted(()=>({api:vi.fn(),pdf:vi.fn()}));
+vi.mock('../config/api',()=>({apiRequest:m.api,downloadPdf:m.pdf}));
+const colleges=[{id:1,name:'College Alpha',code:'ALPHA',active:true,rowVersion:0},{id:2,name:'College Beta',code:'BETA',active:true,rowVersion:0}];
+const domains=[{code:'ROLE_CASE_PROCESSOR',name:'Case Processor'},{code:'ROLE_MEDICAL_REVIEWER',name:'Medical Reviewer'}];
+const students=[{studentCode:'ALPHA-0001',fullName:'Alpha Student',collegeId:1,collegeName:'College Alpha'},{studentCode:'BETA-0001',fullName:'Beta Student',collegeId:2,collegeName:'College Beta'}];
+const preview={domains:domains.map(d=>d.code),summary:{total:0,students:0,colleges:0,averageProgress:0,overdue:0,statusCounts:{}},records:{content:[],totalElements:0,totalPages:0,page:0}};
+beforeEach(()=>{vi.clearAllMocks();m.api.mockImplementation(async(path:string)=>{if(path.startsWith('/api/education/report-options?')){const p=new URLSearchParams(path.split('?')[1]);const list=students.filter(s=>!p.get('collegeId')||String(s.collegeId)===p.get('collegeId'));return {colleges,domains,collegeId:0,students:{content:list,totalElements:list.length,totalPages:1,page:0}};}if(path.startsWith('/api/education/report-preview?'))return preview;return {content:[],totalElements:0,totalPages:0,page:0};});});
+it('applies one student with multiple domains and resets to all domains and students',async()=>{
+ render(<EducationReports collegeOnly />);
+ await screen.findByRole('option',{name:'Alpha Student · ALPHA-0001'});
+ expect(screen.queryByLabelText('Report college')).not.toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText('Report student'),{target:{value:'ALPHA-0001'}});
+ fireEvent.click(screen.getByLabelText('Report domain: Case Processor'));fireEvent.click(screen.getByLabelText('Report domain: Medical Reviewer'));
+ fireEvent.click(screen.getByRole('button',{name:'Apply Filters',exact:true}));
+ await waitFor(()=>expect(m.api.mock.calls.some(([p])=>String(p).startsWith('/api/education/report-preview?')&&String(p).includes('studentCode=ALPHA-0001')&&String(p).includes('domains=ROLE_CASE_PROCESSOR')&&String(p).includes('domains=ROLE_MEDICAL_REVIEWER'))).toBe(true));
+ fireEvent.click(screen.getByRole('button',{name:'Reset Filters',exact:true}));
+ await waitFor(()=>expect(m.api.mock.calls.filter(([p])=>String(p).startsWith('/api/education/report-preview?')).at(-1)?.[0]).not.toContain('studentCode='));
+ expect(screen.getByLabelText('All authorized domains')).toBeChecked();
+});
+it('updates student options and clears an incompatible student when the college changes',async()=>{
+ render(<EducationReports collegeOnly={false}/>);
+ await screen.findByRole('option',{name:'Alpha Student · ALPHA-0001 · College Alpha'});
+ fireEvent.change(screen.getByLabelText('Report student'),{target:{value:'ALPHA-0001'}});
+ fireEvent.change(screen.getByLabelText('Report college'),{target:{value:'2'}});
+ expect(screen.getByLabelText('Report student')).toHaveValue('');
+ await screen.findByRole('option',{name:'Beta Student · BETA-0001'});
+ expect(screen.queryByRole('option',{name:/Alpha Student/})).not.toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText('Report student'),{target:{value:'BETA-0001'}});
+ fireEvent.click(screen.getByRole('button',{name:'Apply Filters',exact:true}));
+ await waitFor(()=>expect(m.api.mock.calls.some(([p])=>String(p).startsWith('/api/education/report-preview?')&&String(p).includes('collegeId=2')&&String(p).includes('studentCode=BETA-0001'))).toBe(true));
+});
+it('shows failures and supports retry without retaining stale report rows',async()=>{
+ const base=m.api.getMockImplementation()!;let failed=true;m.api.mockImplementation(async(path:string,...args:unknown[])=>{if(path.startsWith('/api/education/report-preview?')&&failed)throw new Error('Report service unavailable');return base(path,...args)});
+ render(<EducationReports collegeOnly/>);
+ await screen.findByText('Report service unavailable');expect(screen.queryByRole('table')).not.toBeInTheDocument();failed=false;fireEvent.click(screen.getByRole('button',{name:'Retry reports'}));await screen.findByText('No matching assignments');
+});
+it('exports only applied filters, retaining a saved PDF in history',async()=>{
+ const base=m.api.getMockImplementation()!;const report={id:8,domains:['ROLE_CASE_PROCESSOR'],domain:'ROLE_CASE_PROCESSOR',fileName:'progress.pdf',studentCode:null,createdAt:'2026-11-22T10:00:00Z',generatedBy:'college.admin',sha256:'hash'};let saved=false;
+ m.api.mockImplementation(async(path:string,method?:string,...args:unknown[])=>{if(path==='/api/education/reports'&&method==='POST'){saved=true;return report}if(path.startsWith('/api/education/reports?')&&saved)return {content:[report],totalElements:1,totalPages:1,page:0};return base(path,method,...args)});
+ render(<EducationReports collegeOnly/>);await screen.findByLabelText('Report domain: Case Processor');
+ fireEvent.click(screen.getByLabelText('Report domain: Case Processor'));
+ expect(screen.getByRole('button',{name:'Generate progress PDF',exact:true})).toBeDisabled();
+ fireEvent.click(screen.getByRole('button',{name:'Apply Filters',exact:true}));
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Generate progress PDF',exact:true})).toBeEnabled());
+ fireEvent.click(screen.getByRole('button',{name:'Generate progress PDF',exact:true}));
+ await screen.findByRole('button',{name:'Download progress PDF',exact:true});
+ expect(m.api).toHaveBeenCalledWith('/api/education/reports','POST',{collegeId:null,studentCode:null,domains:['ROLE_CASE_PROCESSOR'],status:null});
+ expect(m.pdf).toHaveBeenCalledWith('/api/education/reports/8/pdf','progress.pdf');
+});

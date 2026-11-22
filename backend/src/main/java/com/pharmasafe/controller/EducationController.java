@@ -171,10 +171,27 @@ public class EducationController {
     return download(service.document(a.getName(), task, id));
   }
 
+  @GetMapping("/report-options")
+  public Map<String, Object> reportOptions(
+      Authentication a,
+      @RequestParam(required = false) Long collegeId,
+      @RequestParam(defaultValue = "") String search,
+      @RequestParam(defaultValue = "0") int page) {
+    return service.reportOptions(a.getName(), collegeId, search, page);
+  }
+
+  @GetMapping("/report-preview")
+  public Map<String, Object> reportPreview(
+      Authentication a,
+      @Valid @ModelAttribute EducationService.ReportFilter f,
+      @RequestParam(defaultValue = "0") int page) {
+    return service.reportPreview(a.getName(), f, page);
+  }
+
   @GetMapping("/reports")
   public Map<String, Object> reports(
       Authentication a,
-      @Valid @ModelAttribute EducationService.Filter f,
+      @Valid @ModelAttribute EducationService.ReportFilter f,
       @RequestParam(defaultValue = "0") int page) {
     return service.reports(a.getName(), f, page);
   }
@@ -182,7 +199,7 @@ public class EducationController {
   @PostMapping("/reports")
   @ResponseStatus(HttpStatus.CREATED)
   public Map<String, Object> report(
-      Authentication a, @Valid @RequestBody EducationService.Filter f) {
+      Authentication a, @Valid @RequestBody EducationService.ReportFilter f) {
     return service.report(a.getName(), f);
   }
 

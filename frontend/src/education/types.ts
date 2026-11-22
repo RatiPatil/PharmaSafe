@@ -85,8 +85,10 @@ export type Admin = {
   rowVersion: number;
 };
 export type Report = {
+  collegeName?: string | null;
+  domains?:string[];
   id: number;
-  domain: string;
+  domain: string | null;
   collegeId: number | null;
   studentCode: string | null;
   status: string | null;

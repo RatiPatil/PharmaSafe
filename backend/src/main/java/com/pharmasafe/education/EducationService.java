@@ -186,7 +186,7 @@ public class EducationService {
 
   private void manager(Actor a) {
     if (!root(a) && !a.role.equals("ROLE_COLLEGE_ADMIN") && !a.role.equals("ROLE_DOMAIN_ADMIN"))
-      throw new AccessDeniedException("College Admin access required");
+      throw new AccessDeniedException("College Administration access required");
   }
 
   private <T> T find(Class<T> type, Long id, boolean lock) {
@@ -914,7 +914,8 @@ public class EducationService {
     var a = actor(name);
     manager(a);
     if (a.role.equals("ROLE_DOMAIN_ADMIN"))
-      throw new AccessDeniedException("Student approval belongs to the associated College Admin");
+      throw new AccessDeniedException(
+          "Student approval belongs to the associated College Administration");
     var m = find(EduMembership.class, id, true);
     college(a, m.student.college.id);
     if (!m.student.college.active) throw new IllegalArgumentException("College is inactive");
@@ -1304,11 +1305,177 @@ public class EducationService {
     return new Download(doc.bytes, doc.fileName);
   }
 
+  public record ReportFilter(
+      @Positive Long collegeId,
+      @Size(max = 32) String domain,
+      @Size(max = 7) Set<@NotBlank @Size(max = 32) String> domains,
+      @Size(max = 32) String studentCode,
+      @Size(max = 16) String status) {}
+
+  private List<String> reportDomains(Actor a, ReportFilter f) {
+    if (f.collegeId != null) {
+      college(a, f.collegeId);
+      find(EduCollege.class, f.collegeId, false);
+    }
+    var selected = new LinkedHashSet<String>();
+    if (f.domains != null) selected.addAll(f.domains);
+    if (f.domain != null && !f.domain.isBlank()) {
+      if (!selected.isEmpty() && !selected.contains(f.domain))
+        throw new IllegalArgumentException("Domain filters do not agree");
+      selected.add(f.domain);
+    }
+    if (selected.isEmpty()) {
+      if (student(a) || root(a)) throw new IllegalArgumentException("Select a domain");
+      domains.all.stream()
+          .map(EducationDomains.Domain::code)
+          .filter(d -> a.domain == null || a.domain.equals(d))
+          .forEach(selected::add);
+    }
+    if (student(a) && selected.size() != 1)
+      throw new AccessDeniedException("Student reports use one approved domain at a time");
+    for (String d : selected) scope(a, new Filter(f.collegeId, d, f.studentCode, f.status), true);
+    return domains.all.stream()
+        .map(EducationDomains.Domain::code)
+        .filter(selected::contains)
+        .toList();
+  }
+
+  private String reportWhere(
+      Actor a, ReportFilter f, List<String> selected, Map<String, Object> p) {
+    String w = where(a, new Filter(f.collegeId, null, f.studentCode, f.status), "t", p, true);
+    p.put("reportDomains", selected);
+    return w + (w.isEmpty() ? " where " : " and ") + "t.domain in :reportDomains";
+  }
+
+  private Map<String, Object> reportStatistics(Actor a, ReportFilter f, List<String> selected) {
+    var p = new HashMap<String, Object>();
+    var w = reportWhere(a, f, selected, p);
+    var q =
+        em.createQuery(
+            "select t.status,count(t),avg(t.progress) from EduTask t" + w + " group by t.status",
+            Object[].class);
+    p.forEach(q::setParameter);
+    var counts = new LinkedHashMap<String, Long>();
+    for (var state : List.of("NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "RETURNED", "COMPLETED"))
+      counts.put(state, 0L);
+    long total = 0;
+    double progress = 0;
+    for (var row : q.getResultList()) {
+      long n = (Long) row[1];
+      counts.put((String) row[0], n);
+      total += n;
+      progress += ((Double) row[2]) * n;
+    }
+    var late = new HashMap<>(p);
+    late.put("now", Instant.now());
+    return Map.of(
+        "total",
+        total,
+        "statusCounts",
+        counts,
+        "averageProgress",
+        total == 0 ? 0 : Math.round(progress / total),
+        "students",
+        count("select count(distinct t.student.id) from EduTask t" + w, p),
+        "colleges",
+        count("select count(distinct t.college.id) from EduTask t" + w, p),
+        "overdue",
+        count(
+            "select count(t) from EduTask t" + w + " and t.dueAt<:now and t.status<>'COMPLETED'",
+            late));
+  }
+
+  public Map<String, Object> reportPreview(String name, ReportFilter f, int page) {
+    if (page < 0 || page > 100000) throw new IllegalArgumentException("Choose a valid report page");
+    var a = actor(name);
+    manager(a);
+    var selected = reportDomains(a, f);
+    var p = new HashMap<String, Object>();
+    var w = reportWhere(a, f, selected, p);
+    return Map.of(
+        "domains",
+        selected,
+        "summary",
+        reportStatistics(a, f, selected),
+        "records",
+        paged(
+            list(
+                    "select t from EduTask t" + w + " order by t.id desc",
+                    EduTask.class,
+                    p,
+                    Math.max(0, page) * 20,
+                    20)
+                .stream()
+                .map(this::taskView)
+                .toList(),
+            count("select count(t) from EduTask t" + w, p),
+            page));
+  }
+
+  public Map<String, Object> reportOptions(String name, Long collegeId, String search, int page) {
+    var a = actor(name);
+    manager(a);
+    if (page < 0 || page > 100000) throw new IllegalArgumentException("Choose a valid report page");
+    if (collegeId != null) {
+      if (collegeId <= 0) throw new IllegalArgumentException("Select a valid college");
+      college(a, collegeId);
+      find(EduCollege.class, collegeId, false);
+    }
+    if (search != null && search.length() > 100)
+      throw new IllegalArgumentException("Student search is too long");
+    var p = new HashMap<String, Object>();
+    var c = a.college != null ? a.college : collegeId;
+    String w = " where 1=1";
+    if (c != null) {
+      w += " and s.college.id=:college";
+      p.put("college", c);
+    }
+    if (search != null && !search.isBlank()) {
+      w +=
+          " and (lower(s.studentCode) like :term escape '\\' or lower(s.user.fullName) like :term"
+              + " escape '\\')";
+      p.put(
+          "term",
+          "%" + search.toLowerCase(Locale.ROOT).replace("%", "\\%").replace("_", "\\_") + "%");
+    }
+    var students =
+        list(
+                "select s from EduStudent s" + w + " order by s.user.fullName,s.id",
+                EduStudent.class,
+                p,
+                Math.max(0, page) * 20,
+                20)
+            .stream()
+            .map(
+                s ->
+                    Map.of(
+                        "studentCode",
+                        s.studentCode,
+                        "fullName",
+                        Objects.requireNonNullElse(s.user.getFullName(), s.user.getUsername()),
+                        "collegeId",
+                        s.college.id,
+                        "collegeName",
+                        s.college.name))
+            .toList();
+    return Map.of(
+        "colleges",
+        colleges(name, null),
+        "domains",
+        domains.all.stream().filter(d -> a.domain == null || a.domain.equals(d.code())).toList(),
+        "students",
+        paged(students, count("select count(s) from EduStudent s" + w, p), page),
+        "collegeId",
+        a.college == null ? 0 : a.college);
+  }
+
   private Map<String, Object> reportView(EduReport r) {
     var v = new LinkedHashMap<String, Object>();
     v.put("id", r.id);
     v.put("domain", r.domain);
+    v.put("domains", new java.util.TreeSet<>(r.selectedDomains));
     v.put("collegeId", r.college == null ? null : r.college.id);
+    v.put("collegeName", r.college == null ? null : r.college.name);
     v.put("studentCode", r.student == null ? null : r.student.studentCode);
     v.put("status", r.filterStatus);
     v.put("fileName", r.fileName);
@@ -1319,9 +1486,9 @@ public class EducationService {
   }
 
   @Transactional(isolation = Isolation.REPEATABLE_READ)
-  public Map<String, Object> report(String name, Filter f) {
+  public Map<String, Object> report(String name, ReportFilter f) {
     var a = actor(name);
-    scope(a, f, true);
+    var selected = reportDomains(a, f);
     Long collegeId = a.college != null ? a.college : f.collegeId;
     EduStudent s =
         student(a)
@@ -1331,7 +1498,7 @@ public class EducationService {
                 : studentByCode(f.studentCode);
     if (collegeId == null && s != null) collegeId = s.college.id;
     var p = new HashMap<String, Object>();
-    String w = where(a, f, "t", p, true);
+    String w = reportWhere(a, f, selected, p);
     long total = count("select count(t) from EduTask t" + w, p);
     if (total > 200)
       throw new IllegalArgumentException(
@@ -1348,7 +1515,9 @@ public class EducationService {
             "generatedAt",
             Instant.now(),
             "domain",
-            domains.get(f.domain).name()));
+            selected.size() == 1
+                ? domains.get(selected.get(0)).name()
+                : selected.stream().map(d -> domains.get(d).name()).toList().toString()));
     snapshot.put(
         "filters",
         Map.of(
@@ -1360,7 +1529,12 @@ public class EducationService {
             s == null ? "All authorized students" : s.studentCode,
             "status",
             f.status == null || f.status.isBlank() ? "All statuses" : f.status));
-    snapshot.put("statistics", stats(a, f));
+    snapshot.put(
+        "statistics",
+        f.domain != null && !f.domain.isBlank()
+            ? stats(a, new Filter(f.collegeId, f.domain, f.studentCode, f.status))
+            : reportStatistics(a, f, selected));
+    snapshot.put("selectedDomains", selected);
     snapshot.put(
         "tasks",
         rows.stream()
@@ -1383,7 +1557,8 @@ public class EducationService {
     r.generatedBy = a.user;
     r.college = collegeId == null ? null : find(EduCollege.class, collegeId, false);
     r.student = s;
-    r.domain = f.domain;
+    r.domain = selected.size() == 1 ? selected.get(0) : null;
+    r.selectedDomains.addAll(selected);
     r.filterStatus = f.status;
     r.createdAt = Instant.now();
     r.snapshotJson = encode(snapshot);
@@ -1407,27 +1582,30 @@ public class EducationService {
     return reportView(r);
   }
 
-  public Map<String, Object> reports(String name, Filter f, int page) {
+  public Map<String, Object> reports(String name, ReportFilter f, int page) {
     var a = actor(name);
-    scope(a, f, true);
-    var p = new HashMap<String, Object>(Map.of("d", f.domain));
-    String w = " where r.domain=:d";
-    if (!root(a) && !a.role.equals("ROLE_DOMAIN_ADMIN")) {
+    var selected = reportDomains(a, f);
+    var p = new HashMap<String, Object>();
+    p.put("ds", selected);
+    String w =
+        " where not exists(select rd.id from EduReport rd join rd.selectedDomains d where"
+            + " rd.id=r.id and d not in :ds)";
+    if (student(a)) {
       w += " and r.generatedBy.id=:u";
       p.put("u", a.user.getId());
     }
-    Long collegeId = a.college != null ? a.college : f.collegeId;
-    if (collegeId != null) {
+    Long c = a.college != null ? a.college : f.collegeId;
+    if (c != null) {
       w += " and r.college.id=:c";
-      p.put("c", collegeId);
+      p.put("c", c);
     }
     if (f.studentCode != null && !f.studentCode.isBlank()) {
       w += " and r.student.studentCode=:s";
       p.put("s", f.studentCode.trim().toUpperCase(Locale.ROOT));
     }
     if (f.status != null && !f.status.isBlank()) {
-      w += " and r.filterStatus=:status";
-      p.put("status", f.status);
+      w += " and r.filterStatus=:state";
+      p.put("state", f.status);
     }
     return paged(
         list(
@@ -1446,18 +1624,21 @@ public class EducationService {
   public Download reportPdf(String name, Long id) {
     var a = actor(name);
     var r = find(EduReport.class, id, false);
-    if (!root(a)
-        && !a.role.equals("ROLE_DOMAIN_ADMIN")
-        && !r.generatedBy.getId().equals(a.user.getId()))
+    if (student(a) && !r.generatedBy.getId().equals(a.user.getId()))
       throw new AccessDeniedException("Report is outside your export history");
-    scope(
-        a,
-        new Filter(
-            r.college == null ? null : r.college.id,
-            r.domain,
-            r.student == null ? null : r.student.studentCode,
-            r.filterStatus),
-        true);
+    if (a.college != null && (r.college == null || !a.college.equals(r.college.id)))
+      throw new AccessDeniedException("Report is outside your college");
+    for (String d : r.selectedDomains)
+      scope(
+          a,
+          new Filter(
+              r.college == null ? null : r.college.id,
+              d,
+              r.student == null ? null : r.student.studentCode,
+              r.filterStatus),
+          true);
+    if (r.selectedDomains.isEmpty())
+      throw new IllegalStateException("Report domain scope is unavailable");
     if (!hashBytes(r.pdfBytes).equals(r.sha256))
       throw new IllegalStateException("Stored report integrity check failed");
     return new Download(r.pdfBytes, r.fileName);
@@ -1794,7 +1975,7 @@ public class EducationService {
   private void collegeApprover(Actor a) {
     if (!a.role.equals("ROLE_COLLEGE_ADMIN"))
       throw new AccessDeniedException(
-          "Only the student's College Admin may grant college-wide student access");
+          "Only the student's College Administration may grant college-wide student access");
   }
 
   public Map<String, Object> pendingStudentAccess(String name, int page) {

@@ -112,3 +112,16 @@ it.each([false, true])(
   },
 );
 it('Case Processing Team Lead login sends Team Lead intent without role-admin authority',async()=>{render(<LoginPage applicationRole="ROLE_CASE_PROCESSOR" roleName="Case Processor" teamLeadLogin/>);fireEvent.change(screen.getByLabelText('Username or official email'),{target:{value:'lead.one'}});fireEvent.change(screen.getByLabelText('Password',{exact:true}),{target:{value:'SyntheticLeadPassword123!'}});fireEvent.click(screen.getByRole('button',{name:'Log In to PharmaSafe'}));await waitFor(()=>expect(auth.login).toHaveBeenCalledWith('lead.one','SyntheticLeadPassword123!',{applicationRole:'ROLE_CASE_PROCESSOR',loginMode:'TEAM_LEAD'}));});
+it('switches user and college administration login without carrying credentials or stale portal errors',async()=>{
+ const {rerender}=render(<LoginPage />);
+ expect(screen.getByRole('link',{name:'User Login',exact:true})).toHaveAttribute('aria-current','page');
+ fireEvent.change(screen.getByLabelText('Username or official email'),{target:{value:'student.one'}});fireEvent.change(screen.getByLabelText('Password',{exact:true}),{target:{value:'SyntheticPassword123!'}});
+ fireEvent.submit(screen.getByLabelText('Password',{exact:true}).closest('form')!);
+ await waitFor(()=>expect(auth.login).toHaveBeenCalledWith('student.one','SyntheticPassword123!',{loginPortal:'USER'}));
+ const oldId=screen.getByLabelText('Username or official email').id;
+ rerender(<LoginPage collegeAdministration />);
+ expect(screen.getByLabelText('Username or official email')).toHaveValue('');expect(screen.getByLabelText('Password',{exact:true})).toHaveValue('');expect(screen.getByLabelText('Username or official email').id).not.toBe(oldId);
+ expect(auth.clearError).toHaveBeenCalled();expect(screen.getByRole('heading',{name:'College Administration Login',exact:true})).toBeVisible();
+ fireEvent.change(screen.getByLabelText('Username or official email'),{target:{value:'college.one'}});fireEvent.change(screen.getByLabelText('Password',{exact:true}),{target:{value:'SyntheticPassword123!'}});fireEvent.submit(screen.getByLabelText('Password',{exact:true}).closest('form')!);
+ await waitFor(()=>expect(auth.login).toHaveBeenCalledWith('college.one','SyntheticPassword123!',{loginPortal:'COLLEGE_ADMIN'}));
+});

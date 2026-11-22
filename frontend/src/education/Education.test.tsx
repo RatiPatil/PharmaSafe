@@ -200,10 +200,10 @@ it("Domain Admin gets seven authorized domain workspaces", async () => {
     screen.queryByRole("navigation", { name: "College workspace navigation" }),
   ).not.toBeInTheDocument();
 });
-it("College Admin can open each domain through the same workspace and see real counts", async () => {
+it("College Administration can open each domain through the same workspace and see real counts", async () => {
   m.user.role = "ROLE_COLLEGE_ADMIN";
   render(<EducationWorkspace />);
-  await screen.findByRole("heading", { name: "College Admin dashboard" });
+  await screen.findByRole("heading", { name: "College Administration dashboard" });
   await waitFor(() =>
     expect(screen.getAllByRole("button", { name: /^Open / })).toHaveLength(7),
   );
@@ -263,7 +263,7 @@ it("keeps Domain Admin college management inside the selected domain", async () 
   );
 });
 
-it("College Admin grants access separately from seven cards without college counts", async () => {
+it("College Administration grants access separately from seven cards without college counts", async () => {
   m.user.role = "ROLE_COLLEGE_ADMIN";
   const base = m.api.getMockImplementation()!;
   const pending = {

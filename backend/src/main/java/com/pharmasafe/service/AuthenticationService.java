@@ -134,6 +134,14 @@ public class AuthenticationService {
 
         if("ROLE_MEDICAL_TEAM_LEAD".equals(user.getRole())&&medicalTeams!=null&&medicalTeams.findByLeadId(user.getId()).filter(t->t.active).isEmpty())throw new org.springframework.security.access.AccessDeniedException("Medical team is inactive");
         if(educationAccess!=null&&!educationAccess.enabled(user))throw new org.springframework.security.access.AccessDeniedException("College or administrator access is inactive");
+        if(request.getLoginPortal()!=null){
+            if(request.getApplicationRole()!=null||request.getLoginMode()!=null)throw new IllegalArgumentException("Choose one login flow");
+            boolean college="ROLE_COLLEGE_ADMIN".equals(user.getRole());
+            if(college!=request.getLoginPortal().equals("COLLEGE_ADMIN")){
+                auditService.logEvent("LOGIN_PORTAL_DENIED",normalizedUsername,clientIp,userAgent,"DENIED","Account does not match selected login flow");
+                throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,college?"Use College Administration Login for this account.":"Use User Login for this account.");
+            }
+        }
         // A role portal restricts sign-in; it never grants the requested role.
         if(request.getApplicationRole()!=null||request.getLoginMode()!=null){
             String role=request.getApplicationRole(),mode=request.getLoginMode();

@@ -592,3 +592,7 @@
     transform: none;
   }
 }
+.pa-home .pa-header .pa-nav-college{padding:11px 16px;border-radius:10px;background:#f4f9f6;color:#376b5d;border-color:#ccdfd5;font-size:12px;min-height:44px}
+.pa-home .pa-header nav{flex-wrap:wrap}
+@media(max-width:760px){.pa-home .pa-header .pa-nav-college{font-size:11px;padding:10px 12px}.pa-home .pa-header nav{justify-content:start;gap:9px}}
+@media(max-width:480px){.pa-home .pa-header .pa-nav-college{width:100%;justify-content:center}}

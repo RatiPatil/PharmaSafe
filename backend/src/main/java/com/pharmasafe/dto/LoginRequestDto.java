@@ -19,6 +19,17 @@ public class LoginRequestDto {
   @jakarta.validation.constraints.Pattern(regexp = "USER|ROLE_ADMIN|TEAM_LEAD")
   private String loginMode;
 
+  @jakarta.validation.constraints.Pattern(regexp = "USER|COLLEGE_ADMIN")
+  private String loginPortal;
+
+  public String getLoginPortal() {
+    return loginPortal;
+  }
+
+  public void setLoginPortal(String value) {
+    loginPortal = value;
+  }
+
   public String getApplicationRole() {
     return applicationRole;
   }

@@ -364,7 +364,7 @@ export function EducationTask({
           )}
           {student && data.status === "SUBMITTED" && (
             <p className="ws-notice">
-              Your completed work is submitted. Your College Admin will review
+              Your completed work is submitted. Your College Administration will review
               it and provide feedback.
             </p>
           )}
